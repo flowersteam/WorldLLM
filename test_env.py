@@ -13,4 +13,4 @@ while not done:
     action = env.action_space.sample()
     print("Action: ", env.unwrapped.action_to_text(action))
     obs, _, done, _, info = env.step(action)
-    print("Observation: ", obs)
+    print("Observation: ", obs, ", action: ", info["action_text"])

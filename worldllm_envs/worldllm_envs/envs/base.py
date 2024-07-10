@@ -13,7 +13,7 @@ class BaseRule(abc.ABC):
 class BaseRuleEnv(gym.Env, abc.ABC):
     """Base Class for the world llm environments."""
 
-    def __init__(self, initial_config: Dict[str, Any]) -> None:
+    def __init__(self, initial_config: Dict[str, Any], **kwargs) -> None:
         self.observation_space = initial_config["observation_space"]
         self.action_space = initial_config["action_space"]
         self.rule: BaseRule
@@ -45,12 +45,12 @@ class BaseRuleEnv(gym.Env, abc.ABC):
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
-        if "rule" not in options:
-            raise ValueError("You must provide a rule to reset the environment.")
+        if (options is None or "rule" not in options) and not hasattr(self, "rule"):
+            raise ValueError("You must provide a rule to init the environment.")
         return self._reset(options)
 
     @abc.abstractmethod
-    def _reset(self, options) -> Tuple[Any, Dict[str, Any]]:
+    def _reset(self, options: Optional[Dict[str, Any]]) -> Tuple[Any, Dict[str, Any]]:
         """Reset the environment"""
 
     @abc.abstractmethod
@@ -68,6 +68,7 @@ class BaseRuleEnv(gym.Env, abc.ABC):
 class TextWrapper(gym.Wrapper):
     def __init__(self, env: BaseRuleEnv):
         super().__init__(env)
+        self.trajectory: str
 
     def action_to_text(self, action):
         return self.env.unwrapped.action_to_text(action)
@@ -80,8 +81,14 @@ class TextWrapper(gym.Wrapper):
 
     def step(self, action):
         observation, reward, terminated, truncated, info = self.env.step(action)
+        obs_text, act_text = self.observation_to_text(observation), self.action_to_text(
+            action
+        )
+        self.trajectory += f" {act_text} {obs_text}"
+        info["action_text"] = act_text
+        info["trajectory"] = self.trajectory
         return (
-            self.observation_to_text(observation),
+            obs_text,
             reward,
             terminated,
             truncated,
@@ -90,4 +97,6 @@ class TextWrapper(gym.Wrapper):
 
     def reset(self, seed=None, options=None):
         observation, info = self.env.reset(seed=seed, options=options)
+        self.trajectory = self.observation_to_text(observation)
+        info["trajectory"] = self.trajectory
         return self.observation_to_text(observation), info

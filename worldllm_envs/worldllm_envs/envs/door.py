@@ -181,8 +181,10 @@ class DoorEnv(BaseRuleEnv):
             *[list(enum)[i] for enum, i in zip([Sizes, Colors, Shapes], action)]
         )
 
-    def _reset(self, options: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
-        self.rule = options["rule"]
+    def _reset(self, options: Optional[Dict[str, Any]]) -> Tuple[int, Dict[str, Any]]:
+        # Change the rule if new one is presented
+        if options is not None and "rule" in options:
+            self.rule = options["rule"]
         return 0, {"rule": self.rule}
 
     def step(self, action):

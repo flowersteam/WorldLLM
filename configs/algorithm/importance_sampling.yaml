@@ -1,0 +1,3 @@
+name: importance_sampling
+nb_rules: 10
+nb_trajectories: 50

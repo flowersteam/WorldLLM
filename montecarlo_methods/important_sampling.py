@@ -5,6 +5,7 @@ import numpy as np
 from omegaconf import DictConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from utils_env import BaseAgent, generate_text_trajectories
 from worldllm_envs.envs.base import BaseRuleEnv
 
 
@@ -18,15 +19,20 @@ def update_weights(
 
 def important_sampling(
     env: BaseRuleEnv,
+    agent: BaseAgent,
     theorist: Tuple[AutoModelForCausalLM, AutoTokenizer],
     statistician: Tuple[AutoModelForCausalLM, AutoTokenizer],
     cfg: DictConfig,
 ) -> None:
+    # Define true rule
+    true_rule = env.generate_rule()
     # Init weights
     weights = np.ones((cfg.nb_rules, 1)) / cfg.nb_rules
 
     # Generate trajectories
-    prompt_trajectories = generate_text_trajectories(env, cfg.nb_trajectories)
+    prompt_trajectories = generate_text_trajectories(
+        env, agent, true_rule, cfg.nb_trajectories
+    )
 
     # Sample rules
     rules, importance_probs = generate_rules(
