@@ -28,8 +28,12 @@ class BaseRuleEnv(gym.Env, abc.ABC):
         self.rule = rule
 
     @abc.abstractmethod
-    def get_action_text(self, action) -> str:
+    def action_to_text(self, action) -> str:
         """Return text associated with the action"""
+
+    @abc.abstractmethod
+    def observation_to_text(self, observation) -> str:
+        """Return text associated with the observation"""
 
     @abc.abstractmethod
     def mapping_action(self, action) -> Tuple[Any, ...]:
@@ -59,3 +63,31 @@ class BaseRuleEnv(gym.Env, abc.ABC):
 
     def close(self):
         pass
+
+
+class TextWrapper(gym.Wrapper):
+    def __init__(self, env: BaseRuleEnv):
+        super().__init__(env)
+
+    def action_to_text(self, action):
+        return self.env.unwrapped.action_to_text(action)
+
+    def observation_to_text(self, observation):
+        return self.env.unwrapped.observation_to_text(observation)
+
+    def generate_rule(self):
+        return self.env.unwrapped.generate_rule()
+
+    def step(self, action):
+        observation, reward, terminated, truncated, info = self.env.step(action)
+        return (
+            self.observation_to_text(observation),
+            reward,
+            terminated,
+            truncated,
+            info,
+        )
+
+    def reset(self, seed=None, options=None):
+        observation, info = self.env.reset(seed=seed, options=options)
+        return self.observation_to_text(observation), info

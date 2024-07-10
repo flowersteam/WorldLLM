@@ -169,9 +169,12 @@ class DoorEnv(BaseRuleEnv):
         """Generate Rule with random combination of color, size and shape."""
         return Rule.from_combination(*generate_comb(2))
 
-    def get_action_text(self, action: Tuple[int, int, int]) -> str:
+    def action_to_text(self, action: Tuple[int, int, int]) -> str:
         combination = self.mapping_action(action)
         return combination.return_prompt()
+
+    def observation_to_text(self, observation) -> str:
+        return "The door is opened." if observation == 1 else "The door is closed."
 
     def mapping_action(self, action: Tuple[int, int, int]) -> Combination:
         return Combination(
