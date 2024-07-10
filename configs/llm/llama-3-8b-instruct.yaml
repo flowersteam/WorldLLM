@@ -1,0 +1,8 @@
+defaults:
+  - base_llm
+
+name: "meta-llama/Meta-Llama-3-8B-Instruct"
+tokenizer_params: 
+  padding_side: left
+opened token id: 57228
+closed token id: 35187

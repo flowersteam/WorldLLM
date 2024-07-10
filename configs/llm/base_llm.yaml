@@ -1,0 +1,8 @@
+name: ???
+model_params: {}
+tokenizer_params: {}
+is_quantized: True
+sampling_params: {}
+chat_template: null
+opened token id: ???
+closed token id: ???
