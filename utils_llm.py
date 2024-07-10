@@ -24,6 +24,10 @@ def load_transformers(
     tokenizer = AutoTokenizer.from_pretrained(
         model_config["name"], **model_config["tokenizer_params"]
     )
+    # We need padding token for batching
+    if tokenizer.pad_token is None:
+        tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+        model.resize_token_embeddings(len(tokenizer))
 
     if model_config["chat_template"]:
         tokenizer.chat_template = model_config["chat_template"]

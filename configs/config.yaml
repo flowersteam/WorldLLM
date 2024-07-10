@@ -1,2 +1,4 @@
 defaults: 
-  - llm: llama-3-8b-instruct
+  - llm@theorist: Phi-3-mini-4k-instruct
+  - llm@statistician: Phi-3-mini-4k-instruct
+  - env: door
