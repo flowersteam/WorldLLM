@@ -1,1 +1,3 @@
+defaults:
+  - base_agent
 _target_: utils_env.RandomAgent

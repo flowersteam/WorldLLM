@@ -1,5 +1,6 @@
 import abc
-from typing import Any, Dict, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import gymnasium as gym
 
@@ -10,13 +11,45 @@ class BaseRule(abc.ABC):
     pass
 
 
+@dataclass
+class EnvPromptInfo:
+    """Prompting info to give to the LLM"""
+
+    tokens: List[str]
+    stat_prompt: str
+    th_prompt: str
+    stat_template: Callable[[str, str], str]
+    th_template: Callable[[List[str]], str]
+
+
 class BaseRuleEnv(gym.Env, abc.ABC):
     """Base Class for the world llm environments."""
 
     def __init__(self, initial_config: Dict[str, Any], **kwargs) -> None:
         self.observation_space = initial_config["observation_space"]
         self.action_space = initial_config["action_space"]
+        for attr in [
+            "tokens",
+            "stat_prompt",
+            "stat_template",
+            "th_prompt",
+            "th_template",
+        ]:
+            if attr in kwargs:
+                setattr(self, attr, kwargs[attr])
+            else:
+                setattr(self, attr, initial_config[attr])
         self.rule: BaseRule
+
+    def get_message_info(self):
+        """Return prompting information for the theorist and statistician llms"""
+        return EnvPromptInfo(
+            self.tokens,
+            self.stat_prompt,
+            self.th_prompt,
+            self.stat_template,
+            self.th_template,
+        )
 
     @staticmethod
     @abc.abstractmethod

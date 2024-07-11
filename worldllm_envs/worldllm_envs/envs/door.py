@@ -1,6 +1,6 @@
 import random
 from enum import Enum
-from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import gymnasium as gym
 
@@ -156,13 +156,38 @@ class Rule(BaseRule):
 class DoorEnv(BaseRuleEnv):
     """Basic Door Environment."""
 
-    config = {
-        "observation_space": gym.spaces.Discrete(2),
-        "action_space": gym.spaces.MultiDiscrete([3, 3, 3], dtype="int"),
-    }
+    def __init__(self, **kwargs) -> None:
+        def statisitician_template(rule: str, trajectory: str):
+            """template given to the llm to compute the likelihood of a rule given a trajectory"""
+            return (
+                "You are in environment with a door. You have several objects at your disposal."
+                + "There are all the combinations of the possible objects: key, card and ball with the possible colors: red, green and blue and the possible sizes: small, medium and large."
+                + f"You know that the door {rule}. {trajectory} Do you think the door will open ? You must answer in lower case only by saying 'opened' or 'closed'."
+            )
 
-    def __init__(self) -> None:
-        super().__init__(self.config)
+        def theorist_template(trajectories: List[str]):
+            """Template given to the theorist to sample new rules given trajectories"""
+            msg = (
+                "You are in environment with a door. You have several objects at your disposal."
+                + "There are all the combinations of the possible objects: key, card and ball with the possible colors: red, green and blue and the possible sizes: small, medium and large."
+                + "You have these information: \n"
+            )
+            for trajectory in trajectories:
+                msg += f"{trajectory}\n"
+            msg += "\nFrom these, can you find the rule for each door ? It should respect all the trajectories while still being as general as possible."
+            return msg
+
+        config = {
+            "observation_space": gym.spaces.Discrete(2),
+            "action_space": gym.spaces.MultiDiscrete([3, 3, 3]),
+            "tokens": ["opened", "closed"],
+            "stat_prompt": "You must answer only by saying 'opened' or 'closed'.",
+            "stat_template": statisitician_template,
+            "th_prompt": "",
+            "th_template": theorist_template,
+        }
+
+        super().__init__(config, **kwargs)
 
     @staticmethod
     def generate_rule() -> Rule:
