@@ -3,12 +3,9 @@ defaults:
   - base_llm
   
 name: "microsoft/Phi-3-mini-4k-instruct"
-sampling_params: 
-  temperature: 0.7  
-  top_p: 0.95
-  top_k: 50
-  max_tokens: 1000
-  repetition_penalty: 1.2
+generation_kwargs: 
+  cache_implementation: null
+  cache_config: null
 chat_template: "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'system') %}{{'<|system|>' + '\n' + message['content'] + '<|end|>' + '\n'}}{% elif (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif message['role'] == 'assistant' %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}"
 
 opened token id: 6496

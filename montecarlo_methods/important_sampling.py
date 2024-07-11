@@ -1,10 +1,12 @@
 from typing import List, Tuple
 
 import numpy as np
+import torch
 from omegaconf import DictConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils_env import BaseAgent, generate_text_trajectories
+from utils_llm import generate_rules
 from worldllm_envs.envs.base import BaseRuleEnv
 
 
@@ -32,7 +34,6 @@ def important_sampling(
     prompt_trajectories = generate_text_trajectories(
         env, agent, true_rule, cfg.nb_trajectories
     )
-
     # Sample rules
     rules, importance_probs = generate_rules(
         theorist, prompt_trajectories, cfg.nb_rules

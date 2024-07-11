@@ -31,6 +31,7 @@ class LlmModel:
     model: AutoModelForCausalLM
     tokenizer: AutoTokenizer
     prompt_info: PromptInfo
+    generation_kwargs: Dict[str, Any]
 
 
 def build_llms(
@@ -51,8 +52,15 @@ def build_llms(
         cfg.algorithm.th_sys_prompt,
     )
     # Set prompt information
-    statistician = LlmModel(statistician[0], statistician[1], stat_prompt_info)
-    theorist = LlmModel(theorist[0], theorist[1], th_prompt_info)
+    statistician = LlmModel(
+        statistician[0],
+        statistician[1],
+        stat_prompt_info,
+        cfg.statistician.generation_kwargs,
+    )
+    theorist = LlmModel(
+        theorist[0], theorist[1], th_prompt_info, cfg.theorist.generation_kwargs
+    )
     return statistician, theorist
 
 
@@ -65,7 +73,12 @@ def load_transformers(
     # Set quantization config
     quantization_config = None
     if model_config["is_quantized"]:
-        quantization_config = BitsAndBytesConfig(load_in_4bit=True)
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+        )
     model = AutoModelForCausalLM.from_pretrained(
         model_config["name"],
         device_map="auto",
@@ -132,64 +145,59 @@ def build_stat_prompt_info(
     )
 
 
-def _generate_rule(theorist: LlmModel, lst_message: List[str]):
+def _generate_rule(
+    theorist: LlmModel, lst_message: List[str], generation_args: Dict[str, Any]
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """Generate rule given message batch"""
-    generation_args = {
-        "temperature": 0.7,
-        "do_sample": True,
-        "max_new_tokens": 1024,
-        "top_p": 0.95,
-        "top_k": 50,
-        "repetition_penalty": 1.2,
-        "output_scores": True,
-        "return_dict_in_generate": True,
-        "num_return_sequences": 10,
-    }
+    inputs = theorist.tokenizer.apply_chat_template(
+        lst_message,
+        add_generation_prompt=True,
+        return_tensors="pt",
+    ).to(theorist.model.device)
+    results = theorist.model.generate(inputs, **generation_args)
+    generated_sequences = results.sequences[:, inputs.shape[-1] :]
+    generated_rules = theorist.tokenizer.batch_decode(
+        generated_sequences, skip_special_tokens=True
+    )
+    logp = torch.nn.functional.log_softmax(torch.stack(results.scores, dim=1), dim=-1)
+    scores = torch.gather(logp, 2, generated_sequences[:, :, None]).squeeze(-1)
+    # Change score from -inf to 0 to ignore padding
+    scores = scores.masked_fill_(scores == -torch.inf, 0)
+    aggregated_scores = scores.sum(-1)
+    return generated_rules, aggregated_scores.cpu()
 
 
 def generate_rules(
     theorist: LlmModel,
     trajectories: List[str],
     nb_rules: int,
-    batch_size: int = 20,
 ):
     """Generate rules given the trajectories."""
-    lst_messages = []
-    for trajectory in trajectories:
-        lst_messages.append(
-            [
-                {
-                    "role": "system",
-                    "content": theorist.prompt_info.system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": theorist.prompt_info.message_template(trajectory),
-                },
-            ]
-        )
-    all_scores = []
-    for incr in range(0, len(lst_test_rule) * len(combinations), batch_size):
-        all_scores.append(
-            compute_scores(
-                llm,
-                tokenizer,
-                generation_args,
-                closed_token_id,
-                opened_token_id,
-                lst_messages[incr : incr + batch_size],
-            )
-        )
-    scores = torch.cat(all_scores, dim=0)
+    # Config for the generation, shouldn't need be changed
+    generation_args = {
+        "max_new_tokens": 100,
+        "do_sample": True,
+        "output_scores": True,
+        "return_dict_in_generate": True,
+        "num_return_sequences": nb_rules,
+    }
+    generation_args.update(theorist.generation_kwargs)
 
-    scores = torch.stack(torch.split(scores, len(combinations)))
-    opened_door_true = torch.tensor(
-        [door_rule.is_opened(combination) for combination in combinations]
-    ).to("cpu")
-    log_probability = torch.cumsum(
-        torch.log(torch.where(opened_door_true, scores[:, :, 1], scores[:, :, 0])),
-        dim=1,
-    )
+    message = [
+        (
+            {
+                "role": "system",
+                "content": theorist.prompt_info.system_prompt,
+            },
+            {
+                "role": "user",
+                "content": theorist.prompt_info.message_template(trajectories),
+            },
+        )
+    ]
+    rules, log_probs = _generate_rule(theorist, message, generation_args)
+    print(rules)
+    assert False
 
 
 def compute_likelihood_scores(

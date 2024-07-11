@@ -1,5 +1,6 @@
 import gymnasium as gym
 import hydra
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 from montecarlo_methods.important_sampling import important_sampling
@@ -20,7 +21,8 @@ def main(cfg: DictConfig) -> None:
         raise ValueError("The agent must inherit from BaseAgent.")
     # Load LLMs
     statistician, theorist = build_llms(cfg, env.unwrapped.get_message_info())
-
+    # Print gpu ram usage
+    print(f"GPU RAM usage: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
     # Run the algorithm
     if cfg.algorithm.name == "importance_sampling":
         important_sampling(env, agent, theorist, statistician, cfg.algorithm)

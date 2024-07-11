@@ -2,5 +2,6 @@ defaults:
   - base_algorithm
 
 name: importance_sampling
-nb_rules: 10
+nb_rules: 5
 nb_trajectories: 50
+th_batch_size: 20
