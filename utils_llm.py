@@ -15,6 +15,7 @@ class PromptInfo:
 
     system_prompt: str
     message_template: Callable[..., str]
+    batch_size: int
 
 
 @dataclass
@@ -44,12 +45,17 @@ def build_llms(
     else:
         statistician = theorist
     # Build System prompt and base message given the environment
-    stat_prompt_info, th_prompt_info = build_prompt_info(
+    stat_prompt_info = build_stat_prompt_info(
         statistician,
-        theorist,
         env_prompt_info,
         cfg.algorithm.stat_sys_prompt,
+        cfg.algorithm.stat_batch_size,
+    )
+    th_prompt_info = build_th_prompt_info(
+        theorist,
+        env_prompt_info,
         cfg.algorithm.th_sys_prompt,
+        cfg.algorithm.th_batch_size,
     )
     # Set prompt information
     statistician = LlmModel(
@@ -98,28 +104,17 @@ def load_transformers(
     return (model, tokenizer)
 
 
-def build_prompt_info(
-    statistician: Tuple[AutoModelForCausalLM, AutoTokenizer],
-    theorist: Tuple[AutoModelForCausalLM, AutoTokenizer],
-    env_prompt_info: EnvPromptInfo,
-    base_stat_prompt: str,
-    base_th_prompt: str,
-):
-    """Build the prompts for the llms"""
-    return (
-        build_stat_prompt_info(statistician, env_prompt_info, base_stat_prompt),
-        build_th_prompt_info(theorist, env_prompt_info, base_th_prompt),
-    )
-
-
 def build_th_prompt_info(
     model: Tuple[AutoModelForCausalLM, AutoTokenizer],
     env_prompt_info: EnvPromptInfo,
     base_system_prompt: str,
+    batch_size: int,
 ):
     """Build the prompt and message necessary for the Theorist."""
     return PromptInfo(
-        base_system_prompt + env_prompt_info.th_prompt, env_prompt_info.th_template
+        base_system_prompt + env_prompt_info.th_prompt,
+        env_prompt_info.th_template,
+        batch_size,
     )
 
 
@@ -127,6 +122,7 @@ def build_stat_prompt_info(
     model: Tuple[AutoModelForCausalLM, AutoTokenizer],
     env_prompt_info: EnvPromptInfo,
     base_system_prompt: str,
+    batch_size: int,
 ) -> StatPromptInfo:
     """Build the prompt and message necessary for the Statistician."""
     llm, tokenizer = model
@@ -139,9 +135,7 @@ def build_stat_prompt_info(
 
     system_prompt = base_system_prompt + env_prompt_info.stat_prompt
     return StatPromptInfo(
-        system_prompt,
-        env_prompt_info.stat_template,
-        lst_token_id,
+        system_prompt, env_prompt_info.stat_template, lst_token_id, batch_size
     )
 
 
@@ -171,33 +165,41 @@ def generate_rules(
     theorist: LlmModel,
     trajectories: List[str],
     nb_rules: int,
-):
+) -> Tuple[List[str], torch.Tensor]:
     """Generate rules given the trajectories."""
     # Config for the generation, shouldn't need be changed
+
     generation_args = {
         "max_new_tokens": 100,
         "do_sample": True,
         "output_scores": True,
         "return_dict_in_generate": True,
-        "num_return_sequences": nb_rules,
     }
     generation_args.update(theorist.generation_kwargs)
-
-    message = [
-        (
-            {
-                "role": "system",
-                "content": theorist.prompt_info.system_prompt,
-            },
-            {
-                "role": "user",
-                "content": theorist.prompt_info.message_template(trajectories),
-            },
+    all_rules = []
+    all_log_probs = []
+    for batch in range(0, nb_rules, theorist.prompt_info.batch_size):
+        # Set batch size
+        generation_args["num_return_sequences"] = (
+            min(theorist.prompt_info.batch_size, nb_rules - batch),
         )
-    ]
-    rules, log_probs = _generate_rule(theorist, message, generation_args)
-    print(rules)
-    assert False
+
+        message = [
+            (
+                {
+                    "role": "system",
+                    "content": theorist.prompt_info.system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": theorist.prompt_info.message_template(trajectories),
+                },
+            )
+        ]
+        rules, log_probs = _generate_rule(theorist, message, generation_args)
+        all_rules.extend(rules)
+        all_log_probs.append(log_probs)
+    return all_rules, torch.cat(all_log_probs)
 
 
 def compute_likelihood_scores(
@@ -223,7 +225,6 @@ def compute_likelihood(
     statistician: LlmModel,
     rules: List[str],
     trajectories: List[str],
-    batch_size: int = 20,
 ):
     """Compute the likelihood of the new data given the rules."""
     # Generation args
