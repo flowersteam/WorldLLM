@@ -38,6 +38,10 @@ def important_sampling(
     rules, importance_probs = generate_rules(
         theorist, prompt_trajectories, cfg.nb_rules
     )
+    if cfg.add_true_rule:
+        rules.append(true_rule)
+        importance_probs = np.append(importance_probs, np.log(1 / (cfg.nb_rules + 1)))
+
     # Compute likelihoods of new data using the rules
     likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
 
@@ -49,4 +53,8 @@ def important_sampling(
     print("true rule: " + repr(true_rule))
     print("------------------------")
     for rule, weight in zip(rules, weights):
-        print("-----rule-----:   " + repr(rule) + f": {weight}")
+        print(
+            "-----rule-----:   "
+            + repr(rule)
+            + f" weight: {weight:2f}, ip: {importance_probs:2f}, ll: {likelihoods:2f}"
+        )

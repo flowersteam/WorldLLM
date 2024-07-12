@@ -4,3 +4,4 @@ defaults:
 name: importance_sampling
 nb_rules: 5
 nb_trajectories: 50
+add_true_rule: true
