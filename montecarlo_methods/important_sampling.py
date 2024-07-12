@@ -15,7 +15,7 @@ def update_weights(
 ) -> np.ndarray:
     """Update the weights using the classic importance sampling formula and normalize them."""
     weights = log_likelihood - log_posterior
-    return weights / np.sum(weights)
+    return weights
 
 
 def important_sampling(
@@ -45,5 +45,8 @@ def important_sampling(
     weights = update_weights(weights, importance_probs, likelihoods)
 
     # Print rules and weights
+    print("------------------------")
+    print("true rule: " + repr(true_rule))
+    print("------------------------")
     for rule, weight in zip(rules, weights):
-        print(f"{rule}: {weight}")
+        print("-----rule-----:   " + repr(rule) + f": {weight}")
