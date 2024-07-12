@@ -6,15 +6,15 @@ from omegaconf import DictConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils_env import BaseAgent, generate_text_trajectories
-from utils_llm import generate_rules
+from utils_llm import compute_likelihood, generate_rules
 from worldllm_envs.envs.base import BaseRuleEnv
 
 
 def update_weights(
-    weights: np.ndarray, posterior: np.ndarray, likelihood: np.ndarray
+    weights: np.ndarray, log_posterior: np.ndarray, log_likelihood: np.ndarray
 ) -> np.ndarray:
     """Update the weights using the classic importance sampling formula and normalize them."""
-    weights = likelihood / posterior
+    weights = log_likelihood - log_posterior
     return weights / np.sum(weights)
 
 

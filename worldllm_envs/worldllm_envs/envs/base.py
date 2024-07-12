@@ -101,7 +101,8 @@ class BaseRuleEnv(gym.Env, abc.ABC):
 class TextWrapper(gym.Wrapper):
     def __init__(self, env: BaseRuleEnv):
         super().__init__(env)
-        self.trajectory: str
+        self.text_trajectory: List[str]
+        self.obs_trajectory: List[Any]
 
     def action_to_text(self, action):
         return self.env.unwrapped.action_to_text(action)
@@ -117,9 +118,11 @@ class TextWrapper(gym.Wrapper):
         obs_text, act_text = self.observation_to_text(observation), self.action_to_text(
             action
         )
-        self.trajectory += f" {act_text} {obs_text}"
+        self.text_trajectory.extend([act_text, obs_text])
+        self.obs_trajectory.append(observation)
         info["action_text"] = act_text
-        info["trajectory"] = self.trajectory
+        info["text_trajectory"] = self.text_trajectory
+        info["obs_trajectory"] = self.obs_trajectory
         return (
             obs_text,
             reward,
@@ -130,6 +133,8 @@ class TextWrapper(gym.Wrapper):
 
     def reset(self, seed=None, options=None):
         observation, info = self.env.reset(seed=seed, options=options)
-        self.trajectory = self.observation_to_text(observation)
-        info["trajectory"] = self.trajectory
+        self.text_trajectory = [self.observation_to_text(observation)]
+        self.obs_trajectory = [observation]
+        info["text_trajectory"] = self.text_trajectory
+        info["obs_trajectory"] = self.obs_trajectory
         return self.observation_to_text(observation), info

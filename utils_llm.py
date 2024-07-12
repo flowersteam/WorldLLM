@@ -2,10 +2,12 @@ import warnings
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Tuple
 
+import numpy as np
 import torch
 from omegaconf import DictConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
+from utils_env import Trajectory
 from worldllm_envs.envs.base import EnvPromptInfo
 
 
@@ -135,7 +137,7 @@ def build_stat_prompt_info(
 
     system_prompt = base_system_prompt + env_prompt_info.stat_prompt
     return StatPromptInfo(
-        system_prompt, env_prompt_info.stat_template, lst_token_id, batch_size
+        system_prompt, env_prompt_info.stat_template, batch_size, lst_token_id
     )
 
 
@@ -163,9 +165,9 @@ def _generate_rule(
 
 def generate_rules(
     theorist: LlmModel,
-    trajectories: List[str],
+    trajectories: List[Trajectory],
     nb_rules: int,
-) -> Tuple[List[str], torch.Tensor]:
+) -> Tuple[List[str], np.ndarray]:
     """Generate rules given the trajectories."""
     # Config for the generation, shouldn't need be changed
 
@@ -176,14 +178,14 @@ def generate_rules(
         "return_dict_in_generate": True,
     }
     generation_args.update(theorist.generation_kwargs)
+    trajectories = [trajectory.get_full_text() for trajectory in trajectories]
     all_rules = []
     all_log_probs = []
     for batch in range(0, nb_rules, theorist.prompt_info.batch_size):
         # Set batch size
-        generation_args["num_return_sequences"] = (
-            min(theorist.prompt_info.batch_size, nb_rules - batch),
+        generation_args["num_return_sequences"] = min(
+            theorist.prompt_info.batch_size, nb_rules - batch
         )
-
         message = [
             (
                 {
@@ -199,23 +201,21 @@ def generate_rules(
         rules, log_probs = _generate_rule(theorist, message, generation_args)
         all_rules.extend(rules)
         all_log_probs.append(log_probs)
-    return all_rules, torch.cat(all_log_probs)
+    return all_rules, torch.cat(all_log_probs).numpy()
 
 
 def compute_likelihood_scores(
-    stat_data: LlmModel,
+    statistician: LlmModel,
     generation_args: Dict[str, Any],
     tokens: List[int],
-    lst_messages: List[str],
+    lst_message: List[str],
 ) -> torch.Tensor:
     """Compute the score for each message"""
-    inputs = stat_data.tokenizer.apply_chat_template(
-        lst_messages,
-        add_generation_prompt=True,
-        return_tensors="pt",
-        padding=True,
-    ).to(stat_data.model.device)
-    scores = stat_data.model.generate(inputs, **generation_args).scores[0]
+    inputs = statistician.tokenizer.apply_chat_template(
+        lst_message, add_generation_prompt=True, return_tensors="pt", padding=True
+    ).to(statistician.model.device)
+    results = statistician.model.generate(inputs, **generation_args)
+    scores = results.scores[0]
     scores = scores[:, tokens]
     scores = scores.softmax(dim=-1).cpu()
     return scores
@@ -224,9 +224,12 @@ def compute_likelihood_scores(
 def compute_likelihood(
     statistician: LlmModel,
     rules: List[str],
-    trajectories: List[str],
-):
+    trajectories: List[Trajectory],
+) -> np.ndarray:
     """Compute the likelihood of the new data given the rules."""
+    assert isinstance(
+        trajectories[0].obs[0], int
+    ), "We only support discrete observation for the environment for now."
     # Generation args
     generation_args = {
         "temperature": 1,
@@ -240,24 +243,38 @@ def compute_likelihood(
     }
     lst_messages = []
     # Generate messages
+    for rule in rules:
+        for trajectory in trajectories:
+            message = (
+                {
+                    "role": "system",
+                    "content": statistician.prompt_info.system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": statistician.prompt_info.message_template(
+                        rule, " ".join(trajectory.text[:-1])
+                    ),
+                },
+            )
+            lst_messages.append(message)
+    batch_size = statistician.prompt_info.batch_size
     all_scores = []
     for incr in range(0, len(rules) * len(trajectories), batch_size):
         all_scores.append(
             compute_likelihood_scores(
                 statistician,
                 generation_args,
-                tokens_to_compare,
+                statistician.prompt_info.tokens,
                 lst_messages[incr : incr + batch_size],
             )
         )
     scores = torch.cat(all_scores, dim=0)
 
     scores = torch.stack(torch.split(scores, len(trajectories)))
-    assert False, "Implement likelihood on random trajs"
-    opened_door_true = torch.tensor(
-        [door_rule.is_opened(combination) for combination in trajectories]
-    ).to("cpu")
-    log_probability = torch.cumsum(
-        torch.log(torch.where(opened_door_true, scores[:, :, 1], scores[:, :, 0])),
-        dim=1,
-    )
+    obs_to_predict = torch.tensor([trajectory.obs[-1] for trajectory in trajectories])
+
+    log_probability = torch.log(
+        scores[:, torch.arange(len(trajectories)), obs_to_predict]
+    ).sum(dim=1)
+    return log_probability.numpy()

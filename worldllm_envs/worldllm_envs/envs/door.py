@@ -162,7 +162,7 @@ class DoorEnv(BaseRuleEnv):
             return (
                 "You are in environment with a door. You have several objects at your disposal."
                 + "There are all the combinations of the possible objects: key, card and ball with the possible colors: red, green and blue and the possible sizes: small, medium and large."
-                + f"You know that the door {rule}. {trajectory} Do you think the door will open ? You must answer in lower case only by saying 'opened' or 'closed'."
+                + f"{rule} {trajectory}\nDo you think the door will open ? You must answer in lower case only by saying 'opened' or 'closed'."
             )
 
         # When designing the template keep in mind that the text generated should be only the rule
@@ -181,7 +181,10 @@ class DoorEnv(BaseRuleEnv):
         config = {
             "observation_space": gym.spaces.Discrete(2),
             "action_space": gym.spaces.MultiDiscrete([3, 3, 3]),
-            "tokens": ["opened", "closed"],
+            "tokens": [
+                "closed",
+                "opened",
+            ],  # List must be same size as observation_space and in same order
             "stat_prompt": "You must answer only by saying 'opened' or 'closed'.",
             "stat_template": statisitician_template,
             "th_prompt": "",

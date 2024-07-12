@@ -1,5 +1,6 @@
 import abc
-from typing import List
+from dataclasses import dataclass
+from typing import Any, List
 
 from worldllm_envs.envs.base import BaseRule, BaseRuleEnv
 
@@ -18,13 +19,27 @@ class RandomAgent(BaseAgent):
         return self.action_space.sample()
 
 
+@dataclass
+class Trajectory:
+    """Save information on some rollout for the llms."""
+
+    text: List[str]
+    obs: List[Any]
+
+    def __len__(self):
+        return len(self.text)
+
+    def get_full_text(self) -> str:
+        return " ".join(self.text)
+
+
 def generate_text_trajectories(
     env: BaseRuleEnv, agent: BaseAgent, rule: BaseRule, nb_trajectories: int
-) -> List[str]:
+) -> List[Trajectory]:
     """Generate random trajectories for the environment."""
     # Set rule
     obs, _ = env.reset(options={"rule": rule})
-    trajectories = []
+    lst_trajectory = []
     for _ in range(nb_trajectories):
         obs, _ = env.reset()
         done = False
@@ -32,5 +47,7 @@ def generate_text_trajectories(
             action = agent(obs)
             obs, _, terminated, truncated, info = env.step(action)
             done = terminated or truncated
-        trajectories.append(info["trajectory"])
-    return trajectories
+        lst_trajectory.append(
+            Trajectory(info["text_trajectory"], info["obs_trajectory"])
+        )
+    return lst_trajectory
