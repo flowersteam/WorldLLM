@@ -1,11 +1,16 @@
 import abc
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any, Dict, List, Optional
+
+import gymnasium as gym
+from omegaconf import DictConfig, OmegaConf
 
 from worldllm_envs.envs.base import BaseRule, BaseRuleEnv
 
 
 class BaseAgent(abc.ABC):
+    """Base class for the agents."""
+
     def __init__(self, action_space):
         self.action_space = action_space
 
@@ -15,6 +20,8 @@ class BaseAgent(abc.ABC):
 
 
 class RandomAgent(BaseAgent):
+    """The agent that samples actions uniformly."""
+
     def __call__(self, obs):
         return self.action_space.sample()
 
@@ -31,6 +38,17 @@ class Trajectory:
 
     def get_full_text(self) -> str:
         return " ".join(self.text)
+
+
+def build_env(cfg: DictConfig):
+    """Build the environment."""
+    # Add seed to kwargs
+    kwargs = OmegaConf.to_container(cfg.env.kwargs, resolve=True)
+    kwargs["seed"] = cfg.seed
+    env = gym.make(cfg.env.id, **kwargs)
+    if not isinstance(env.unwrapped, BaseRuleEnv):
+        raise ValueError("The environment must be rule based.")
+    return env
 
 
 def generate_text_trajectories(

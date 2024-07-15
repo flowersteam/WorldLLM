@@ -2,6 +2,6 @@ defaults:
   - base_algorithm
 
 name: importance_sampling
-nb_rules: 5
+nb_rules: 10
 nb_trajectories: 50
 add_true_rule: true

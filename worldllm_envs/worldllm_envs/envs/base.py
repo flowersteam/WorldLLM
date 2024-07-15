@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import gymnasium as gym
+import numpy as np
 
 
 class BaseRule(abc.ABC):
@@ -40,6 +41,11 @@ class BaseRuleEnv(gym.Env, abc.ABC):
             else:
                 setattr(self, attr, initial_config[attr])
         self.rule: BaseRule
+        # Set the seed
+        seed = kwargs["seed"] if "seed" in kwargs else None
+        self.observation_space.seed(seed)
+        self.action_space.seed(seed)
+        self.np_random = np.random.default_rng(seed)
 
     def get_message_info(self):
         """Return prompting information for the theorist and statistician llms"""
@@ -104,6 +110,7 @@ class TextWrapper(gym.Wrapper):
         self.text_trajectory: List[str]
         self.obs_trajectory: List[Any]
 
+    # TODO: remove unwrapped as it takes longer to take the function
     def action_to_text(self, action):
         return self.env.unwrapped.action_to_text(action)
 

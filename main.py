@@ -1,21 +1,25 @@
-import gymnasium as gym
+import random
+
 import hydra
+import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 
 from montecarlo_methods.important_sampling import important_sampling
-from utils_env import BaseAgent
+from utils_env import BaseAgent, build_env
 from utils_llm import build_llms
-from worldllm_envs.envs.base import BaseRuleEnv
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
+    # Set seed
+    np.random.seed(cfg.seed)
+    random.seed(cfg.seed)
+    torch.manual_seed(cfg.seed)
+    torch.cuda.manual_seed_all(cfg.seed)
     # Instantiate the environment and the agent
-    env = gym.make(cfg.env.id, **cfg.env.kwargs)
-    if not isinstance(env.unwrapped, BaseRuleEnv):
-        raise ValueError("The environment must be rule based.")
+    env = build_env(cfg)
     agent = hydra.utils.instantiate(cfg.agent, action_space=env.action_space)
     if not isinstance(agent, BaseAgent):
         raise ValueError("The agent must inherit from BaseAgent.")
