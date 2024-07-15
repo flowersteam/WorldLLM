@@ -14,10 +14,11 @@ from utils_llm import build_llms
 def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
     # Set seed
-    np.random.seed(cfg.seed)
-    random.seed(cfg.seed)
-    torch.manual_seed(cfg.seed)
-    torch.cuda.manual_seed_all(cfg.seed)
+    if cfg.seed is not None:
+        np.random.seed(cfg.seed)
+        random.seed(cfg.seed)
+        torch.manual_seed(cfg.seed)
+        torch.cuda.manual_seed_all(cfg.seed)
     # Instantiate the environment and the agent
     env = build_env(cfg)
     agent = hydra.utils.instantiate(cfg.agent, action_space=env.action_space)

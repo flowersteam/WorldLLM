@@ -42,10 +42,11 @@ class BaseRuleEnv(gym.Env, abc.ABC):
                 setattr(self, attr, initial_config[attr])
         self.rule: BaseRule
         # Set the seed
-        seed = kwargs["seed"] if "seed" in kwargs else None
-        self.observation_space.seed(seed)
-        self.action_space.seed(seed)
-        self.np_random = np.random.default_rng(seed)
+        if kwargs.get("seed") is not None:
+            seed = kwargs["seed"]
+            self.observation_space.seed(seed)
+            self.action_space.seed(seed)
+            self.np_random = np.random.default_rng(seed)
 
     def get_message_info(self):
         """Return prompting information for the theorist and statistician llms"""
