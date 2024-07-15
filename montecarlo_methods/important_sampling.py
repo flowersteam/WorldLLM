@@ -1,7 +1,6 @@
-from typing import List, Tuple
+from typing import Tuple
 
 import numpy as np
-import torch
 from omegaconf import DictConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -52,9 +51,11 @@ def important_sampling(
     print("------------------------")
     print("true rule: " + repr(true_rule))
     print("------------------------")
-    for rule, weight in zip(rules, weights):
+    for rule, weight, ip, likelihood in zip(
+        rules, weights, importance_probs, likelihoods
+    ):
         print(
             "-----rule-----:   "
             + repr(rule)
-            + f" weight: {weight:2f}, ip: {importance_probs:2f}, ll: {likelihoods:2f}"
+            + f" weight: {weight:2f}, ip: {ip:2f}, ll: {likelihood:2f}"
         )
