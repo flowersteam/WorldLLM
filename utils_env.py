@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import gymnasium as gym
 from omegaconf import DictConfig, OmegaConf
+from tqdm import tqdm
 
 from worldllm_envs.envs.base import BaseRule, BaseRuleEnv
 
@@ -58,7 +59,7 @@ def generate_text_trajectories(
     # Set rule
     obs, _ = env.reset(options={"rule": rule})
     lst_trajectory = []
-    for _ in range(nb_trajectories):
+    for _ in tqdm(range(nb_trajectories), desc="Generating trajectories"):
         obs, _ = env.reset()
         done = False
         while not done:

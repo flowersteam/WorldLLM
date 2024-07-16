@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Tuple
 import numpy as np
 import torch
 from omegaconf import DictConfig
+from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 from utils_env import Trajectory
@@ -181,7 +182,9 @@ def generate_rules(
     trajectories = [trajectory.get_full_text() for trajectory in trajectories]
     all_rules = []
     all_log_probs = []
-    for batch in range(0, nb_rules, theorist.prompt_info.batch_size):
+    for batch in tqdm(
+        range(0, nb_rules, theorist.prompt_info.batch_size), desc="Generating rules"
+    ):
         # Set batch size
         generation_args["num_return_sequences"] = min(
             theorist.prompt_info.batch_size, nb_rules - batch
@@ -260,7 +263,10 @@ def compute_likelihood(
             lst_messages.append(message)
     batch_size = statistician.prompt_info.batch_size
     all_scores = []
-    for incr in range(0, len(rules) * len(trajectories), batch_size):
+    for incr in tqdm(
+        range(0, len(rules) * len(trajectories), batch_size),
+        desc="Computing likelihood",
+    ):
         all_scores.append(
             compute_likelihood_scores(
                 statistician,
