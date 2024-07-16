@@ -6,4 +6,6 @@ defaults:
   - agent: random
 
 
-seed: 50
+seed: 100
+algorithm:
+  nb_rules: 100

@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, List
 
 import gymnasium as gym
 from omegaconf import DictConfig, OmegaConf

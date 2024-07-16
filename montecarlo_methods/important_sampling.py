@@ -1,3 +1,4 @@
+from inspect import indentsize
 from typing import Tuple
 
 import numpy as np
@@ -7,14 +8,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from utils_env import BaseAgent, generate_text_trajectories
 from utils_llm import compute_likelihood, generate_rules
 from worldllm_envs.envs.base import BaseRuleEnv
-
-
-def update_weights(
-    weights: np.ndarray, log_posterior: np.ndarray, log_likelihood: np.ndarray
-) -> np.ndarray:
-    """Update the weights using the classic importance sampling formula and normalize them."""
-    weights = log_likelihood - log_posterior
-    return weights
 
 
 def important_sampling(
@@ -44,18 +37,13 @@ def important_sampling(
     # Compute likelihoods of new data using the rules
     likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
 
-    # Update weights
-    weights = update_weights(weights, importance_probs, likelihoods)
+    # weights is just the likelihoods for importance sampling with resampling
+    weights = likelihoods
 
-    # Print rules and weights
+    # Print rules and weights sorted
+    indices = np.argsort(-weights)
     print("------------------------")
     print("true rule: " + repr(true_rule))
     print("------------------------")
-    for rule, weight, ip, likelihood in zip(
-        rules, weights, importance_probs, likelihoods
-    ):
-        print(
-            "-----rule-----:   "
-            + repr(rule)
-            + f" weight: {weight:2f}, ip: {ip:2f}, ll: {likelihood:2f}"
-        )
+    for ind in indices:
+        print("-----rule-----:   " + repr(rules[ind]) + f" weight: {weights[ind]:2f}")
