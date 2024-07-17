@@ -1,6 +1,6 @@
 import warnings
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -35,7 +35,7 @@ class LlmModel:
     model: AutoModelForCausalLM
     tokenizer: AutoTokenizer
     prompt_info: PromptInfo
-    generation_kwargs: Dict[str, Any]
+    generation_kwargs: Optional[Dict[str, Any]] = None  # Not required for stat
 
 
 def build_llms(
@@ -65,7 +65,6 @@ def build_llms(
         statistician[0],
         statistician[1],
         stat_prompt_info,
-        cfg.statistician.generation_kwargs,
     )
     theorist = LlmModel(
         theorist[0], theorist[1], th_prompt_info, cfg.theorist.generation_kwargs

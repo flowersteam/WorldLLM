@@ -1,5 +1,5 @@
-from inspect import indentsize
-from typing import Tuple
+from math import e
+from typing import Dict, List, Tuple
 
 import numpy as np
 from omegaconf import DictConfig
@@ -8,6 +8,25 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from utils_env import BaseAgent, generate_text_trajectories
 from utils_llm import compute_likelihood, generate_rules
 from worldllm_envs.envs.base import BaseRuleEnv
+
+
+def get_unique_rules(
+    rules: List[str], weights: np.ndarray
+) -> Tuple[Dict[str, int], np.ndarray, np.ndarray]:
+    """From rules and weights return unique rules with count and the weights with correct index"""
+    set_rules = {}
+    unique_rules = []
+    counts = []
+    new_weights = []
+    for i, rule in enumerate(rules):
+        if rule not in unique_rules:
+            set_rules[rule] = i
+            unique_rules.append(rule)
+            counts.append(1)
+            new_weights.append(weights[i])
+        else:
+            counts[set_rules[rule]] += 1
+    return unique_rules, np.array(counts), np.array(new_weights)
 
 
 def important_sampling(
@@ -19,8 +38,6 @@ def important_sampling(
 ) -> None:
     # Define true rule
     true_rule = env.generate_rule()
-    # Init weights
-    weights = np.ones((cfg.nb_rules, 1)) / cfg.nb_rules
 
     # Generate trajectories
     prompt_trajectories = generate_text_trajectories(
@@ -30,15 +47,18 @@ def important_sampling(
     rules, importance_probs = generate_rules(
         theorist, prompt_trajectories, cfg.nb_rules
     )
+    # Get unique rules and counts
+    rules, counts, importance_probs = get_unique_rules(rules, importance_probs)
     if cfg.add_true_rule:
         rules.append(true_rule)
+        counts = np.append(counts, 1)
         importance_probs = np.append(importance_probs, np.log(1 / (cfg.nb_rules + 1)))
 
     # Compute likelihoods of new data using the rules
     likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
 
     # weights is just the likelihoods for importance sampling with resampling
-    weights = likelihoods
+    weights = counts + likelihoods - importance_probs
 
     # Print rules and weights sorted
     indices = np.argsort(-weights)
@@ -46,4 +66,6 @@ def important_sampling(
     print("true rule: " + repr(true_rule))
     print("------------------------")
     for ind in indices:
-        print("-----rule-----:   " + repr(rules[ind]) + f" weight: {weights[ind]:2f}")
+        print(
+            f"-----rule-----:   {repr(rules[ind])} weight: {weights[ind]:2f}, importance: {importance_probs[ind]:2f}, likelihood: {likelihoods[ind]:2f}, count: {counts[ind]}"
+        )

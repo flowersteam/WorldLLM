@@ -31,6 +31,8 @@ def main(cfg: DictConfig) -> None:
     # Run the algorithm
     if cfg.algorithm.name == "importance_sampling":
         important_sampling(env, agent, theorist, statistician, cfg.algorithm)
+    elif cfg.algorithm.name == "metropolis":
+        pass
     else:
         raise NotImplementedError(f"Algorithm {cfg.algorithm} not implemented.")
 
