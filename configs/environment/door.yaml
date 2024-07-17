@@ -1,0 +1,4 @@
+defaults: 
+  - base_env
+
+id: "worldllm_envs/Door-v0"

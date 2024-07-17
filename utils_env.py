@@ -44,9 +44,9 @@ class Trajectory:
 def build_env(cfg: DictConfig):
     """Build the environment."""
     # Add seed to kwargs
-    kwargs = OmegaConf.to_container(cfg.env.kwargs, resolve=True)
+    kwargs = OmegaConf.to_container(cfg.environment.kwargs, resolve=True)
     kwargs["seed"] = cfg.seed
-    env = gym.make(cfg.env.id, **kwargs)
+    env = gym.make(cfg.environment.id, **kwargs)
     if not isinstance(env.unwrapped, BaseRuleEnv):
         raise ValueError("The environment must be rule based.")
     return env
