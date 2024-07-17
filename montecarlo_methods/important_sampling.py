@@ -20,7 +20,7 @@ def get_unique_rules(
     new_weights = []
     for i, rule in enumerate(rules):
         if rule not in unique_rules:
-            set_rules[rule] = i
+            set_rules[rule] = len(unique_rules)
             unique_rules.append(rule)
             counts.append(1)
             new_weights.append(weights[i])
