@@ -58,7 +58,7 @@ def important_sampling(
     likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
 
     # weights is just the likelihoods for importance sampling with resampling
-    weights = counts + likelihoods - importance_probs
+    weights = np.log(counts) + likelihoods - importance_probs
 
     # Print rules and weights sorted
     indices = np.argsort(-weights)
