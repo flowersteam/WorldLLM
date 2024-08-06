@@ -60,7 +60,7 @@ def important_sampling(
     weights = np.log(counts) + likelihoods - importance_probs
 
     # Print rules and weights sorted
-    indices = np.argsort(-weights)
+    indices = np.argsort(-likelihoods)
     print("------------------------")
     print("true rule: " + repr(true_rule))
     print("------------------------")

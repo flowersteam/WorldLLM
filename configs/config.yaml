@@ -8,9 +8,9 @@ defaults:
   - override hydra/job_logging: disabled  
 
 hydra:  
-output_subdir: null  
-run:  
-  dir: .
+  output_subdir: null  
+  run:  
+    dir: .
 
 
 seed: 50

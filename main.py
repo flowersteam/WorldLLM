@@ -10,6 +10,7 @@ from utils_env import BaseAgent, build_env
 from utils_llm import build_llms
 
 
+# To change the config file: -cn config_name.yaml, to modify the config file: key=value and to add a value: +key=value
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
