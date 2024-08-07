@@ -206,7 +206,7 @@ def generate_rules(
     return all_rules, torch.cat(all_log_probs).numpy()
 
 
-def compute_likelihood_scores(
+def compute_log_likelihood_scores(
     statistician: LlmModel,
     generation_args: Dict[str, Any],
     tokens: List[int],
@@ -218,9 +218,9 @@ def compute_likelihood_scores(
     ).to(statistician.model.device)
     results = statistician.model.generate(inputs, **generation_args)
     scores = results.scores[0]
-    scores = scores[:, tokens]
-    scores = scores.softmax(dim=-1).cpu()
-    return scores
+    logp = torch.nn.functional.log_softmax(scores, dim=-1)
+    logp = logp[:, tokens]
+    return logp.cpu()
 
 
 def compute_likelihood(
@@ -261,25 +261,25 @@ def compute_likelihood(
             )
             lst_messages.append(message)
     batch_size = statistician.prompt_info.batch_size
-    all_scores = []
+    all_logp = []
     for incr in tqdm(
         range(0, len(rules) * len(trajectories), batch_size),
         desc="Computing likelihood",
     ):
-        all_scores.append(
-            compute_likelihood_scores(
+        all_logp.append(
+            compute_log_likelihood_scores(
                 statistician,
                 generation_args,
                 statistician.prompt_info.tokens,
                 lst_messages[incr : incr + batch_size],
             )
         )
-    scores = torch.cat(all_scores, dim=0)
+    logp = torch.cat(all_logp, dim=0)
 
-    scores = torch.stack(torch.split(scores, len(trajectories)))
+    logp = torch.stack(torch.split(logp, len(trajectories)))
     obs_to_predict = torch.tensor([trajectory.obs[-1] for trajectory in trajectories])
 
-    log_probability = torch.log(
-        scores[:, torch.arange(len(trajectories)), obs_to_predict]
-    ).sum(dim=1)
+    log_probability = logp[:, torch.arange(len(trajectories)), obs_to_predict].sum(
+        dim=1
+    )
     return log_probability.numpy()
