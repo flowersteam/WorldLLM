@@ -1,0 +1,8 @@
+defaults:
+  - base_algorithm
+
+name: metropolis_hastings
+th_batch_size: 1
+nb_rules: 1
+nb_trajectories: 50
+nb_iterations: 10

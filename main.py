@@ -6,6 +6,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from montecarlo_methods.important_sampling import important_sampling
+from montecarlo_methods.metropolis_hastings import metropolis_hastings
 from utils_env import BaseAgent, build_env
 from utils_llm import build_llms
 
@@ -32,8 +33,8 @@ def main(cfg: DictConfig) -> None:
     # Run the algorithm
     if cfg.algorithm.name == "importance_sampling":
         important_sampling(env, agent, theorist, statistician, cfg.algorithm)
-    elif cfg.algorithm.name == "metropolis":
-        pass
+    elif cfg.algorithm.name == "metropolis_hastings":
+        metropolis_hastings(env, agent, theorist, statistician, cfg.algorithm)
     else:
         raise NotImplementedError(f"Algorithm {cfg.algorithm} not implemented.")
 

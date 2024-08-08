@@ -206,6 +206,54 @@ def generate_rules(
     return all_rules, torch.cat(all_log_probs).numpy()
 
 
+def evolve_rules(
+    theorist: LlmModel,
+    trajectories: List[Trajectory],
+    previous_rules: List[str],
+) -> Tuple[List[str], np.ndarray]:
+    """Generate rules given the previous ones"""
+    # Config for the generation, shouldn't need be changed
+
+    generation_args = {
+        "max_new_tokens": 100,
+        "do_sample": True,
+        "output_scores": True,
+        "return_dict_in_generate": True,
+    }
+    generation_args.update(theorist.generation_kwargs)
+    trajectories = [trajectory.get_full_text() for trajectory in trajectories]
+    all_rules = []
+    all_log_probs = []
+    lst_message = []
+    for prev_rule in previous_rules:
+        # Set batch size
+        message = (
+            {
+                "role": "system",
+                "content": theorist.prompt_info.system_prompt,
+            },
+            {
+                "role": "user",
+                "content": theorist.prompt_info.message_template(
+                    trajectories, prev_rule
+                ),
+            },
+        )
+        lst_message.append(message)
+    for batch in tqdm(
+        range(0, len(previous_rules), theorist.prompt_info.batch_size),
+        desc="Evolving rules",
+    ):
+        rules, log_probs = _generate_rule(
+            theorist,
+            lst_message[batch : batch + theorist.prompt_info.batch_size],
+            generation_args,
+        )
+        all_rules.extend(rules)
+        all_log_probs.append(log_probs)
+    return all_rules, torch.cat(all_log_probs).numpy()
+
+
 def compute_log_likelihood_scores(
     statistician: LlmModel,
     generation_args: Dict[str, Any],
