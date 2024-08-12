@@ -32,6 +32,7 @@ def metropolis_hastings(
     all_rules = copy(prev_rules)
     all_likelihoods = prev_likelihoods
     all_prev_rules_ind = [-1] * cfg.nb_rules
+    all_weights = [0] * cfg.nb_rules
     prev_rules_ind = np.zeros((cfg.nb_rules,), dtype=int)
     for i in tqdm(range(cfg.nb_iterations), "Metropolis-Hastings iterations"):
         # Sample a new rule
@@ -48,6 +49,7 @@ def metropolis_hastings(
         )
         # Update rules obtained
         all_rules.extend(rules)
+        all_weights.extend(weights)
         all_likelihoods = np.append(all_likelihoods, likelihoods)
         all_prev_rules_ind.extend(prev_rules_ind)
         # Accept or reject
@@ -61,5 +63,5 @@ def metropolis_hastings(
     print("------------------------")
     for ind in indices:
         print(
-            f"-----rule-----:{ind}({all_prev_rules_ind[ind]}):   {repr(all_rules[ind])}, likelihood: {all_likelihoods[ind]:2f}"
+            f"-----rule-----:{ind}({all_prev_rules_ind[ind]}):   {repr(all_rules[ind])}, likelihood: {all_likelihoods[ind]:2f}, weight: {all_weights[ind]:2f}"
         )
