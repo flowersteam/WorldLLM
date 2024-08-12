@@ -141,6 +141,90 @@ def build_stat_prompt_info(
     )
 
 
+def _score_rule(
+    theorist: LlmModel,
+    lst_message: List[str],
+    lst_candidate: List[str],
+) -> np.ndarray:
+    """Scoring the rule given message and candidates."""
+    candidate = theorist.tokenizer.apply_chat_template(
+        lst_candidate,
+        add_generation_prompt=False,
+    )
+    # Create mask to get only the generated part
+    # We remove the bos token
+    len_candidate = torch.tensor([len(c) - 1 for c in candidate])
+    max_len_candidate = torch.max(len_candidate).item()
+    index_mat = torch.arange(max_len_candidate)
+    generation_mask = torch.where(
+        index_mat[None, :] >= max_len_candidate - len_candidate[:, None], 1, 0
+    )
+    with torch.no_grad():
+        inputs = theorist.tokenizer.apply_chat_template(
+            lst_message,
+            add_generation_prompt=False,
+            return_tensors="pt",
+            padding=True,
+            return_dict=True,
+        )
+        results = theorist.model(
+            inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+        )
+    # We need to shift the logits to the right to match the candidate
+    logits = results.logits[:, -max_len_candidate - 1 : -1]
+    logp = torch.nn.functional.log_softmax(logits, dim=-1)
+    # We need to pad to 0 the logits to ignore padding
+    logp = logp.masked_fill_(generation_mask[:, :, None] == 0, 0)
+    score = torch.gather(
+        logp, 2, inputs["input_ids"][:, -max_len_candidate:, None]
+    ).squeeze(-1)
+    aggregated_scores = score.sum(-1)
+    return aggregated_scores.cpu()
+
+
+def score_rules(
+    theorist: LlmModel,
+    trajectories: List[Trajectory],
+    generated_rules: List[str],
+    previous_rules: List[str],
+) -> np.ndarray:
+    """Score rules given the trajectories."""
+    trajectories = [trajectory.get_full_text() for trajectory in trajectories]
+    all_log_probs = []
+    lst_message = []
+    lst_candidate = []
+    for gen_rule, prev_rule in zip(generated_rules, previous_rules):
+        lst_message.append(
+            (
+                {
+                    "role": "system",
+                    "content": theorist.prompt_info.system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": theorist.prompt_info.message_template(
+                        trajectories, prev_rule
+                    ),
+                },
+                {"role": "assistant", "content": gen_rule},
+            )
+        )
+        lst_candidate.append(({"role": "assistant", "content": gen_rule},))
+    for batch in tqdm(
+        range(0, len(previous_rules), theorist.prompt_info.batch_size),
+        desc="Scoring rules",
+        leave=False,
+    ):
+        log_probs = _score_rule(
+            theorist,
+            lst_message[batch : batch + theorist.prompt_info.batch_size],
+            lst_candidate[batch : batch + theorist.prompt_info.batch_size],
+        )
+        all_log_probs.append(log_probs)
+    return torch.cat(all_log_probs).numpy()
+
+
 def _generate_rule(
     theorist: LlmModel, lst_message: List[str], generation_args: Dict[str, Any]
 ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -189,7 +273,9 @@ def generate_rules(
     all_rules = []
     all_log_probs = []
     for batch in tqdm(
-        range(0, nb_rules, theorist.prompt_info.batch_size), desc="Generating rules"
+        range(0, nb_rules, theorist.prompt_info.batch_size),
+        desc="Generating rules",
+        leave=False,
     ):
         # Set batch size
         generation_args["num_return_sequences"] = min(
@@ -252,6 +338,7 @@ def evolve_rules(
     for batch in tqdm(
         range(0, len(previous_rules), theorist.prompt_info.batch_size),
         desc="Evolving rules",
+        leave=False,
     ):
         rules, log_probs = _generate_rule(
             theorist,
@@ -328,6 +415,7 @@ def compute_likelihood(
     for incr in tqdm(
         range(0, len(rules) * len(trajectories), batch_size),
         desc="Computing likelihood",
+        leave=False,
     ):
         all_logp.append(
             compute_log_likelihood_scores(
