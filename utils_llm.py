@@ -271,9 +271,15 @@ def compute_log_likelihood_scores(
 ) -> torch.Tensor:
     """Compute the score for each message"""
     inputs = statistician.tokenizer.apply_chat_template(
-        lst_message, add_generation_prompt=True, return_tensors="pt", padding=True
+        lst_message,
+        add_generation_prompt=True,
+        return_tensors="pt",
+        padding=True,
+        return_dict=True,
     ).to(statistician.model.device)
-    results = statistician.model.generate(inputs, **generation_args)
+    results = statistician.model.generate(
+        inputs["input_ids"], attention_mask=inputs["attention_mask"], **generation_args
+    )
     scores = results.scores[0]
     logp = torch.nn.functional.log_softmax(scores, dim=-1)
     logp = logp[:, tokens]
