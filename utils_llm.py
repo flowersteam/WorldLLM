@@ -149,16 +149,20 @@ def _generate_rule(
         lst_message,
         add_generation_prompt=True,
         return_tensors="pt",
+        padding=True,
+        return_dict=True,
     ).to(theorist.model.device)
-    results = theorist.model.generate(inputs, **generation_args)
-    generated_sequences = results.sequences[:, inputs.shape[-1] :]
+    results = theorist.model.generate(
+        inputs["input_ids"], attention_mask=inputs["attention_mask"], **generation_args
+    )
+    generated_sequences = results.sequences[:, inputs["input_ids"].shape[-1] :]
     generated_rules = theorist.tokenizer.batch_decode(
         generated_sequences, skip_special_tokens=True
     )
     logp = torch.nn.functional.log_softmax(torch.stack(results.scores, dim=1), dim=-1)
+    # Put the score of the padding token to 0 to ignore(not done by every model)
+    logp[:, :, theorist.tokenizer.pad_token_id] = 0
     scores = torch.gather(logp, 2, generated_sequences[:, :, None]).squeeze(-1)
-    # Change score from -inf to 0 to ignore padding
-    scores = scores.masked_fill_(scores == -torch.inf, 0)
     aggregated_scores = scores.sum(-1)
     return generated_rules, aggregated_scores.cpu()
 
@@ -172,8 +176,11 @@ def generate_rules(
     # Config for the generation, shouldn't need be changed
 
     generation_args = {
+        "temperature": 1,
         "max_new_tokens": 100,
         "do_sample": True,
+        "top_k": None,
+        "top_p": 1,
         "output_scores": True,
         "return_dict_in_generate": True,
     }
@@ -215,6 +222,9 @@ def evolve_rules(
     # Config for the generation, shouldn't need be changed
 
     generation_args = {
+        "temperature": 1,
+        "top_k": None,
+        "top_p": 1,
         "max_new_tokens": 100,
         "do_sample": True,
         "output_scores": True,
@@ -226,7 +236,6 @@ def evolve_rules(
     all_log_probs = []
     lst_message = []
     for prev_rule in previous_rules:
-        # Set batch size
         message = (
             {
                 "role": "system",

@@ -13,7 +13,6 @@ hydra:
     dir: .
 
 
-statistician: null
 seed: 60
 algorithm:
   nb_rules: 100
