@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from utils_env import Trajectory
+from utils.utils_env import Trajectory
 from worldllm_envs.envs.base import EnvPromptInfo
 
 

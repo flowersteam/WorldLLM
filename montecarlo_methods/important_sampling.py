@@ -4,9 +4,9 @@ import numpy as np
 from omegaconf import DictConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from utils_env import BaseAgent, generate_text_trajectories
-from utils_llm import compute_likelihood, generate_rules
-from utils_save import RuleOutput
+from utils.utils_env import BaseAgent, generate_text_trajectories
+from utils.utils_llm import compute_likelihood, generate_rules
+from utils.utils_save import RuleOutput
 from worldllm_envs.envs.base import BaseRuleEnv
 
 
