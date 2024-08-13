@@ -54,7 +54,7 @@ def metropolis_hastings(
         all_prev_rules_ind.extend(prev_rules_ind)
         # Accept or reject
         mask = np.where(np.log(np.random.rand()) < weights, 1, 0)
-        prev_rules_ind = np.where(mask, i, prev_rules_ind)
+        prev_rules_ind = np.where(mask, i + 1, prev_rules_ind)
         prev_rules = np.where(mask, rules, prev_rules)
         prev_likelihoods = np.where(mask, likelihoods, prev_likelihoods)
     indices = np.argsort(-np.array(all_likelihoods))
@@ -63,5 +63,5 @@ def metropolis_hastings(
     print("------------------------")
     for ind in indices:
         print(
-            f"-----rule-----:{ind}({all_prev_rules_ind[ind]}):   {repr(all_rules[ind])}, likelihood: {all_likelihoods[ind]:2f}, weight: {all_weights[ind]:2f}"
+            f"-----rule-----:{ind%len(rules)}-{ind//len(rules)}({all_prev_rules_ind[ind]}):   {repr(all_rules[ind])}, likelihood: {all_likelihoods[ind]:2f}, weight: {all_weights[ind]:2f}"
         )
