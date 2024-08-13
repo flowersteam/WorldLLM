@@ -6,10 +6,15 @@ import gymnasium as gym
 import numpy as np
 
 
-class BaseRule(abc.ABC):
+class BaseRule:
     """Base Class for the rules"""
 
-    pass
+    def __init__(self, condition_text: str) -> None:
+        self.condition_text = condition_text
+
+    def get_prompt(self) -> str:
+        """get the prompt of the rule"""
+        return self.condition_text
 
 
 @dataclass

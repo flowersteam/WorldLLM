@@ -109,8 +109,8 @@ class Rule(BaseRule):
         condition: Callable[[Combination], bool],
         condition_text: str,
     ):
+        super().__init__(condition_text=condition_text)
         self.condition = condition
-        self.condition_text = condition_text
 
     @staticmethod
     def from_combination(
@@ -138,10 +138,6 @@ class Rule(BaseRule):
     def is_opened(self, prompt: Combination) -> bool:
         """Apply condition on combination"""
         return self.condition(prompt)
-
-    def get_prompt(self):
-        """get the prompt of the rule"""
-        return self.condition_text
 
     def __repr__(self) -> str:
         return f"Rule({self.condition_text})"
