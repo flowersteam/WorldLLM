@@ -6,6 +6,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils_env import BaseAgent, generate_text_trajectories
 from utils_llm import compute_likelihood, generate_rules
+from utils_save import RuleOutput
 from worldllm_envs.envs.base import BaseRuleEnv
 
 
@@ -34,7 +35,7 @@ def important_sampling(
     theorist: Tuple[AutoModelForCausalLM, AutoTokenizer],
     statistician: Tuple[AutoModelForCausalLM, AutoTokenizer],
     cfg: DictConfig,
-) -> None:
+) -> RuleOutput:
     # Define true rule
     true_rule = env.generate_rule()
 
@@ -68,3 +69,14 @@ def important_sampling(
         print(
             f"-----rule-----:   {repr(rules[ind])} weight: {weights[ind]:2f}, importance: {importance_probs[ind]:2f}, likelihood: {likelihoods[ind]:2f}, count: {counts[ind]}"
         )
+    return RuleOutput(
+        true_rule,
+        rules,
+        likelihoods,
+        {
+            "weights": weights,
+            "counts": counts,
+            "importance_probs": importance_probs,
+            "likelihoods": likelihoods,
+        },
+    )

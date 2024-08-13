@@ -8,6 +8,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils_env import BaseAgent, generate_text_trajectories
 from utils_llm import compute_likelihood, evolve_rules, generate_rules, score_rules
+from utils_save import RuleOutput
 from worldllm_envs.envs.base import BaseRuleEnv
 
 
@@ -17,7 +18,7 @@ def metropolis_hastings(
     theorist: Tuple[AutoModelForCausalLM, AutoTokenizer],
     statistician: Tuple[AutoModelForCausalLM, AutoTokenizer],
     cfg: DictConfig,
-) -> None:
+) -> RuleOutput:
     """Metropolis-Hasting algorithm"""
     # Define true rule
     true_rule = env.generate_rule()
@@ -65,3 +66,14 @@ def metropolis_hastings(
         print(
             f"-----rule-----:{ind%len(rules)}-{ind//len(rules)}({all_prev_rules_ind[ind]}):   {repr(all_rules[ind])}, likelihood: {all_likelihoods[ind]:2f}, weight: {all_weights[ind]:2f}"
         )
+    return RuleOutput(
+        true_rule,
+        all_rules,
+        all_likelihoods,
+        {
+            "weights": all_weights,
+            "likelihoods": all_likelihoods,
+            "prev_rules_ind": all_prev_rules_ind,
+            "nb_rules": cfg.nb_rules,
+        },
+    )
