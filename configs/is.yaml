@@ -1,17 +1,12 @@
 defaults: 
+  - base_config
   - algorithm: importance_sampling
   - llm@theorist: llama-3-8b-instruct.yaml
   - llm@statistician: llama-3-8b-instruct.yaml
   - environment: door
   - agent: random
-  - override hydra/hydra_logging: disabled  
-  - override hydra/job_logging: disabled  
   
-hydra:  
-  output_subdir: null  
-  run:  
-    dir: .
-
+exp_name: test_is
 
 statistician: null
 seed: 60

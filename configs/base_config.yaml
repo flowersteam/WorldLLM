@@ -1,0 +1,9 @@
+hydra:  
+  output_subdir: ${output_dir}
+  run:  
+    dir: .
+
+exp_name: ???
+output_dir: ./outputs/${exp_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+seed: 42
