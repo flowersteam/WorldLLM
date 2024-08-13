@@ -45,7 +45,7 @@ def metropolis_hastings(
         # Compute likelihoods of new data using the rules
         likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
         weights = (
-            likelihoods - prev_likelihoods + importance_probs - rev_importance_probs
+            likelihoods - prev_likelihoods - importance_probs + rev_importance_probs
         )
         # Update rules obtained
         all_rules.extend(rules)
