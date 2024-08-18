@@ -1,8 +1,8 @@
 defaults: 
   - base_config
   - algorithm: importance_sampling
-  - llm@theorist: llama-3-8b-instruct.yaml
-  - llm@statistician: llama-3-8b-instruct.yaml
+  - llm@theorist: Phi-3-mini-4k-instruct
+  - llm@statistician: Phi-3-mini-4k-instruct
   - environment: door
   - agent: random
   

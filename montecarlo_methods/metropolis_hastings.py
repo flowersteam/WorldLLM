@@ -77,8 +77,7 @@ def metropolis_hastings(
         all_likelihoods,
         {
             "weights": all_weights,
-            "likelihoods": all_likelihoods,
             "prev_rules_ind": all_prev_rules_ind,
-            "nb_rules": cfg.nb_rules,
+            "nb_particles": cfg.nb_rules,
         },
     )
