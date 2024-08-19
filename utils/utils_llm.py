@@ -92,9 +92,10 @@ def load_transformers(
         device_map="auto",
         trust_remote_code=True,
         quantization_config=quantization_config,
+        local_files_only=True,
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        model_config["name"], **model_config["tokenizer_params"]
+        model_config["name"], local_files_only=True, **model_config["tokenizer_params"]
     )
     # We need padding token for batching
     if tokenizer.pad_token is None:
