@@ -68,6 +68,10 @@ class BaseRuleEnv(gym.Env, abc.ABC):
     def generate_rule() -> BaseRule:
         """Generate Rule"""
 
+    @abc.abstractmethod
+    def from_custom(self, custom_rule: Any) -> BaseRule:
+        """Generate custom Rule from name"""
+
     def change_rule(self, rule: BaseRule) -> None:
         """Change the rule of the environment."""
         self.rule = rule

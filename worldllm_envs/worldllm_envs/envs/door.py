@@ -199,6 +199,22 @@ class DoorEnv(BaseRuleEnv):
         """Generate Rule with random combination of color, size and shape."""
         return Rule.from_combination(*generate_comb(2))
 
+    def from_custom(self, custom_rule: Union[str, List[str]]) -> Rule:
+        """Return a custom rule given the name or a list of components of the rule"""
+        if (
+            isinstance(custom_rule, str)
+            and getattr(CustomRules, custom_rule)
+            and isinstance(getattr(CustomRules, custom_rule), Callable)
+        ):
+            return getattr(CustomRules, custom_rule)()
+        elif isinstance(custom_rule, list):
+            return Rule.from_combination(
+                Sizes(custom_rule[0]) if custom_rule[0] is not None else None,
+                Colors(custom_rule[1]) if custom_rule[1] is not None else None,
+                Shapes(custom_rule[2]) if custom_rule[2] is not None else None,
+            )
+        raise ValueError(f"Rule {custom_rule} could not be found or built.")
+
     def action_to_text(self, action: Tuple[int, int, int]) -> str:
         combination = self.mapping_action(action)
         return combination.return_prompt()
@@ -225,4 +241,14 @@ class DoorEnv(BaseRuleEnv):
             True,
             False,
             {"rule": self.rule},
+        )
+
+
+class CustomRules:
+    """List of Custom Rules to be used in the Door Environment"""
+
+    def not_blue(self) -> Rule:
+        return Rule(
+            condition=lambda x: x.color != Colors.BLUE,
+            condition_text="The door opens with every objects that isn't blue.",
         )

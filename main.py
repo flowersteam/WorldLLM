@@ -10,6 +10,7 @@ from montecarlo_methods.important_sampling import important_sampling
 from montecarlo_methods.metropolis_hastings import metropolis_hastings
 from utils.utils_env import BaseAgent, build_env
 from utils.utils_llm import build_llms
+from worldllm_envs.envs.base import BaseRuleEnv
 
 
 # To change the config file: -cn config_name.yaml, to modify the config file: key=value and to add a value: +key=value
@@ -22,8 +23,17 @@ def main(cfg: DictConfig) -> None:
         random.seed(cfg.seed)
         torch.manual_seed(cfg.seed)
         torch.cuda.manual_seed_all(cfg.seed)
-    # Instantiate the environment and the agent
-    env = build_env(cfg)
+    # Instantiate the environment
+    env: BaseRuleEnv = build_env(cfg)
+    # Set Rule
+    if cfg.environment.rule is not None:
+        env_rule = env.from_custom(
+            OmegaConf.to_container(cfg.environment.rule, resolve=True)
+        )
+    else:
+        env_rule = env.generate_rule()
+    env.reset(options={"rule": env_rule})
+    # Set Agent
     agent = hydra.utils.instantiate(cfg.agent, action_space=env.action_space)
     if not isinstance(agent, BaseAgent):
         raise ValueError("The agent must inherit from BaseAgent.")

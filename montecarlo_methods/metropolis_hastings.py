@@ -25,8 +25,8 @@ def metropolis_hastings(
     cfg: DictConfig,
 ) -> RuleOutput:
     """Metropolis-Hasting algorithm"""
-    # Define true rule
-    true_rule = env.generate_rule()
+    # Get true rule
+    true_rule = env.rule
 
     # Generate trajectories
     prompt_trajectories = generate_text_trajectories(

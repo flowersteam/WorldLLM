@@ -36,8 +36,8 @@ def important_sampling(
     statistician: Tuple[AutoModelForCausalLM, AutoTokenizer],
     cfg: DictConfig,
 ) -> RuleOutput:
-    # Define true rule
-    true_rule = env.generate_rule()
+    # Get true rule
+    true_rule = env.rule
 
     # Generate trajectories
     prompt_trajectories = generate_text_trajectories(
