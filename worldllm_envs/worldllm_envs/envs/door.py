@@ -176,7 +176,7 @@ class DoorEnv(BaseRuleEnv):
             if previous_rule is None:
                 msg += "\nFrom these, can you find the rule for the door? It should respect all the trajectories while still being as general as possible. Answer with just the rule"
             else:
-                msg += f"\n The previous guessed rule for the door was '{previous_rule}' Can you improve it so that it respects all the trajectories while still being as general as possible.  Answer with just the rule"
+                msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' Answer with just the rule"
             return msg
 
         config = {
