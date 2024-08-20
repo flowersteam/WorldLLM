@@ -252,3 +252,27 @@ class CustomRules:
             condition=lambda x: x.color != Colors.BLUE,
             condition_text="The door opens with every objects that isn't blue.",
         )
+
+    def not_blue_key(self) -> Rule:
+        return Rule(
+            condition=lambda x: x.color != Colors.BLUE or x.shape != Shapes.KEY,
+            condition_text="The door opens with every objects that isn't a blue key.",
+        )
+
+    def nor_green_large(self) -> Rule:
+        return Rule(
+            condition=lambda x: x.color != Colors.GREEN and x.size != Sizes.LARGE,
+            condition_text="The door opens with every objects that is nor green or large.",
+        )
+
+    def all_true(self) -> Rule:
+        return Rule(
+            condition=lambda x: True,
+            condition_text="The door opens with every objects.",
+        )
+
+    def all_false(self) -> Rule:
+        return Rule(
+            condition=lambda x: False,
+            condition_text="The door opens with no objects.",
+        )
