@@ -4,7 +4,7 @@ defaults:
   - llm@theorist: Phi-3-mini-4k-instruct
   - llm@statistician: Phi-3-mini-4k-instruct
   - environment: door
-  - agent: random
+  - agent: all
   - override hydra/hydra_logging: disabled  
   - override hydra/job_logging: disabled  
 

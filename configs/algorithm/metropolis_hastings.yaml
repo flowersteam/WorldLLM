@@ -4,5 +4,5 @@ defaults:
 name: metropolis_hastings
 th_batch_size: 5
 nb_rules: 3
-nb_trajectories: 50
+nb_trajectories: 27
 nb_iterations: 10

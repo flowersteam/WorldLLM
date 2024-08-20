@@ -1,0 +1,3 @@
+defaults:
+  - base_agent
+_target_: utils.utils_env.AllAgent
