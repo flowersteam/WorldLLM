@@ -33,7 +33,11 @@ def metropolis_hastings(
         env, agent, true_rule, cfg.nb_trajectories
     )
     # Sample rules
-    prev_rules, _ = generate_rules(theorist, prompt_trajectories, cfg.nb_rules)
+    if cfg.first_rules is not None:
+        prev_rules = cfg.first_rules
+        assert len(prev_rules) == cfg.nb_rules
+    else:
+        prev_rules, _ = generate_rules(theorist, prompt_trajectories, cfg.nb_rules)
     prev_likelihoods = compute_likelihood(statistician, prev_rules, prompt_trajectories)
     all_rules = copy(prev_rules)
     all_likelihoods = prev_likelihoods
