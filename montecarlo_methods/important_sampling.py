@@ -49,7 +49,7 @@ def important_sampling(
     # Get unique rules and counts
     rules, counts, importance_probs = get_unique_rules(rules, importance_probs)
     if cfg["add_true_rule"]:
-        rules.append(true_rule)
+        rules.append(true_rule.get_prompt())
         counts = np.append(counts, 1)
         importance_probs = np.append(
             importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
