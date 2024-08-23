@@ -1,8 +1,7 @@
 from copy import copy
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
-from omegaconf import DictConfig
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -22,7 +21,7 @@ def metropolis_hastings(
     agent: BaseAgent,
     theorist: Tuple[AutoModelForCausalLM, AutoTokenizer],
     statistician: Tuple[AutoModelForCausalLM, AutoTokenizer],
-    cfg: DictConfig,
+    cfg: Dict[str, Any],
 ) -> RuleOutput:
     """Metropolis-Hasting algorithm"""
     # Get true rule
@@ -30,21 +29,21 @@ def metropolis_hastings(
 
     # Generate trajectories
     prompt_trajectories = generate_text_trajectories(
-        env, agent, true_rule, cfg.nb_trajectories
+        env, agent, true_rule, cfg["nb_trajectories"]
     )
     # Sample rules
-    if cfg.first_rules is not None:
-        prev_rules = cfg.first_rules
-        assert len(prev_rules) == cfg.nb_rules
+    if cfg["first_rules"] is not None:
+        prev_rules = cfg["first_rules"]
+        assert len(prev_rules) == cfg["nb_rules"]
     else:
-        prev_rules, _ = generate_rules(theorist, prompt_trajectories, cfg.nb_rules)
+        prev_rules, _ = generate_rules(theorist, prompt_trajectories, cfg["nb_rules"])
     prev_likelihoods = compute_likelihood(statistician, prev_rules, prompt_trajectories)
     all_rules = copy(prev_rules)
     all_likelihoods = prev_likelihoods
-    all_prev_rules_ind = [-1] * cfg.nb_rules
-    all_weights = [0] * cfg.nb_rules
-    prev_rules_ind = np.zeros((cfg.nb_rules,), dtype=int)
-    for i in tqdm(range(cfg.nb_iterations), "Metropolis-Hastings iterations"):
+    all_prev_rules_ind = [-1] * cfg["nb_rules"]
+    all_weights = [0] * cfg["nb_rules"]
+    prev_rules_ind = np.zeros((cfg["nb_rules"],), dtype=int)
+    for i in tqdm(range(cfg["nb_iterations"]), "Metropolis-Hastings iterations"):
         # Sample a new rule
         rules, importance_probs = evolve_rules(
             theorist, prompt_trajectories, prev_rules
@@ -82,6 +81,6 @@ def metropolis_hastings(
         {
             "weights": all_weights,
             "prev_rules_ind": all_prev_rules_ind,
-            "nb_particles": cfg.nb_rules,
+            "nb_particles": cfg["nb_rules"],
         },
     )

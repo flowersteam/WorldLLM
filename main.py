@@ -27,7 +27,6 @@ def main(cfg: DictConfig) -> None:
     env: BaseRuleEnv = build_env(cfg)
     # Set Rule
     if cfg.environment.rule is not None:
-        print(OmegaConf.to_object(cfg.environment)["rule"])
         env_rule = env.from_custom(OmegaConf.to_object(cfg.environment)["rule"])
     else:
         env_rule = env.generate_rule()
@@ -42,9 +41,13 @@ def main(cfg: DictConfig) -> None:
     print(f"GPU RAM usage: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
     # Run the algorithm
     if cfg.algorithm.name == "importance_sampling":
-        output = important_sampling(env, agent, theorist, statistician, cfg.algorithm)
+        output = important_sampling(
+            env, agent, theorist, statistician, OmegaConf.to_object(cfg.algorithm)
+        )
     elif cfg.algorithm.name == "metropolis_hastings":
-        output = metropolis_hastings(env, agent, theorist, statistician, cfg.algorithm)
+        output = metropolis_hastings(
+            env, agent, theorist, statistician, OmegaConf.to_object(cfg.algorithm)
+        )
     else:
         raise NotImplementedError(f"Algorithm {cfg.algorithm} not implemented.")
     output.to_json(os.path.join(cfg.output_dir, "all.json"))

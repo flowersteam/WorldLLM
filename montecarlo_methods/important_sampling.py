@@ -1,7 +1,6 @@
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
-from omegaconf import DictConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils.utils_env import BaseAgent, generate_text_trajectories
@@ -34,25 +33,27 @@ def important_sampling(
     agent: BaseAgent,
     theorist: Tuple[AutoModelForCausalLM, AutoTokenizer],
     statistician: Tuple[AutoModelForCausalLM, AutoTokenizer],
-    cfg: DictConfig,
+    cfg: Dict[str, Any],
 ) -> RuleOutput:
     # Get true rule
     true_rule = env.rule
 
     # Generate trajectories
     prompt_trajectories = generate_text_trajectories(
-        env, agent, true_rule, cfg.nb_trajectories
+        env, agent, true_rule, cfg["nb_trajectories"]
     )
     # Sample rules
     rules, importance_probs = generate_rules(
-        theorist, prompt_trajectories, cfg.nb_rules
+        theorist, prompt_trajectories, cfg["nb_rules"]
     )
     # Get unique rules and counts
     rules, counts, importance_probs = get_unique_rules(rules, importance_probs)
-    if cfg.add_true_rule:
+    if cfg["add_true_rule"]:
         rules.append(true_rule)
         counts = np.append(counts, 1)
-        importance_probs = np.append(importance_probs, np.log(1 / (cfg.nb_rules + 1)))
+        importance_probs = np.append(
+            importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
+        )
 
     # Compute likelihoods of new data using the rules
     likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
