@@ -156,9 +156,9 @@ class DoorEnv(BaseRuleEnv):
         def statisitician_template(rule: str, trajectory: str):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
             return (
-                "You are in environment with a door. You have several objects at your disposal."
-                + "There are all the combinations of the possible objects: key, card and ball with the possible colors: red, green and blue and the possible sizes: small, medium and large."
-                + f"{rule} {trajectory}\nDo you think the door will open ? You must answer in lower case only by saying 'opened' or 'closed'."
+                "You are in an environment in front of a door. You have several objects at your disposal."
+                + "You have access to all combinations of the possible objects: key, card and ball, with the possible colors: red, green and blue, and the possible sizes: small, medium and large."
+                + f"You know that: {rule} and {trajectory}\nDo you think the door will open ? You must answer in lower case only by saying 'opened' or 'closed'."
             )
 
         # When designing the template keep in mind that the text generated should be only the rule
