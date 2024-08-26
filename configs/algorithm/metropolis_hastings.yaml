@@ -7,3 +7,4 @@ nb_rules: 3
 nb_trajectories: 27
 nb_iterations: 10
 first_rules:
+num_worst_trajectories: 

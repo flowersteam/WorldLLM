@@ -50,7 +50,7 @@ def metropolis_hastings(
         assert len(prev_rules) == cfg["nb_rules"]
     else:
         prev_rules, _ = generate_rules(theorist, prompt_trajectories, cfg["nb_rules"])
-    if cfg.get("num_worst_trajectories", 0) > 0:
+    if cfg["num_worst_trajectories"] and cfg["num_worst_trajectories"] > 0:
         prev_likelihoods, all_logp = compute_likelihood(
             statistician, prev_rules, prompt_trajectories, return_all_logp=True
         )
@@ -68,7 +68,10 @@ def metropolis_hastings(
     all_weights = [0] * cfg["nb_rules"]
     prev_rules_ind = np.zeros((cfg["nb_rules"],), dtype=int)
     for i in tqdm(range(cfg["nb_iterations"]), "Metropolis-Hastings iterations"):
-        if cfg.get("num_worst_trajectories", 0) > 0:
+        if (
+            cfg["num_worst_trajectories"] is not None
+            and cfg["num_worst_trajectories"] > 0
+        ):
             # Sample a new rule
             rules, importance_probs = evolve_rules(
                 theorist,
@@ -115,7 +118,10 @@ def metropolis_hastings(
         prev_rules_ind = np.where(mask, i + 1, prev_rules_ind)
         prev_rules = np.where(mask, rules, prev_rules)
         prev_likelihoods = np.where(mask, likelihoods, prev_likelihoods)
-        if cfg.get("num_worst_trajectories", 0) > 0:
+        if (
+            cfg["num_worst_trajectories"] is not None
+            and cfg["num_worst_trajectories"] > 0
+        ):
             all_worst_trajectories.extend(worst_trajectories)
             prev_worst_trajectories = np.where(
                 np.tile(mask, (len(worst_trajectories[0]), 1)).T,
