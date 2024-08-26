@@ -1,6 +1,6 @@
 import warnings
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -189,25 +189,30 @@ def score_rules(
     trajectories: List[Trajectory],
     generated_rules: List[str],
     previous_rules: List[str],
+    worst_trajectories: Optional[List[List[Trajectory]]] = None,
 ) -> np.ndarray:
     """Score rules given the trajectories."""
     trajectories = [trajectory.get_full_text() for trajectory in trajectories]
     all_log_probs = []
     lst_message = []
     lst_candidate = []
-    for gen_rule, prev_rule in zip(generated_rules, previous_rules):
+    for incr, (gen_rule, prev_rule) in enumerate(zip(generated_rules, previous_rules)):
+        user_prompt = (
+            theorist.prompt_info.message_template(trajectories, prev_rule)
+            if worst_trajectories is None
+            else theorist.prompt_info.message_template(
+                trajectories,
+                prev_rule,
+                [worst_traj.get_full_text() for worst_traj in worst_trajectories[incr]],
+            )
+        )
         lst_message.append(
             (
                 {
                     "role": "system",
                     "content": theorist.prompt_info.system_prompt,
                 },
-                {
-                    "role": "user",
-                    "content": theorist.prompt_info.message_template(
-                        trajectories, prev_rule
-                    ),
-                },
+                {"role": "user", "content": user_prompt},
                 {"role": "assistant", "content": gen_rule},
             )
         )
@@ -304,6 +309,7 @@ def evolve_rules(
     theorist: LlmModel,
     trajectories: List[Trajectory],
     previous_rules: List[str],
+    worst_trajectories: Optional[List[List[Trajectory]]] = None,
 ) -> Tuple[List[str], np.ndarray]:
     """Generate rules given the previous ones"""
     # Config for the generation, shouldn't need be changed
@@ -322,7 +328,16 @@ def evolve_rules(
     all_rules = []
     all_log_probs = []
     lst_message = []
-    for prev_rule in previous_rules:
+    for incr, prev_rule in enumerate(previous_rules):
+        user_prompt = (
+            theorist.prompt_info.message_template(trajectories, prev_rule)
+            if worst_trajectories is None
+            else theorist.prompt_info.message_template(
+                trajectories,
+                prev_rule,
+                [worst_traj.get_full_text() for worst_traj in worst_trajectories[incr]],
+            )
+        )
         message = (
             {
                 "role": "system",
@@ -330,9 +345,7 @@ def evolve_rules(
             },
             {
                 "role": "user",
-                "content": theorist.prompt_info.message_template(
-                    trajectories, prev_rule
-                ),
+                "content": user_prompt,
             },
         )
         lst_message.append(message)
@@ -378,7 +391,8 @@ def compute_likelihood(
     statistician: LlmModel,
     rules: List[str],
     trajectories: List[Trajectory],
-) -> np.ndarray:
+    return_all_logp: bool = False,
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """Compute the likelihood of the new data given the rules."""
     assert isinstance(
         trajectories[0].obs[0], int
@@ -434,4 +448,6 @@ def compute_likelihood(
     log_probability = logp[:, torch.arange(len(trajectories)), obs_to_predict].sum(
         dim=1
     )
+    if return_all_logp:
+        return log_probability.numpy(), logp.numpy()
     return log_probability.numpy()

@@ -163,7 +163,9 @@ class DoorEnv(BaseRuleEnv):
 
         # When designing the template keep in mind that the text generated should be only the rule
         def theorist_template(
-            trajectories: List[str], previous_rule: Optional[str] = None
+            trajectories: List[str],
+            previous_rule: Optional[str] = None,
+            worst_trajectories: Optional[List[str]] = None,
         ):
             """Template given to the theorist to sample new rules given trajectories"""
             msg = (
@@ -176,7 +178,13 @@ class DoorEnv(BaseRuleEnv):
             if previous_rule is None:
                 msg += "\nFrom these, can you find the rule for the door? It should respect all the trajectories while still being as general as possible. Answer with just the rule"
             else:
-                msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' Answer with just the rule"
+                if worst_trajectories is not None:
+                    msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' You also know that the previous rule failed the most on those trajectories:\n"
+                    for trajectory in worst_trajectories:
+                        msg += f"{trajectory}\n"
+                    msg += "\nAnswer with just the rule."
+                else:
+                    msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' Answer with just the rule"
             return msg
 
         config = {
