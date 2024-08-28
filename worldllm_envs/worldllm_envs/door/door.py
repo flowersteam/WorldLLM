@@ -187,20 +187,15 @@ class DoorEnv(BaseRuleEnv):
                     msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' Answer with just the rule"
             return msg
 
-        config = {
-            "observation_space": gym.spaces.Discrete(2),
-            "action_space": gym.spaces.MultiDiscrete([3, 3, 3]),
-            "tokens": [
-                "closed",
-                "opened",
-            ],  # List must be same size as observation_space and in same order
-            "stat_prompt": "You must answer only by saying 'opened' or 'closed'.",
-            "stat_template": statisitician_template,
-            "th_prompt": "",
-            "th_template": theorist_template,
-        }
-
-        super().__init__(config, **kwargs)
+        # Default config:
+        self.observation_space = gym.spaces.Discrete(2)
+        self.action_space = gym.spaces.MultiDiscrete([3, 3, 3])
+        self.tokens = ["closed", "opened"]
+        self.stat_prompt = "You must answer only by saying 'opened' or 'closed'."
+        self.stat_template = statisitician_template
+        self.th_prompt = ""
+        self.th_template = theorist_template
+        super().__init__(**kwargs)
 
     @staticmethod
     def generate_rule(custom_rule: Optional[Union[str, List[str]]] = None) -> Rule:

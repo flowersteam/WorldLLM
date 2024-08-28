@@ -31,12 +31,10 @@ class EnvPromptInfo:
 class BaseRuleEnv(gym.Env, abc.ABC):
     """Base Class for the world llm environments."""
 
-    def __init__(self, initial_config: Dict[str, Any], **kwargs) -> None:
-        for attr in initial_config:
-            if attr in kwargs:
-                setattr(self, attr, kwargs[attr])
-            else:
-                setattr(self, attr, initial_config[attr])
+    def __init__(self, **kwargs) -> None:
+        for attr, value in kwargs.items():
+            if hasattr(self, attr):
+                setattr(self, attr, value)
         self.rule: BaseRule
         # Set the seed
         if kwargs.get("seed") is not None:
