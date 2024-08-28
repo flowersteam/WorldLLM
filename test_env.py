@@ -4,8 +4,9 @@ from worldllm_envs.envs.base import BaseRuleEnv
 
 env: BaseRuleEnv = gymnasium.make("worldllm_envs/Door-v0")
 
-new_rule = env.generate_rule()
+new_rule = env.generate_rule("not_blue_key")
 obs, info = env.reset(options={"rule": new_rule})
+print("Rule:", new_rule)
 print("Observation: ", obs)
 
 done = False

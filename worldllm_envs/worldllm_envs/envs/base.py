@@ -65,12 +65,8 @@ class BaseRuleEnv(gym.Env, abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def generate_rule() -> BaseRule:
-        """Generate Rule"""
-
-    @abc.abstractmethod
-    def from_custom(self, custom_rule: Any) -> BaseRule:
-        """Generate custom Rule from name"""
+    def generate_rule(rule: Optional[Any]) -> BaseRule:
+        """Generate Rule from argument or randomly"""
 
     def change_rule(self, rule: BaseRule) -> None:
         """Change the rule of the environment."""
@@ -84,11 +80,8 @@ class BaseRuleEnv(gym.Env, abc.ABC):
     def observation_to_text(self, observation) -> str:
         """Return text associated with the observation"""
 
-    @abc.abstractmethod
-    def mapping_action(self, action) -> Tuple[Any, ...]:
-        """Map action to the actual objects"""
-
     def get_rule(self) -> BaseRule:
+        """Return the rule of the environment."""
         return self.rule
 
     def reset(self, seed=None, options=None):
@@ -127,8 +120,8 @@ class TextWrapper(gym.Wrapper):
     def observation_to_text(self, observation):
         return self.env.unwrapped.observation_to_text(observation)
 
-    def generate_rule(self):
-        return self.env.unwrapped.generate_rule()
+    def generate_rule(self, rule: Optional[Any] = None):
+        return self.env.unwrapped.generate_rule(rule)
 
     def step(self, action):
         observation, reward, terminated, truncated, info = self.env.step(action)

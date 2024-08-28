@@ -27,7 +27,7 @@ def main(cfg: DictConfig) -> None:
     env: BaseRuleEnv = build_env(cfg)
     # Set Rule
     if cfg.environment.rule is not None:
-        env_rule = env.from_custom(OmegaConf.to_object(cfg.environment)["rule"])
+        env_rule = env.generate_rule(OmegaConf.to_object(cfg.environment)["rule"])
     else:
         env_rule = env.generate_rule()
     env.reset(options={"rule": env_rule})

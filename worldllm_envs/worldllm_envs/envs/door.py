@@ -203,12 +203,10 @@ class DoorEnv(BaseRuleEnv):
         super().__init__(config, **kwargs)
 
     @staticmethod
-    def generate_rule() -> Rule:
-        """Generate Rule with random combination of color, size and shape."""
-        return Rule.from_combination(*generate_comb(2))
-
-    def from_custom(self, custom_rule: Union[str, List[str]]) -> Rule:
-        """Return a custom rule given the name or a list of components of the rule"""
+    def generate_rule(custom_rule: Optional[Union[str, List[str]]] = None) -> Rule:
+        """Generate Rule from custom rule or random combination of color, size and shape."""
+        if custom_rule is None:
+            return Rule.from_combination(*generate_comb(2))
         if (
             isinstance(custom_rule, str)
             and getattr(CustomRules, custom_rule)
