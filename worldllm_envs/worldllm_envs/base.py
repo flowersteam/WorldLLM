@@ -1,4 +1,5 @@
 import abc
+import random
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -37,11 +38,14 @@ class BaseRuleEnv(gym.Env, abc.ABC):
                 setattr(self, attr, value)
         self.rule: BaseRule
         # Set the seed
-        if kwargs.get("seed") is not None:
-            seed = kwargs["seed"]
-            self.observation_space.seed(seed)
-            self.action_space.seed(seed)
-            self.np_random = np.random.default_rng(seed)
+        self.set_seed(kwargs.get("seed", None))
+
+    def set_seed(self, seed: Optional[int]) -> None:
+        """Set the seed of the environment"""
+        self.observation_space.seed(seed)
+        self.action_space.seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
 
     def get_message_info(self):
         """Return prompting information for the theorist and statistician llms"""
@@ -77,6 +81,9 @@ class BaseRuleEnv(gym.Env, abc.ABC):
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
+        if seed is not None:
+            # Do not change seed if not provided
+            self.set_seed(seed)
         if (options is None or "rule" not in options) and not hasattr(self, "rule"):
             raise ValueError("You must provide a rule to init the environment.")
         return self._reset(options)
