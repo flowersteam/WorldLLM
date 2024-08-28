@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from worldllm_envs.envs.base import BaseRule
+from worldllm_envs.base import BaseRule
 
 
 def to_json_serializable(obj: Any) -> Any:

@@ -6,7 +6,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from utils.utils_env import BaseAgent, generate_text_trajectories
 from utils.utils_llm import compute_likelihood, generate_rules
 from utils.utils_save import RuleOutput
-from worldllm_envs.envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseRuleEnv
 
 
 def get_unique_rules(

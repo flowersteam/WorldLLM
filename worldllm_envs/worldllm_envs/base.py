@@ -32,15 +32,7 @@ class BaseRuleEnv(gym.Env, abc.ABC):
     """Base Class for the world llm environments."""
 
     def __init__(self, initial_config: Dict[str, Any], **kwargs) -> None:
-        self.observation_space = initial_config["observation_space"]
-        self.action_space = initial_config["action_space"]
-        for attr in [
-            "tokens",
-            "stat_prompt",
-            "stat_template",
-            "th_prompt",
-            "th_template",
-        ]:
+        for attr in initial_config:
             if attr in kwargs:
                 setattr(self, attr, kwargs[attr])
             else:

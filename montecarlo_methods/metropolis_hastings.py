@@ -13,7 +13,7 @@ from utils.utils_llm import (
     score_rules,
 )
 from utils.utils_save import RuleOutput
-from worldllm_envs.envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseRuleEnv
 
 
 def get_worst_trajectories(

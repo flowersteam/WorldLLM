@@ -10,7 +10,7 @@ from montecarlo_methods.important_sampling import important_sampling
 from montecarlo_methods.metropolis_hastings import metropolis_hastings
 from utils.utils_env import BaseAgent, build_env
 from utils.utils_llm import build_llms
-from worldllm_envs.envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseRuleEnv
 
 
 # To change the config file: -cn config_name.yaml, to modify the config file: key=value and to add a value: +key=value

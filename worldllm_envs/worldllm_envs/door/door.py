@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import gymnasium as gym
 
-from worldllm_envs.envs.base import BaseRule, BaseRuleEnv
+from worldllm_envs.base import BaseRule, BaseRuleEnv
 
 
 class Sizes(Enum):

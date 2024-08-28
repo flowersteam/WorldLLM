@@ -7,7 +7,7 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-from worldllm_envs.envs.base import BaseRule, BaseRuleEnv
+from worldllm_envs.base import BaseRule, BaseRuleEnv
 
 
 class BaseAgent(abc.ABC):
