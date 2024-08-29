@@ -3,7 +3,7 @@ import gymnasium
 from worldllm_envs.base import BaseRuleEnv
 
 seed = 5
-env: BaseRuleEnv = gymnasium.make("worldllm_envs/Door-v0", seed=seed)
+env: BaseRuleEnv = gymnasium.make("worldllm_envs/PlaygroundText-v1", **{"seed": seed})
 new_rule = env.generate_rule()
 obs, info = env.reset(options={"rule": new_rule})
 print("Rule:", new_rule)
