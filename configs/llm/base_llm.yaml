@@ -6,5 +6,3 @@ generation_kwargs:
   cache_implementation: "quantized"
   cache_config: {"backend": "quanto", "nbits": 4}
 chat_template: null
-opened token id: ???
-closed token id: ???
