@@ -102,7 +102,7 @@ def metropolis_hastings(
             likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
             # Compute reverse kernel
             rev_importance_probs = score_rules(
-                theorist, prompt_trajectories, rules, prev_rules
+                theorist, prompt_trajectories, prev_rules, rules
             )
         weights = (
             likelihoods - prev_likelihoods - importance_probs + rev_importance_probs
