@@ -359,9 +359,6 @@ def compute_likelihood(
     return_all_logp: bool = False,
 ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """Compute the likelihood of the new data given the rules."""
-    assert isinstance(
-        trajectories[0].obs[0], int
-    ), "We only support discrete observation for the environment for now."
     lst_messages = []
     lst_candidate = []
     # Generate messages

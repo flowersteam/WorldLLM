@@ -55,7 +55,6 @@ class Trajectory:
     """Save information on some rollout for the llms."""
 
     text: List[str]
-    obs: List[Any]
 
     def __len__(self):
         return len(self.text)
@@ -89,7 +88,5 @@ def generate_text_trajectories(
             action = agent(obs)
             obs, _, terminated, truncated, info = env.step(action)
             done = terminated or truncated
-        lst_trajectory.append(
-            Trajectory(info["text_trajectory"], info["obs_trajectory"])
-        )
+        lst_trajectory.append(Trajectory(info["text_trajectory"]))
     return lst_trajectory
