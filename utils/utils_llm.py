@@ -35,32 +35,35 @@ def build_llms(
     cfg: DictConfig, env_prompt_info: EnvPromptInfo
 ) -> Tuple[LlmModel, LlmModel]:
     """Build the llms and prompts from config and environment"""
-    theorist = load_transformers(cfg.theorist)
+    theorist_model = load_transformers(cfg.theorist)
     if cfg.statistician is not None:
-        statistician = load_transformers(cfg.statistician)
+        statistician_model = load_transformers(cfg.statistician)
     else:
-        statistician = theorist
+        statistician_model = theorist_model
     # Build System prompt and base message given the environment
     stat_prompt_info = build_stat_prompt_info(
-        statistician,
+        statistician_model,
         env_prompt_info,
         cfg.algorithm.stat_sys_prompt,
         cfg.algorithm.stat_batch_size,
     )
     th_prompt_info = build_th_prompt_info(
-        theorist,
+        theorist_model,
         env_prompt_info,
         cfg.algorithm.th_sys_prompt,
         cfg.algorithm.th_batch_size,
     )
     # Set prompt information
     statistician = LlmModel(
-        statistician[0],
-        statistician[1],
+        statistician_model[0],
+        statistician_model[1],
         stat_prompt_info,
     )
     theorist = LlmModel(
-        theorist[0], theorist[1], th_prompt_info, cfg.theorist.generation_kwargs
+        theorist_model[0],
+        theorist_model[1],
+        th_prompt_info,
+        cfg.theorist.generation_kwargs,
     )
     return statistician, theorist
 
@@ -215,7 +218,9 @@ def score_rules(
 
 
 def _generate_rule(
-    theorist: LlmModel, lst_message: List[str], generation_args: Dict[str, Any]
+    theorist: LlmModel,
+    lst_message: List[Tuple[Dict[str, str], Dict[str, str]]],
+    generation_args: Dict[str, Any],
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Generate rule given message batch"""
     inputs = theorist.tokenizer.apply_chat_template(

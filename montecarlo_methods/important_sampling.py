@@ -4,14 +4,14 @@ import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils.utils_env import BaseAgent, generate_text_trajectories
-from utils.utils_llm import compute_likelihood, generate_rules
+from utils.utils_llm import LlmModel, compute_likelihood, generate_rules
 from utils.utils_save import RuleOutput
 from worldllm_envs.base import BaseRuleEnv
 
 
 def get_unique_rules(
     rules: List[str], weights: np.ndarray
-) -> Tuple[Dict[str, int], np.ndarray, np.ndarray]:
+) -> Tuple[List[str], np.ndarray, np.ndarray]:
     """From rules and weights return unique rules with count and the weights with correct index"""
     set_rules = {}
     unique_rules = []
@@ -31,8 +31,8 @@ def get_unique_rules(
 def important_sampling(
     env: BaseRuleEnv,
     agent: BaseAgent,
-    theorist: Tuple[AutoModelForCausalLM, AutoTokenizer],
-    statistician: Tuple[AutoModelForCausalLM, AutoTokenizer],
+    theorist: LlmModel,
+    statistician: LlmModel,
     cfg: Dict[str, Any],
 ) -> RuleOutput:
     # Get true rule

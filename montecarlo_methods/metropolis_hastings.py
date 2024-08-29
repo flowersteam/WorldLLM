@@ -7,6 +7,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils.utils_env import BaseAgent, Trajectory, generate_text_trajectories
 from utils.utils_llm import (
+    LlmModel,
     compute_likelihood,
     evolve_rules,
     generate_rules,
@@ -30,8 +31,8 @@ def get_worst_trajectories(
 def metropolis_hastings(
     env: BaseRuleEnv,
     agent: BaseAgent,
-    theorist: Tuple[AutoModelForCausalLM, AutoTokenizer],
-    statistician: Tuple[AutoModelForCausalLM, AutoTokenizer],
+    theorist: LlmModel,
+    statistician: LlmModel,
     cfg: Dict[str, Any],
 ) -> RuleOutput:
     """Metropolis-Hasting algorithm"""
