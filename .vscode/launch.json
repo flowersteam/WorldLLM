@@ -19,7 +19,20 @@
             "console": "integratedTerminal",
             "args": [
                 "-cn",
-                "metropolis.yaml"
+                "metropolis.yaml",
+                "algorithm.nb_iterations=2"
+            ]
+        },
+        {
+            "name": "IS",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-cn",
+                "is.yaml",
+                "algorithm.nb_rules=5"
             ]
         }
     ]
