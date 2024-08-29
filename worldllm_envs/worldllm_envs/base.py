@@ -22,7 +22,6 @@ class BaseRule:
 class EnvPromptInfo:
     """Prompting info to give to the LLM"""
 
-    tokens: List[str]
     stat_prompt: str
     th_prompt: str
     stat_template: Callable[[str, str], str]
@@ -50,7 +49,6 @@ class BaseRuleEnv(gym.Env, abc.ABC):
     def get_message_info(self):
         """Return prompting information for the theorist and statistician llms"""
         return EnvPromptInfo(
-            self.tokens,
             self.stat_prompt,
             self.th_prompt,
             self.stat_template,

@@ -22,13 +22,6 @@ class PromptInfo:
 
 
 @dataclass
-class StatPromptInfo(PromptInfo):
-    """Prompting info to give to the Statistician"""
-
-    tokens: List[int]
-
-
-@dataclass
 class LlmModel:
     """Data class for the LLM model."""
 
@@ -126,29 +119,19 @@ def build_stat_prompt_info(
     env_prompt_info: EnvPromptInfo,
     base_system_prompt: str,
     batch_size: int,
-) -> StatPromptInfo:
+) -> PromptInfo:
     """Build the prompt and message necessary for the Statistician."""
-    llm, tokenizer = model
-    lst_token_id = []
-    for token in env_prompt_info.tokens:
-        tokens_id = tokenizer.encode(token, add_special_tokens=False)
-        if len(tokens_id) > 1:
-            raise NotImplementedError("Words with multiple tokens not supported yet.")
-        lst_token_id.append(tokens_id[0])
-
     system_prompt = base_system_prompt + env_prompt_info.stat_prompt
-    return StatPromptInfo(
-        system_prompt, env_prompt_info.stat_template, batch_size, lst_token_id
-    )
+    return PromptInfo(system_prompt, env_prompt_info.stat_template, batch_size)
 
 
-def _score_rule(
-    theorist: LlmModel,
-    lst_message: List[str],
-    lst_candidate: List[str],
-) -> np.ndarray:
-    """Scoring the rule given message and candidates."""
-    candidate = theorist.tokenizer.apply_chat_template(
+def _score_candidate(
+    llm: LlmModel,
+    lst_message: List[Tuple[Dict[str, str], Dict[str, str]]],
+    lst_candidate: List[Tuple[Dict[str, str]]],
+) -> torch.Tensor:
+    """Scoring the rule or trajectory given message and candidates."""
+    candidate = llm.tokenizer.apply_chat_template(
         lst_candidate,
         add_generation_prompt=False,
     )
@@ -161,14 +144,14 @@ def _score_rule(
         index_mat[None, :] >= max_len_candidate - len_candidate[:, None], 1, 0
     )
     with torch.no_grad():
-        inputs = theorist.tokenizer.apply_chat_template(
+        inputs = llm.tokenizer.apply_chat_template(
             lst_message,
             add_generation_prompt=False,
             return_tensors="pt",
             padding=True,
             return_dict=True,
         )
-        results = theorist.model(
+        results = llm.model(
             inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
         )
@@ -222,7 +205,7 @@ def score_rules(
         desc="Scoring rules",
         leave=False,
     ):
-        log_probs = _score_rule(
+        log_probs = _score_candidate(
             theorist,
             lst_message[batch : batch + theorist.prompt_info.batch_size],
             lst_candidate[batch : batch + theorist.prompt_info.batch_size],
@@ -364,29 +347,6 @@ def evolve_rules(
     return all_rules, torch.cat(all_log_probs).numpy()
 
 
-def compute_log_likelihood_scores(
-    statistician: LlmModel,
-    generation_args: Dict[str, Any],
-    tokens: List[int],
-    lst_message: List[str],
-) -> torch.Tensor:
-    """Compute the score for each message"""
-    inputs = statistician.tokenizer.apply_chat_template(
-        lst_message,
-        add_generation_prompt=True,
-        return_tensors="pt",
-        padding=True,
-        return_dict=True,
-    ).to(statistician.model.device)
-    results = statistician.model.generate(
-        inputs["input_ids"], attention_mask=inputs["attention_mask"], **generation_args
-    )
-    scores = results.scores[0]
-    logp = torch.nn.functional.log_softmax(scores, dim=-1)
-    logp = logp[:, tokens]
-    return logp.cpu()
-
-
 def compute_likelihood(
     statistician: LlmModel,
     rules: List[str],
@@ -397,18 +357,8 @@ def compute_likelihood(
     assert isinstance(
         trajectories[0].obs[0], int
     ), "We only support discrete observation for the environment for now."
-    # Generation args
-    generation_args = {
-        "temperature": 1,
-        "do_sample": True,
-        "max_new_tokens": 1,
-        "top_k": None,
-        "top_p": 1,
-        "output_scores": True,
-        "return_dict_in_generate": True,
-        "pad_token_id": statistician.tokenizer.pad_token_id,
-    }
     lst_messages = []
+    lst_candidate = []
     # Generate messages
     for rule in rules:
         for trajectory in trajectories:
@@ -425,6 +375,9 @@ def compute_likelihood(
                 },
             )
             lst_messages.append(message)
+            lst_candidate.append(
+                ({"role": "assistant", "content": trajectory.text[-1]},)
+            )
     batch_size = statistician.prompt_info.batch_size
     all_logp = []
     for incr in tqdm(
@@ -433,21 +386,17 @@ def compute_likelihood(
         leave=False,
     ):
         all_logp.append(
-            compute_log_likelihood_scores(
+            _score_candidate(
                 statistician,
-                generation_args,
-                statistician.prompt_info.tokens,
                 lst_messages[incr : incr + batch_size],
+                lst_candidate[incr : incr + batch_size],
             )
         )
     logp = torch.cat(all_logp, dim=0)
-
     logp = torch.stack(torch.split(logp, len(trajectories)))
-    obs_to_predict = torch.tensor([trajectory.obs[-1] for trajectory in trajectories])
 
-    log_probability = logp[:, torch.arange(len(trajectories)), obs_to_predict].sum(
-        dim=1
-    )
+    log_probability = logp.sum(dim=1)
+
     if return_all_logp:
         return log_probability.numpy(), logp.numpy()
     return log_probability.numpy()

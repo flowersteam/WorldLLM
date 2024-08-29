@@ -57,13 +57,15 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' Answer with just the rule"
             return msg
 
-        self.observation_space = gym.spaces.Discrete(2)
-        self.action_space = gym.spaces.MultiDiscrete([3, 3, 3])
-        self.tokens = ["closed", "opened"]
+        # WorldLLM parameters
+        self.observation_space = gym.spaces.Text(int(1e6))
+        self.action_space = gym.spaces.Text(int(1e6))
         self.stat_prompt = ""
         self.stat_template = statisitician_template
         self.th_prompt = ""
         self.th_template = theorist_template
+
+        # Playground parameters
         self.max_steps = 64
         self.train = True
         self.mask_growgrow = False

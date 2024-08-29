@@ -190,7 +190,6 @@ class DoorEnv(BaseRuleEnv):
         # Default config:
         self.observation_space = gym.spaces.Discrete(2)
         self.action_space = gym.spaces.MultiDiscrete([3, 3, 3])
-        self.tokens = ["closed", "opened"]
         self.stat_prompt = "You must answer only by saying 'opened' or 'closed'."
         self.stat_template = statisitician_template
         self.th_prompt = ""

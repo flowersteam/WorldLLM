@@ -20,9 +20,7 @@ def get_worst_trajectories(
     logp: np.ndarray, trajectories: List[Trajectory], num_worst_trajectories: int
 ):
     """Return the worst trajectories according to the log probabilities"""
-    obs_to_predict = np.array([trajectory.obs[-1] for trajectory in trajectories])
-    all_logp = logp[:, np.arange(len(trajectories)), obs_to_predict]
-    arr_worst_ind = np.argsort(all_logp, axis=1)[:, :num_worst_trajectories]
+    arr_worst_ind = np.argsort(logp, axis=1)[:, :num_worst_trajectories]
     return [
         [trajectories[incr_worst_ind] for incr_worst_ind in worst_ind]
         for worst_ind in arr_worst_ind
