@@ -375,6 +375,7 @@ def compute_likelihood(
                         rule, " ".join(trajectory.text[:-1])
                     ),
                 },
+                {"role": "assistant", "content": trajectory.text[-1]},
             )
             lst_messages.append(message)
             lst_candidate.append(
