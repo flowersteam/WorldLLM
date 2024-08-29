@@ -120,7 +120,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     @staticmethod
     def generate_rule():
         print("WARNING: no other rule than the default one is available")
-        return "None"
+        return "Default rule"
 
     def action_to_text(self, action):
         pass
