@@ -146,15 +146,22 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         ):
             return "Nothing Changed."
         elif action_type == "go to":
-            return f"You move on {action_obj}."
+            return f"You are standing on on {action_obj}."
         elif action_type == "grasp":
             set_diff = set(obs_hold) - set(last_obs_hold)
             assert (
                 len(set_diff) == 1
             ), "There should be only one object grasped at a time"
-            return f"You pick up {set_diff.pop()}."
+            if last_obs_hold[0] == "empty":
+                return f"You are holding {set_diff.pop()}."
+            if len(last_obs_hold) == 1:
+                return f"You are holding {last_obs_hold[0]} and {set_diff.pop()}."
+            raise ValueError("Inventory cannot contain more than 2 objects")
         elif action_type == "release":
-            raise NotImplementedError("Release action not implemented yet.")
+            new_obj = set(obs_obj) - set(last_obs_obj)
+            assert len(new_obj) == 1, "There should be only one new object emerging"
+            old_obj = set(last_obs_obj) - set(obs_obj)
+            return f"{old_obj.pop()} transforms into {new_obj.pop()}."
         raise ValueError(
             f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
         )

@@ -2,13 +2,14 @@ import gymnasium
 
 from worldllm_envs.base import BaseRuleEnv
 
-seed = 38
+seed = 19
 env: BaseRuleEnv = gymnasium.make(
     "worldllm_envs/PlaygroundText-v1", **{"max_steps": 20, "seed": seed}
 )
 new_rule = env.unwrapped.generate_rule()
 obs, info = env.reset(options={"rule": new_rule})
 print("Rule:", new_rule)
+print("Goal: ", info["goal"])
 print("Observation: ", obs)
 
 done = False
