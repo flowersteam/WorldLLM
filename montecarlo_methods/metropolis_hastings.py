@@ -89,8 +89,8 @@ def metropolis_hastings(
             rev_importance_probs = score_rules(
                 theorist,
                 prompt_trajectories,
-                rules,
                 prev_rules,
+                rules,
                 worst_trajectories=worst_trajectories,
             )
         else:
