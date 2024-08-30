@@ -1,11 +1,11 @@
 import random
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
 
-from worldllm_envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseRuleEnv, TextWrapper
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
 from worldllm_envs.playground.playgroundnavv1 import PlayGroundNavigationV1
@@ -74,7 +74,6 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         self.random_type = False
 
         super().__init__(**kwargs)
-
         # The playground environment
         self.playground = PlayGroundNavigationV1(**kwargs.get("playground_config", {}))
 
@@ -120,15 +119,65 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             ]
 
     @staticmethod
-    def generate_rule():
+    def generate_rule(custom_rule: Optional[str] = None) -> str:
         print("WARNING: no other rule than the default one is available")
         return "Default rule"
 
-    def action_to_text(self, action):
-        pass
+    def action_to_text(self, action: str):
+        return action
 
-    def observation_to_text(self):
-        pass
+    def observation_to_text(self, observation: str):
+        return observation
+
+    def get_diff_description(
+        self, last_observation: str, observation: str, action: str
+    ) -> str:
+        """Compute the difference between two observations"""
+        # Split text description
+        last_obs_obj, last_obs_stand, last_obs_hold = self._split_description(
+            last_observation
+        )
+        obs_obj, obs_stand, obs_hold = self._split_description(observation)
+        action_type, action_obj = self._split_action(action)
+        if (
+            set(last_obs_obj) == set(obs_obj)
+            and set(last_obs_stand) == set(obs_stand)
+            and set(last_obs_hold) == set(obs_hold)
+        ):
+            return "Nothing Changed."
+        elif action_type == "go to":
+            return f"You move on {action_obj}."
+        elif action_type == "grasp":
+            set_diff = set(obs_hold) - set(last_obs_hold)
+            assert (
+                len(set_diff) == 1
+            ), "There should be only one object grasped at a time"
+            return f"You pick up {set_diff.pop()}."
+        elif action_type == "release":
+            raise NotImplementedError("Release action not implemented yet.")
+        raise ValueError(
+            f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
+        )
+
+    def _split_action(self, action: str) -> Tuple[str, str]:
+        """Split the action into type and object"""
+        if "go to" in action:
+            return "go to", action.split("go to ")[1]
+        elif "grasp" in action:
+            return "grasp", ""
+        elif "release" in action:
+            return "release", action.split("release ")[1]
+        raise ValueError("The action " + action + " has not been recognized")
+
+    def _split_description(
+        self, description: str
+    ) -> Tuple[List[str], List[str], List[str]]:
+        """Split the description into what you see, stand on and hold"""
+        split_description = description.split("\n")
+        lst_objects = split_description[0].split(": ")[1].split(", ")
+        lst_standing = split_description[1].split(": ")[1].split(", ")
+        lst_holding = split_description[2].split(": ")[1].split(", ")
+        return lst_objects, lst_standing, lst_holding
 
     def _reset(self, options: Optional[Dict[str, Any]]):
         # Change the rule if new one is presented
@@ -309,7 +358,6 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 "To use render you have to instanciate playground using gym.make('PlaygroundNavigationRender-v1')"
             )
 
-    # region Old playground utils and actions
     # --- Utils ---
 
     def get_hindsight(self, o, grasp=False):
@@ -462,4 +510,26 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         return np.array([0, 0, release_id])
 
 
-# endregion
+class PlaygroundWrapper(TextWrapper):
+    """Text wrapper for the Playground environment"""
+
+    def __init__(self, env: BaseRuleEnv):
+        super().__init__(env)
+        self.last_obs = None
+        self.last_action = None
+
+    def action_to_text(self, action):
+        act_text = self.env.unwrapped.action_to_text(action)
+        self.last_action = act_text
+        return act_text
+
+    def observation_to_text(self, observation):
+        if self.last_obs is None:
+            text_obs = self.env.unwrapped.observation_to_text(observation)
+            self.last_obs = observation
+            return text_obs
+        text_obs = self.env.unwrapped.get_diff_description(
+            self.last_obs, observation, self.last_action
+        )
+        self.last_obs = observation
+        return text_obs

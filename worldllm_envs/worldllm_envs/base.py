@@ -119,10 +119,9 @@ class TextWrapper(gym.Wrapper):
         return self.env.unwrapped.generate_rule(rule)
 
     def step(self, action):
+        act_text = self.action_to_text(action)
         observation, reward, terminated, truncated, info = self.env.step(action)
-        obs_text, act_text = self.observation_to_text(observation), self.action_to_text(
-            action
-        )
+        obs_text = self.observation_to_text(observation)
         self.text_trajectory.extend([act_text, obs_text])
         self.obs_trajectory.append(observation)
         info["action_text"] = act_text
@@ -138,8 +137,9 @@ class TextWrapper(gym.Wrapper):
 
     def reset(self, seed=None, options=None):
         observation, info = self.env.reset(seed=seed, options=options)
-        self.text_trajectory = [self.observation_to_text(observation)]
+        text_obs = self.observation_to_text(observation)
+        self.text_trajectory = [text_obs]
         self.obs_trajectory = [observation]
         info["text_trajectory"] = self.text_trajectory
         info["obs_trajectory"] = self.obs_trajectory
-        return self.observation_to_text(observation), info
+        return text_obs, info
