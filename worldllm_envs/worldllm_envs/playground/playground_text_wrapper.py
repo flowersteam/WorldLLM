@@ -124,10 +124,36 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         return "Default rule"
 
     def action_to_text(self, action: str):
-        return action
+        action_type, action_obj = self._split_action(action)
+        if action_type == "go to":
+            return f"You go to the {action_obj}."
+        elif action_type == "grasp":
+            return "You grasp the object."
+        elif action_type == "release":
+            return f"You release the {action_obj}."
+        raise ValueError("The action " + action + " has not been recognized")
 
     def observation_to_text(self, observation: str):
-        return observation
+        "Format the observation into more of a sentence"
+        obs_obj, obs_stand, obs_hold = self._split_description(observation)
+        output = "You see the "
+        for i, obj in enumerate(obs_obj):
+            output += obj
+            if i == len(obs_obj) - 2:
+                output += " and the "
+            elif i != len(obs_obj) - 1:
+                output += ", the "
+            else:
+                output += "."
+        output += f"\nYou are standing on {obs_stand[0]}."
+        if len(obs_hold) == 2:
+            output += f"\nYou are holding {obs_hold[0]} and {obs_hold[1]}."
+        elif len(obs_hold) == 1:
+            if obs_hold[0] == "empty":
+                output += "\nYour are holding nothing."
+            else:
+                output += f"\nYou are holding {obs_hold[0]}."
+        return output
 
     def get_diff_description(
         self, last_observation: str, observation: str, action: str
@@ -144,9 +170,9 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             and set(last_obs_stand) == set(obs_stand)
             and set(last_obs_hold) == set(obs_hold)
         ):
-            return "Nothing Changed."
+            return "Nothing has changed."
         elif action_type == "go to":
-            return f"You are standing on on {action_obj}."
+            return f"You are standing on {action_obj}"
         elif action_type == "grasp":
             set_diff = set(obs_hold) - set(last_obs_hold)
             assert (
@@ -161,7 +187,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             new_obj = set(obs_obj) - set(last_obs_obj)
             assert len(new_obj) == 1, "There should be only one new object emerging"
             old_obj = set(last_obs_obj) - set(obs_obj)
-            return f"{old_obj.pop()} transforms into {new_obj.pop()}."
+            return f"The {old_obj.pop()} transforms into the {new_obj.pop()}."
         raise ValueError(
             f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
         )
