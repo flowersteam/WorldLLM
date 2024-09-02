@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils.utils_env import BaseAgent, Trajectory, generate_text_trajectories
 from utils.utils_llm import (
@@ -85,14 +84,15 @@ def metropolis_hastings(
             worst_trajectories = get_worst_trajectories(
                 all_logp, prompt_trajectories, cfg["num_worst_trajectories"]
             )
-            # Compute reverse kernel
-            rev_importance_probs = score_rules(
-                theorist,
-                prompt_trajectories,
-                prev_rules,
-                rules,
-                worst_trajectories=worst_trajectories,
-            )
+            if cfg["use_hasting_correction"]:
+                # Compute reverse kernel
+                rev_importance_probs = score_rules(
+                    theorist,
+                    prompt_trajectories,
+                    prev_rules,
+                    rules,
+                    worst_trajectories=worst_trajectories,
+                )
         else:
             # Sample a new rule
             rules, importance_probs = evolve_rules(
@@ -100,13 +100,20 @@ def metropolis_hastings(
             )
             # Compute likelihoods of new data using the rules
             likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
-            # Compute reverse kernel
-            rev_importance_probs = score_rules(
-                theorist, prompt_trajectories, prev_rules, rules
+            if cfg["use_hasting_correction"]:
+                # Compute reverse kernel
+                rev_importance_probs = score_rules(
+                    theorist, prompt_trajectories, prev_rules, rules
+                )
+
+        if cfg["use_hasting_correction"]:
+            # Compute weights
+            weights = (
+                likelihoods - prev_likelihoods - importance_probs + rev_importance_probs
             )
-        weights = (
-            likelihoods - prev_likelihoods - importance_probs + rev_importance_probs
-        )
+        else:
+            # Compute weights
+            weights = likelihoods - prev_likelihoods
         # Update rules obtained
         all_rules.extend(rules)
         all_weights.extend(weights)
