@@ -12,6 +12,13 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Env",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_env.py",
+            "console": "integratedTerminal",
+        },
+        {
             "name": "Metropolis",
             "type": "debugpy",
             "request": "launch",

@@ -1,10 +1,12 @@
 import random
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from collections import Counter
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import gymnasium as gym
 import numpy as np
 
+from utils.utils_env import BaseAgent
 from worldllm_envs.base import BaseRuleEnv, TextWrapper
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
@@ -13,6 +15,10 @@ from worldllm_envs.playground.reward_function import (
     get_reward_from_state,
     sample_descriptions_from_state,
 )
+
+
+def rm_trailing_number(input_str):
+    return re.sub(r"\d+$", "", input_str)
 
 
 class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
@@ -71,14 +77,14 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         self.mask_growgrow = False
         self.grasp_only = False
         self.goal_sampler = None
-        self.random_type = False
+        self.random_type = True
 
         super().__init__(**kwargs)
         # The playground environment
         self.playground = PlayGroundNavigationV1(**kwargs.get("playground_config", {}))
 
         # Dict containing all the playground environment parameters
-        self.env_params = get_env_params()
+        self.env_params = get_env_params(admissible_attributes=("categories", "types"))
 
         # Generate all the descriptions/goals for the environment
         train_descriptions_non_seq, test_descriptions_non_seq, _ = (
@@ -120,7 +126,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
     @staticmethod
     def generate_rule(custom_rule: Optional[str] = None) -> str:
-        print("WARNING: no other rule than the default one is available")
+        # print("WARNING: no other rule than the default one is available")
         return "Default rule"
 
     def action_to_text(self, action: str):
@@ -233,10 +239,9 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             else:
                 goal_type = random.choice(
                     [
-                        r"^Grasp",
                         r"^Grow.*\b(lion|grizzly|shark|fox|bobcat|coyote|small_carnivorous|big_carnivorous)\b",
-                        r"^Grow.*\b(elephant|giraffe|rhinoceros|pig|cow|sheep|small_herbivorous|big_herbivorous|animal)\b",
-                        r"^Grow.*\b(carrot|potato|beet|berry|pea|thing|living_thing)\b",
+                        r"^Grow.*\b(elephant|giraffe|rhinoceros|pig|cow|sheep|small_herbivorous|big_herbivorous)\b",
+                        r"^Grow.*\b(carrot|potato|beet|berry|pea)\b",
                     ]
                 )
                 self.goal_str = random.choice(
@@ -251,16 +256,14 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             # Sample goal uniformly for the type 'Grasp', 'Grow', 'Grow then grasp', 'Grow then grow'
             goal_type = random.choice(
                 [
-                    r"^Grasp",
                     r"^Grow.*\b(lion|grizzly|shark|fox|bobcat|coyote|small_carnivorous|big_carnivorous)\b",
-                    r"^Grow.*\b(elephant|giraffe|rhinoceros|pig|cow|sheep|small_herbivorous|big_herbivorous|animal)\b",
-                    r"^Grow.*\b(carrot|potato|beet|berry|pea|thing|living_thing)\b",
+                    r"^Grow.*\b(elephant|giraffe|rhinoceros|pig|cow|sheep|small_herbivorous|big_herbivorous)\b",
+                    r"^Grow.*\b(carrot|potato|beet|berry|pea)\b",
                 ]
             )
             self.goal_str = random.choice(
                 [goal for goal in self.test_descriptions if re.match(goal_type, goal)]
             )
-
         self.goals = self.goal_str.split(" then ")
         self.goals = [goal.capitalize() for goal in self.goals]
         self.goals_reached = [False for _ in self.goals]
@@ -281,6 +284,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         if len(hindsight) != 0:
             self.hindsights_list.extend(hindsight.copy())
 
+        info["obj_dict"] = self.obj_dict
         info["hindsight"] = hindsight
         if self.lp is not None:
             info["lp"] = self.lp
@@ -422,8 +426,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 < (obj.size + obj.agent_size) / 2
                 and not obj.grasped
             )
-
-            if obj.object_descr["categories"] == "plant" and not obj.grown_once:
+            category = obj.object_descr["categories"]
+            if category == "plant" and not obj.grown_once:
                 key = (
                     obj.object_descr["colors"]
                     + " "
@@ -431,8 +435,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     + " seed"
                 )
             elif (
-                "carnivorous" in obj.object_descr["categories"]
-                or "herbivorous" in obj.object_descr["categories"]
+                "carnivorous" in category or "herbivorous" in category
             ) and not obj.grown_once:
                 key = (
                     "baby "
@@ -448,6 +451,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "grasped": obj.grasped,
                     "agent_on": agent_on,
                     "grown": obj.grown_once,
+                    "category": category,
                 }
             else:  # If there are multiple objects with the same description
                 self.obj_dict[key + str(i)] = {
@@ -455,6 +459,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "grasped": obj.grasped,
                     "agent_on": agent_on,
                     "grown": obj.grown_once,
+                    "category": category,
                 }
                 i += 1
 
@@ -464,12 +469,12 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         """
         desc = "You see: "
         desc += ", ".join(
-            self.rm_trailing_number(obj)
+            rm_trailing_number(obj)
             for obj in self.obj_dict.keys()
             if not self.obj_dict[obj]["grasped"]
         )
         agent_on = [
-            self.rm_trailing_number(obj)
+            rm_trailing_number(obj)
             for obj in self.obj_dict.keys()
             if self.obj_dict[obj]["agent_on"]
         ]
@@ -477,7 +482,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             f'\nYou are on: {", ".join(agent_on) if len(agent_on) > 0 else "nothing"}'
         )
         obj_held = [
-            self.rm_trailing_number(obj)
+            rm_trailing_number(obj)
             for obj in self.obj_dict.keys()
             if self.obj_dict[obj]["grasped"]
         ]
@@ -490,7 +495,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         possible_actions = (
             ["Grasp"]
             + [
-                "Go to " + self.rm_trailing_number(obj)
+                "Go to " + rm_trailing_number(obj)
                 for obj in self.obj_dict.keys()
                 if not self.obj_dict[obj]["grasped"]
             ]
@@ -506,9 +511,6 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         }
 
         return desc, info
-
-    def rm_trailing_number(self, input_str):
-        return re.sub(r"\d+$", "", input_str)
 
     # --- Actions ---
 
@@ -566,3 +568,230 @@ class PlaygroundWrapper(TextWrapper):
         )
         self.last_obs = observation
         return text_obs
+
+
+class PerfectAgent(BaseAgent):
+    def __init__(
+        self, action_space: gym.Space, obj_dict: Dict[str, Dict[str, Any]], goal: str
+    ):
+        super().__init__(action_space)
+        self.obj_dict = obj_dict
+        self.goal = goal
+
+        # Split goal
+        goal_type, goal_obj = self.split_goal(goal)
+
+        # Define plan
+        self.dtree = PlaygroundDecisionTree(obj_dict, goal_type, goal_obj)
+        self.lst_actions = self.dtree.get_plan()
+        self.index = 0
+        self.is_done = False
+
+    def split_goal(self, goal: str) -> Tuple[str, str]:
+        """Split the goal into objects"""
+        lst_goal = goal.split(" ")
+        assert len(lst_goal) == 3
+        if lst_goal[0] == "Grow":
+            goal_type = "grow"
+        else:
+            raise ValueError(f"Unrecognized {lst_goal[0]} as a goal")
+        goal_obj = lst_goal[2]
+        return goal_type, goal_obj
+
+    def __call__(self, obs):
+        """Take action according to plan"""
+        action = self.lst_actions[self.index]
+        self.index += 1
+        if self.index == len(self.lst_actions):
+            self.is_done = True
+        return action
+
+
+class PlaygroundDecisionTree:
+    def __init__(
+        self,
+        obj_dict: Dict[str, Dict[str, Any]],
+        goal_type: str,
+        goal_obj: str,
+    ) -> None:
+        self.obj_dict = obj_dict
+        self.goal_type = goal_type
+        self.goal_obj = goal_obj
+        self.lst_action: List[str] = []
+
+        # Clean obj_dict
+        self.category: Dict[str, Set[str]] = {}
+        for k, v in self.obj_dict.items():
+            if v["category"] not in self.category:
+                self.category[v["category"]] = {k}
+            else:
+                self.category[v["category"]].add(k)
+        self.obj_cat = {k: v["category"] for k, v in self.obj_dict.items()}
+        # Compute plan
+        if goal_type == "grow":
+            if goal_obj not in {
+                "small_herbivorous",
+                "big_herbivorous",
+                "small_carnivorous",
+                "big_carnivorous",
+                "plant",
+            }:
+                for obj in self.obj_dict.keys():
+                    if goal_obj in obj:
+                        goal_obj = obj
+                        break
+                goal_cat = self.obj_cat[goal_obj]
+            else:
+                goal_cat = goal_obj
+                goal_obj = None
+            if goal_cat == "plant":
+                _, success = self._grow_plant(goal_obj)
+            elif goal_cat == "small_herbivorous":
+                _, success = self._grow_herbivore(goal_obj)
+            elif goal_cat == "big_herbivorous":
+                _, success = self._grow_herbivore(goal_obj, big=True)
+            elif goal_cat == "small_carnivorous":
+                _, success = self._grow_carnivore(goal_obj)
+            elif goal_cat == "big_carnivorous":
+                _, success = self._grow_carnivore(goal_obj, big=True)
+            else:
+                raise ValueError(f"Unrecognized goal category {goal_cat}")
+            if not success:
+                raise ValueError(f"Could not find a plan for {goal_obj}")
+        else:
+            raise ValueError(f"Unrecognized goal type {goal_type}")
+
+    def get_plan(self) -> List[str]:
+        """Return list of actions to take"""
+        return self.lst_action
+
+    def _find_object(self, obj: str) -> Tuple[str, bool]:
+        if obj in self.obj_cat:
+            return obj, True
+        return "", False
+
+    def _find_object_category(self, category: str) -> Tuple[str, bool]:
+        if category in self.category:
+            obj = self.category[category].pop()
+            self.category[category].add(obj)
+            return obj, True
+        return "", False
+
+    def _grow_plant(self, obj: Optional[str] = None) -> Tuple[str, bool]:
+        if obj is None:
+            obj, has_found = self._find_object_category("plant")
+            if not has_found:
+                return "", False
+        water_obj, has_found = self._find_object_category("supply")
+        if not has_found:
+            return "", False
+        self._go_to(water_obj)
+        self._grasp(water_obj)
+        self._go_to(obj)
+        obj, _ = self._release(obj, water_obj)
+        return obj, True
+
+    def _grow_herbivore(
+        self, obj: Optional[str] = None, big: bool = False
+    ) -> Tuple[str, bool]:
+        if obj is None:
+            if big:
+                obj, has_found = self._find_object_category("big_herbivorous")
+                if not has_found:
+                    return "", False
+            else:
+                obj, has_found = self._find_object_category("small_herbivorous")
+                if not has_found:
+                    return "", False
+        plant, success = self._grow_plant()
+        if not success:
+            return "", False
+        self._grasp(plant)
+        if big:
+            second_plant, success = self._grow_plant()
+            if not success:
+                return "", False
+            self._grasp(second_plant)
+        self._go_to(obj)
+        if big:
+            obj, _ = self._release(obj, plant, second_plant)
+        else:
+            obj, _ = self._release(obj, plant)
+        return obj, True
+
+    def _grow_carnivore(
+        self, obj: Optional[str] = None, big: bool = False
+    ) -> Tuple[str, bool]:
+        if big:
+            if obj is None:
+                obj, has_found = self._find_object_category("big_carnivorous")
+                if not has_found:
+                    return "", False
+
+            herbivorous, success = self._grow_herbivore(big=True)
+            if success:
+                self._grasp(herbivorous)
+                self._go_to(obj)
+                obj, _ = self._release(obj, herbivorous)
+            else:
+                first_herbivorous, first_success = self._grow_herbivore(big=False)
+                if not first_success:
+                    return "", False
+                self._grasp(first_herbivorous)
+                second_herbivorous, second_success = self._grow_herbivore(big=False)
+                if not second_success:
+                    return "", False
+                self._grasp(second_herbivorous)
+                self._go_to(obj)
+                obj, _ = self._release(obj, first_herbivorous, second_herbivorous)
+        else:
+            if obj is None:
+                obj, has_found = self._find_object_category("small_carnivorous")
+                if not has_found:
+                    return "", False
+            herbivorous, success = self._grow_herbivore()
+            if not success:
+                return "", False
+            self._grasp(herbivorous)
+            self._go_to(obj)
+            obj, _ = self._release(obj, herbivorous)
+        return obj, True
+
+    def _remove_obj(self, obj: str):
+        cat = self.obj_cat[obj]
+        del self.obj_cat[obj]
+        self.category[cat].remove(obj)
+        if len(self.category[cat]) == 0:
+            del self.category[cat]
+
+    # Low level actions
+    def _go_to(self, obj: str):
+        # Remove integers at the end of objects
+        self.lst_action.append("go to " + rm_trailing_number(obj))
+
+    def _grasp(self, obj: str):
+        # Remove integers at the end of objects
+        self.lst_action.append("grasp")
+        self._remove_obj(obj)
+
+    def _release(
+        self, obj: str, release_obj: str, release_obj2: str = ""
+    ) -> Tuple[str, bool]:
+        # Remove integers at the end of objects
+        if release_obj2 == "":
+            self.lst_action.append("release " + rm_trailing_number(release_obj))
+        else:
+            self.lst_action.append("release all")
+        # Modify object
+        obj_cat = self.obj_cat[obj]
+        if obj_cat == "plant":
+            new_obj = obj[:-5]  # Remove "seed"
+        else:
+            new_obj = obj[5:]
+        self._remove_obj(obj)
+        self.obj_cat[new_obj] = "grown " + obj_cat
+        if "grown " + obj_cat not in self.category:
+            self.category["grown " + obj_cat] = {new_obj}
+        else:
+            self.category["grown " + obj_cat].add(new_obj)
+        return new_obj, True
