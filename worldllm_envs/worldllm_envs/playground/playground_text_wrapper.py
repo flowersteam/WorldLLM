@@ -172,28 +172,28 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         obs_obj, obs_stand, obs_hold = self._split_description(observation)
         action_type, action_obj = self._split_action(action)
         if (
-            set(last_obs_obj) == set(obs_obj)
-            and set(last_obs_stand) == set(obs_stand)
-            and set(last_obs_hold) == set(obs_hold)
+            Counter(last_obs_obj) == Counter(obs_obj)
+            and Counter(last_obs_stand) == Counter(obs_stand)
+            and Counter(last_obs_hold) == Counter(obs_hold)
         ):
             return "Nothing has changed."
         elif action_type == "go to":
             return f"You are standing on {action_obj}"
         elif action_type == "grasp":
-            set_diff = set(obs_hold) - set(last_obs_hold)
+            counter_diff = Counter(obs_hold) - Counter(last_obs_hold)
             assert (
-                len(set_diff) == 1
+                len(counter_diff) == 1
             ), "There should be only one object grasped at a time"
             if last_obs_hold[0] == "empty":
-                return f"You are holding {set_diff.pop()}."
+                return f"You are holding {list(counter_diff.keys())[0]}."
             if len(last_obs_hold) == 1:
-                return f"You are holding {last_obs_hold[0]} and {set_diff.pop()}."
+                return f"You are holding {list(counter_diff.keys())[0]} and {list(counter_diff.keys())[0]}."
             raise ValueError("Inventory cannot contain more than 2 objects")
         elif action_type == "release":
-            new_obj = set(obs_obj) - set(last_obs_obj)
+            new_obj = Counter(obs_obj) - Counter(last_obs_obj)
             assert len(new_obj) == 1, "There should be only one new object emerging"
-            old_obj = set(last_obs_obj) - set(obs_obj)
-            return f"The {old_obj.pop()} transforms into the {new_obj.pop()}."
+            old_obj = Counter(last_obs_obj) - Counter(obs_obj)
+            return f"The {list(old_obj)[0]} transforms into the {list(new_obj)[0]}."
         raise ValueError(
             f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
         )
