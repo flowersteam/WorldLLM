@@ -218,6 +218,10 @@ class PlayGroundNavigationV1(gym.Env):
                             "plant",
                         ]
                     )
+                if obj_to_be_grown["types"] is None:
+                    obj_to_be_grown["types"] = np.random.choice(
+                        self.categories[obj_to_be_grown["categories"]]
+                    )
                 objs.append(obj_to_be_grown.copy())
 
                 # now sample the supply

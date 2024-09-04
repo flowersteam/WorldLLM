@@ -657,7 +657,7 @@ class PlaygroundDecisionTree:
             else:
                 raise ValueError(f"Unrecognized goal category {goal_cat}")
             if not success:
-                raise ValueError(f"Could not find a plan for {goal_obj}")
+                raise ValueError(f"Could not find a plan for {goal_cat} and {goal_obj}")
         else:
             raise ValueError(f"Unrecognized goal type {goal_type}")
 
@@ -785,9 +785,9 @@ class PlaygroundDecisionTree:
         # Modify object
         obj_cat = self.obj_cat[obj]
         if obj_cat == "plant":
-            new_obj = obj[:-5]  # Remove "seed"
+            new_obj = rm_trailing_number(obj)[:-5]  # Remove "seed"
         else:
-            new_obj = obj[5:]
+            new_obj = rm_trailing_number(obj)[5:]
         self._remove_obj(obj)
         self.obj_cat[new_obj] = "grown " + obj_cat
         if "grown " + obj_cat not in self.category:

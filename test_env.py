@@ -1,10 +1,11 @@
 import gymnasium
+from tqdm import tqdm
 
 from worldllm_envs.base import BaseRuleEnv
 from worldllm_envs.playground.playground_text_wrapper import PerfectAgent
 
 success_rate = 0
-for seed in range(10000):
+for seed in tqdm(range(10000)):
     try:
         env: BaseRuleEnv = gymnasium.make(
             "worldllm_envs/PlaygroundText-v1", **{"max_steps": 20, "seed": seed}
