@@ -271,6 +271,7 @@ class PlayGroundNavigationV1(gym.Env):
                         )
                     )
                     obj_supply.update(dict(categories="small_herbivorous"))
+                    objs.append(obj_supply.copy())
                 else:
                     for _ in range(2):
                         obj_supply.update(dict(categories="supply", types="water"))
