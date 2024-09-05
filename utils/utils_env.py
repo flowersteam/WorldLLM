@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any, Dict, List
 
 import gymnasium as gym
 import numpy as np
@@ -19,6 +19,10 @@ class BaseAgent(abc.ABC):
     @abc.abstractmethod
     def __call__(self, obs):
         """Generate action"""
+
+    def reset(self, info: Dict[str, Any]):
+        """Reset the agent."""
+        pass
 
 
 class RandomAgent(BaseAgent):
@@ -79,10 +83,11 @@ def generate_text_trajectories(
 ) -> List[Trajectory]:
     """Generate random trajectories for the environment."""
     # Set rule
-    obs, _ = env.reset(options={"rule": rule})
+    obs, info = env.reset(options={"rule": rule})
     lst_trajectory = []
     for _ in tqdm(range(nb_trajectories), desc="Generating trajectories"):
-        obs, _ = env.reset()
+        obs, info = env.reset()
+        agent.reset(info)
         done = False
         while not done:
             action = agent(obs)

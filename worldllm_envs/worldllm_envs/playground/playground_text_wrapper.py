@@ -7,7 +7,7 @@ import gymnasium as gym
 import numpy as np
 
 from utils.utils_env import BaseAgent
-from worldllm_envs.base import BaseRuleEnv, TextWrapper
+from worldllm_envs.base import BaseRuleEnv
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
 from worldllm_envs.playground.playgroundnavv1 import PlayGroundNavigationV1
@@ -226,7 +226,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         self.sr_delayed = None
         self.temperature = None
         # Get goal
-        if "goal_str" in options:
+        if options is not None and "goal_str" in options:
             self.goal_str = options["goal_str"]
         elif self.train:
             if self.goal_sampler is not None:
@@ -528,52 +528,17 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         return np.array([0, 0, release_id])
 
 
-class PlaygroundWrapper(TextWrapper):
-    """Text wrapper for the Playground environment"""
-
-    def __init__(self, env: BaseRuleEnv):
-        super().__init__(env)
-        self.last_obs = None
-        self.last_action = None
-
-    def action_to_text(self, action):
-        act_text = self.env.unwrapped.action_to_text(action)
-        self.last_action = act_text
-        return act_text
-
-    def observation_to_text(self, observation):
-        if self.last_obs is None:
-            text_obs = self.env.unwrapped.observation_to_text(observation)
-            self.last_obs = observation
-            return text_obs
-        text_obs = self.env.unwrapped.get_diff_description(
-            self.last_obs, observation, self.last_action
-        )
-        self.last_obs = observation
-        return text_obs
-
-    def reset(self, seed=None, options=None):
-        self.last_obs = None
-        self.last_action = None
-        return super().reset(seed=seed, options=options)
-
-
 class PerfectAgent(BaseAgent):
-    def __init__(
-        self, action_space: gym.Space, obj_dict: Dict[str, Dict[str, Any]], goal: str
-    ):
+    """Heuristic agent for the Playground environment"""
+
+    def __init__(self, action_space: gym.Space):
         super().__init__(action_space)
-        self.obj_dict = obj_dict
-        self.goal = goal
-
-        # Split goal
-        goal_type, goal_obj = self.split_goal(goal)
-
-        # Define plan
-        self.dtree = PlaygroundDecisionTree(obj_dict, goal_type, goal_obj)
-        self.lst_actions = self.dtree.get_plan()
-        self.index = 0
-        self.is_done = False
+        self.obj_dict: Dict[str, Any]
+        self.goal: str
+        self.dtree: PlaygroundDecisionTree
+        self.lst_actions: List[str]
+        self.index: int
+        self.is_done: bool
 
     def split_goal(self, goal: str) -> Tuple[str, str]:
         """Split the goal into objects"""
@@ -586,16 +551,34 @@ class PerfectAgent(BaseAgent):
         goal_obj = lst_goal[2]
         return goal_type, goal_obj
 
-    def __call__(self, obs):
+    def __call__(self, obs: str) -> str:
         """Take action according to plan"""
+        if getattr(self, "is_done", False) or not hasattr(self, "obj_dict"):
+            raise ValueError("You need to call reset first")
         action = self.lst_actions[self.index]
         self.index += 1
         if self.index == len(self.lst_actions):
             self.is_done = True
         return action
 
+    def reset(self, info: Dict[str, Any]):
+        if not getattr(self, "is_done", False) and hasattr(self, "obj_dict"):
+            raise ValueError("You need to finish the plan before resetting")
+        self.obj_dict = info["obj_dict"]
+        self.goal = info["goal"]
+        # Split goal
+        goal_type, goal_obj = self.split_goal(self.goal)
+
+        # Define plan
+        self.dtree = PlaygroundDecisionTree(self.obj_dict, goal_type, goal_obj)
+        self.lst_actions = self.dtree.get_plan()
+        self.index = 0
+        self.is_done = False
+
 
 class PlaygroundDecisionTree:
+    """Decision tree to find the plan to reach a goal in the Playground environment"""
+
     def __init__(
         self,
         obj_dict: Dict[str, Dict[str, Any]],

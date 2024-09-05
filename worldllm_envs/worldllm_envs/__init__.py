@@ -1,7 +1,7 @@
 from gymnasium.envs.registration import register
 
 from worldllm_envs.base import TextWrapper
-from worldllm_envs.playground.playground_text_wrapper import PlaygroundWrapper
+from worldllm_envs.playground.playground_worldllm_wrapper import PlaygroundWrapper
 
 register(
     id="worldllm_envs/Door-v0",
