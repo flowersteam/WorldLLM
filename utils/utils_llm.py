@@ -255,7 +255,7 @@ def generate_rules(
 
     generation_args = {
         "temperature": 1,
-        "max_new_tokens": 100,
+        "max_new_tokens": 200,
         "do_sample": True,
         "top_k": None,
         "top_p": 1,
