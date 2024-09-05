@@ -366,7 +366,7 @@ def compute_likelihood(
     for rule in rules:
         for trajectory in trajectories:
             user_prompt = (
-                statistician.prompt_info.message_template(trajectory.text, rule)
+                statistician.prompt_info.message_template(rule)
                 + "\n"
                 + " ".join(trajectory.text[:start_score_index])
             )
