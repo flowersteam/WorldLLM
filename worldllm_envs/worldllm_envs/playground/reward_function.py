@@ -128,11 +128,10 @@ def get_grow_descriptions(
     obj_grown = get_grown_ids(initial_state, current_state)
     verb = "Grow"
     grow_descriptions = []
-    list_exluded = (
-        params["categories"]["furniture"]
-        + params["categories"]["supply"]
-        + ("furniture", "supply")
-    )
+    list_exluded = ("furniture", "supply")
+    for cat in ["furniture", "supply"]:
+        if cat in params["categories"]:
+            list_exluded += params["categories"][cat]
     for i_obj in obj_grown:
         att = obj_attributes[i_obj]
         adj_att, name_att = sort_attributes(att)

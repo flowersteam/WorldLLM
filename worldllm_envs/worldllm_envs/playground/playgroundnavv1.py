@@ -418,7 +418,11 @@ class PlayGroundNavigationV1(gym.Env):
 
         obj_features = np.array(
             [
-                obj.get_features() if obj is not None else np.zeros(35)
+                (
+                    obj.get_features()
+                    if obj is not None
+                    else np.zeros(len(self.attributes["types"]) + 7)
+                )
                 for obj in self.objects
             ]
         ).flatten()

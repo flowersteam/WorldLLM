@@ -65,11 +65,10 @@ def generate_all_descriptions(env_params):
 
     if "Grow" in p["admissible_actions"]:
         grow_descriptions = []
-        list_exluded = (
-            p["categories"]["furniture"]
-            + p["categories"]["supply"]
-            + ("furniture", "supply")
-        )
+        list_exluded = ("furniture", "supply")
+        for cat in ["furniture", "supply"]:
+            if cat in p["categories"]:
+                list_exluded += p["categories"][cat]
         for adj in adjective_attributes:
             if adj not in list_exluded:
                 quantifier = "any"  #'the' if check_if_relative(adj) else 'a'
