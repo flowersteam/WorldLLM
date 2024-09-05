@@ -555,6 +555,11 @@ class PlaygroundWrapper(TextWrapper):
         self.last_obs = observation
         return text_obs
 
+    def reset(self, seed=None, options=None):
+        self.last_obs = None
+        self.last_action = None
+        return super().reset(seed=seed, options=options)
+
 
 class PerfectAgent(BaseAgent):
     def __init__(
