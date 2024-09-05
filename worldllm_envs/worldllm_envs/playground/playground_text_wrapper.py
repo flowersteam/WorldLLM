@@ -31,10 +31,13 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     def __init__(self, **kwargs) -> None:
         def statisitician_template(rule: str):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
-            return f"I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). \
-                I can move an object, a plant or a herbivore and place it on another object to make them interact. \
-                You know that the rule is '{rule}'. \
-                Predict how the environment will change based on my actions."
+            msg = (
+                "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
+                + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
+                + f"You know that the rule is '{rule}'. "
+                + "Predict how the environment will change based on my actions."
+            )
+            return msg
 
         # When designing the template keep in mind that the text generated should be only the rule
         def theorist_template(
@@ -43,9 +46,11 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             worst_trajectories: Optional[List[str]] = None,
         ):
             """Template given to the theorist to sample new rules given trajectories"""
-            msg = "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). \
-                I can move an object, a plant or a herbivore and place it on another object to make them interact. \
-                Your previous experiences were: \n"
+            msg = (
+                "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
+                + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
+                + "Your previous experiences were: \n"
+            )
             for trajectory in trajectories:
                 msg += f"{trajectory}\n"
             if previous_rule is None:
