@@ -29,13 +29,12 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     """
 
     def __init__(self, **kwargs) -> None:
-        def statisitician_template(rule: str, trajectory: str):
+        def statisitician_template(rule: str):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
-            return (
-                "You are in an environment in front of a door. You have several objects at your disposal."
-                + "You have access to all combinations of the possible objects: key, card and ball, with the possible colors: red, green and blue, and the possible sizes: small, medium and large."
-                + f"You know that: {rule} and {trajectory}\nDo you think the door will open ? You must answer in lower case only by saying 'opened' or 'closed'."
-            )
+            return f"I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). \
+                I can move an object, a plant or a herbivore and place it on another object to make them interact. \
+                You know that the rule is '{rule}'. \
+                Predict how the environment will change based on my actions."
 
         # When designing the template keep in mind that the text generated should be only the rule
         def theorist_template(
@@ -44,23 +43,21 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             worst_trajectories: Optional[List[str]] = None,
         ):
             """Template given to the theorist to sample new rules given trajectories"""
-            msg = (
-                "You are in environment with a door. You have several objects at your disposal."
-                + "There are all the combinations of the possible objects: key, card and ball with the possible colors: red, green and blue and the possible sizes: small, medium and large."
-                + "You have these information: \n"
-            )
+            msg = "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). \
+                I can move an object, a plant or a herbivore and place it on another object to make them interact. \
+                Your previous experiences were: \n"
             for trajectory in trajectories:
                 msg += f"{trajectory}\n"
             if previous_rule is None:
-                msg += "\nFrom these, can you find the rule for the door? It should respect all the trajectories while still being as general as possible. Answer with just the rule"
+                msg += "\nCan you find a rule to predict how the environment will change based on these? It should respect all the trajectories while still being as general as possible. Answer with just the rule"
             else:
                 if worst_trajectories is not None:
-                    msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' You also know that the previous rule failed the most on those trajectories:\n"
+                    msg += f"\nCan you find a rule to predict how the environment will change based on these? You can take inspiration from the previous rule:'{previous_rule}'. You also know that the previous rule failed the most on those trajectories:\n"
                     for trajectory in worst_trajectories:
                         msg += f"{trajectory}\n"
                     msg += "\nAnswer with just the rule."
                 else:
-                    msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' Answer with just the rule"
+                    msg += f"\nCan you find a rule to predict how the environment will change based on these? You can take inspiration from the previous rule:'{previous_rule}'. Answer with just the rule"
             return msg
 
         # WorldLLM parameters
@@ -150,15 +147,15 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             elif i != len(obs_obj) - 1:
                 output += ", the "
             else:
-                output += "."
-        output += f"\nYou are standing on {obs_stand[0]}."
+                output += ". "
+        output += f"You are standing on {obs_stand[0]}. "
         if len(obs_hold) == 2:
-            output += f"\nYou are holding {obs_hold[0]} and {obs_hold[1]}."
+            output += f"You are holding {obs_hold[0]} and {obs_hold[1]}."
         elif len(obs_hold) == 1:
             if obs_hold[0] == "empty":
-                output += "\nYour are holding nothing."
+                output += "Your are holding nothing."
             else:
-                output += f"\nYou are holding {obs_hold[0]}."
+                output += f"You are holding {obs_hold[0]}."
         return output
 
     def get_diff_description(

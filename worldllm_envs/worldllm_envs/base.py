@@ -24,14 +24,18 @@ class EnvPromptInfo:
 
     stat_prompt: str
     th_prompt: str
-    stat_template: Callable[[str, str], str]
-    th_template: Callable[[List[str]], str]
+    stat_template: Callable[[str], str]
+    th_template: Callable[[List[str], Optional[str], Optional[List[str]]], str]
 
 
 class BaseRuleEnv(gym.Env, abc.ABC):
     """Base Class for the world llm environments."""
 
     def __init__(self, **kwargs) -> None:
+        self.stat_prompt: str
+        self.th_prompt: str
+        self.stat_template: Callable[[str], str]
+        self.th_template: Callable[[List[str], Optional[str], Optional[List[str]]], str]
         for attr, value in kwargs.items():
             if hasattr(self, attr):
                 setattr(self, attr, value)

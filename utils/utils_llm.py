@@ -361,9 +361,15 @@ def compute_likelihood(
     """Compute the likelihood of the new data given the rules."""
     lst_messages = []
     lst_candidate = []
+    start_score_index = 4
     # Generate messages
     for rule in rules:
         for trajectory in trajectories:
+            user_prompt = (
+                statistician.prompt_info.message_template(trajectory.text, rule)
+                + "\n"
+                + " ".join(trajectory.text[:start_score_index])
+            )
             message = (
                 {
                     "role": "system",
@@ -371,16 +377,23 @@ def compute_likelihood(
                 },
                 {
                     "role": "user",
-                    "content": statistician.prompt_info.message_template(
-                        rule, " ".join(trajectory.text[:-1])
-                    ),
+                    "content": user_prompt,
                 },
-                {"role": "assistant", "content": trajectory.text[-1]},
+                {
+                    "role": "assistant",
+                    "content": " ".join(trajectory.text[start_score_index:]),
+                },
             )
             lst_messages.append(message)
             lst_candidate.append(
-                ({"role": "assistant", "content": trajectory.text[-1]},)
+                (
+                    {
+                        "role": "assistant",
+                        "content": " ".join(trajectory.text[start_score_index:]),
+                    },
+                )
             )
+    raise NotImplementedError("Scoring not done yet")
     batch_size = statistician.prompt_info.batch_size
     all_logp = []
     for incr in tqdm(
