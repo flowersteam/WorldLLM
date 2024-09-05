@@ -424,23 +424,13 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             )
             category = obj.object_descr["categories"]
             if category == "plant" and not obj.grown_once:
-                key = (
-                    obj.object_descr["colors"]
-                    + " "
-                    + obj.object_descr["types"]
-                    + " seed"
-                )
+                key = obj.object_descr["types"] + " seed"
             elif (
                 "carnivorous" in category or "herbivorous" in category
             ) and not obj.grown_once:
-                key = (
-                    "baby "
-                    + obj.object_descr["colors"]
-                    + " "
-                    + obj.object_descr["types"]
-                )
+                key = "baby " + obj.object_descr["types"]
             else:
-                key = obj.object_descr["colors"] + " " + obj.object_descr["types"]
+                key = obj.object_descr["types"]
             if key not in self.obj_dict.keys():
                 self.obj_dict[key] = {
                     "position": obj.position,
