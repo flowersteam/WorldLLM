@@ -190,7 +190,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             new_obj = Counter(obs_obj) - Counter(last_obs_obj)
             assert len(new_obj) == 1, "There should be only one new object emerging"
             old_obj = Counter(last_obs_obj) - Counter(obs_obj)
-            return f"The {list(old_obj)[0]} transforms into the {list(new_obj)[0]}."
+            return f"The {list(old_obj)[0]} grows into the {list(new_obj)[0]}."
         raise ValueError(
             f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
         )
