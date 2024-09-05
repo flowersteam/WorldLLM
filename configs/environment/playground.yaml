@@ -1,0 +1,6 @@
+defaults: 
+  - base_env
+id: "worldllm_envs/PlaygroundText-v1"
+
+kwargs: 
+  max_steps: 30

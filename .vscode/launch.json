@@ -41,6 +41,18 @@
                 "is.yaml",
                 "algorithm.nb_rules=5"
             ]
+        },
+        {
+            "name": "Playground",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-cn",
+                "playground.yaml",
+                "algorithm.nb_rules=5"
+            ]
         }
     ]
 }

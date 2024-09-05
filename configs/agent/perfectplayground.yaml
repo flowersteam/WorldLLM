@@ -1,0 +1,3 @@
+defaults:
+  - base_agent
+_target_: worldllm_envs.playground.playground_text_wrapper.PerfectAgent
