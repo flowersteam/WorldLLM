@@ -237,21 +237,17 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     self.goal_sampler.sample_goal()
                 )
             else:
-                goal_type = random.choice(
-                    [
-                        r"^Grow.*\b(lion|grizzly|shark|fox|bobcat|coyote|small_carnivorous|big_carnivorous)\b",
-                        r"^Grow.*\b(elephant|giraffe|rhinoceros|pig|cow|sheep|small_herbivorous|big_herbivorous)\b",
-                        r"^Grow.*\b(carrot|potato|beet|berry|pea)\b",
-                    ]
-                )
-                self.goal_str = random.choice(
-                    [
-                        goal
-                        for goal in self.train_descriptions
-                        if re.match(goal_type, goal) or not self.random_type
-                    ]
-                )
+                lst_goal_possible = []
+                for goal in self.train_descriptions:
+                    lst_components = goal.split(" ")
+                    if not (
+                        lst_components[0] != "Grow"
+                        or lst_components[2] in {"living_thing", "animal"}
+                    ):
+                        lst_goal_possible.append(goal)
+                self.goal_str = random.choice(lst_goal_possible)
         else:
+            raise NotImplementedError("Test mode not supported yet")
             # If we are in test mode, we want to test the model on unseen data
             # Sample goal uniformly for the type 'Grasp', 'Grow', 'Grow then grasp', 'Grow then grow'
             goal_type = random.choice(
