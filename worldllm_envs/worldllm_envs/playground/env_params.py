@@ -88,17 +88,11 @@ def get_env_params(
     small_herbivorous = ("pig", "cow", "sheep")
     big_herbivorous = ("elephant", "giraffe", "rhinoceros")
     supplies = ("water",)
-    living_things = animals + plants
+    living_things = herbivorous + plants
     categories = dict(
         living_thing=living_things,
-        animal=animals,
-        furniture=furnitures,
         supply=supplies,
         plant=plants,
-        carnivorous=carnivorous,
-        herbivorous=herbivorous,
-        small_carnivorous=small_carnivorous,
-        big_carnivorous=big_carnivorous,
         small_herbivorous=small_herbivorous,
         big_herbivorous=big_herbivorous,
     )
