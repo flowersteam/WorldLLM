@@ -1,6 +1,6 @@
 import random
 import re
-from collections import Counter
+from collections import Counter, OrderedDict
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import gymnasium as gym
@@ -620,12 +620,12 @@ class PlaygroundDecisionTree:
         self.lst_action: List[str] = []
 
         # Clean obj_dict
-        self.category: Dict[str, Set[str]] = {}
+        self.category: Dict[str, Dict[str, str]] = {}
         for k, v in self.obj_dict.items():
             if v["category"] not in self.category:
-                self.category[v["category"]] = {k}
+                self.category[v["category"]] = OrderedDict({k: ""})
             else:
-                self.category[v["category"]].add(k)
+                self.category[v["category"]][k] = ""
         self.obj_cat = {k: v["category"] for k, v in self.obj_dict.items()}
         # Compute plan
         if goal_type == "grow":
@@ -672,8 +672,8 @@ class PlaygroundDecisionTree:
 
     def _find_object_category(self, category: str) -> Tuple[str, bool]:
         if category in self.category:
-            obj = self.category[category].pop()
-            self.category[category].add(obj)
+            obj, _ = self.category[category].popitem()
+            self.category[category][obj] = ""
             return obj, True
         return "", False
 
@@ -760,7 +760,7 @@ class PlaygroundDecisionTree:
     def _remove_obj(self, obj: str):
         cat = self.obj_cat[obj]
         del self.obj_cat[obj]
-        self.category[cat].remove(obj)
+        del self.category[cat][obj]
         if len(self.category[cat]) == 0:
             del self.category[cat]
 
@@ -791,7 +791,7 @@ class PlaygroundDecisionTree:
         self._remove_obj(obj)
         self.obj_cat[new_obj] = "grown " + obj_cat
         if "grown " + obj_cat not in self.category:
-            self.category["grown " + obj_cat] = {new_obj}
+            self.category["grown " + obj_cat] = OrderedDict({new_obj: ""})
         else:
-            self.category["grown " + obj_cat].add(new_obj)
+            self.category["grown " + obj_cat][new_obj] = ""
         return new_obj, True
