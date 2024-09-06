@@ -35,7 +35,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
                 + f"You know that the rule is '{rule}'. "
-                + "Predict how the environment will change based on my actions."
+                + "Predict how the next observation based on the previous actions and observations and use the same words."
             )
             return msg
 

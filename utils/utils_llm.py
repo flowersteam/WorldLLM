@@ -255,7 +255,7 @@ def generate_rules(
 
     generation_args = {
         "temperature": 1,
-        "max_new_tokens": 200,
+        "max_new_tokens": 100,
         "do_sample": True,
         "top_k": None,
         "top_p": 1,
@@ -352,6 +352,70 @@ def evolve_rules(
     return all_rules, torch.cat(all_log_probs).numpy()
 
 
+def _score_trajectory(
+    llm: LlmModel,
+    lst_message: List[Tuple[Dict[str, str], Dict[str, str]]],
+    lst_trajectory: List[List[str]],
+) -> torch.Tensor:
+    """Scoring the rule or trajectory given message and candidates."""
+    # Encode each trajectory observation and action
+    lst_reconstructed_tokens = []
+    len_reconstruct_trajectory = []
+    for trajectory_end in lst_trajectory:
+        reconstructed_tokens = llm.tokenizer(trajectory_end).data["input_ids"]
+        lst_reconstructed_tokens.append(reconstructed_tokens)
+        # We need to add the bos_token and eos_token to keep same format as if we applied the chat template
+        len_reconstructed_tokens = 0
+        for i, lst_reconstructed_token in enumerate(reconstructed_tokens):
+            if i == 0 or i == len(reconstructed_tokens) - 1:
+                len_reconstructed_tokens += (
+                    len(lst_reconstructed_token) + 1
+                )  # For the bos or eos token
+            else:
+                len_reconstructed_tokens += len(lst_reconstructed_token)
+        len_reconstruct_trajectory.append(len_reconstructed_tokens)
+    # We need to create a mask to know which tokens are the observations
+    len_candidate = torch.tensor([c - 1 for c in len_reconstruct_trajectory])
+    max_len_candidate = torch.max(len_candidate).item()
+
+    candidate_mask = torch.zeros(
+        (len(len_reconstruct_trajectory), max_len_candidate), dtype=torch.bool
+    )
+    for incr_traj, reconstructed_tokens in enumerate(lst_reconstructed_tokens):
+        pad_left = max_len_candidate - len_candidate[incr_traj]
+        for i, traj_elem_tokens in enumerate(reconstructed_tokens):
+            # We put 1 for the observation.
+            # In the trajectory the observation and action alternates
+            if i % 2 == 0:
+                candidate_mask[
+                    incr_traj, pad_left : pad_left + len(traj_elem_tokens)
+                ] = True
+            pad_left += len(traj_elem_tokens)
+
+    with torch.no_grad():
+        inputs = llm.tokenizer.apply_chat_template(
+            lst_message,
+            add_generation_prompt=False,
+            return_tensors="pt",
+            padding=True,
+            return_dict=True,
+        )
+        results = llm.model(
+            inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+        )
+    # We need to shift the logits to the right to match the candidate
+    logits = results.logits[:, -max_len_candidate - 1 : -1]
+    logp = torch.nn.functional.log_softmax(logits, dim=-1)
+    # We need to pad to 0 the logits to ignore padding
+    logp = logp.masked_fill_(~candidate_mask[:, :, None], 0)
+    score = torch.gather(
+        logp, 2, inputs["input_ids"][:, -max_len_candidate:, None]
+    ).squeeze(-1)
+    aggregated_scores = score.sum(-1)
+    return aggregated_scores.cpu()
+
+
 def compute_likelihood(
     statistician: LlmModel,
     rules: List[str],
@@ -360,7 +424,7 @@ def compute_likelihood(
 ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """Compute the likelihood of the new data given the rules."""
     lst_messages = []
-    lst_candidate = []
+    lst_trajectory_end = []
     start_score_index = 4
     # Generate messages
     for rule in rules:
@@ -385,15 +449,7 @@ def compute_likelihood(
                 },
             )
             lst_messages.append(message)
-            lst_candidate.append(
-                (
-                    {
-                        "role": "assistant",
-                        "content": " ".join(trajectory.text[start_score_index:]),
-                    },
-                )
-            )
-    raise NotImplementedError("Scoring not done yet")
+            lst_trajectory_end.append(trajectory.text[start_score_index:])
     batch_size = statistician.prompt_info.batch_size
     all_logp = []
     for incr in tqdm(
@@ -402,10 +458,10 @@ def compute_likelihood(
         leave=False,
     ):
         all_logp.append(
-            _score_candidate(
+            _score_trajectory(
                 statistician,
                 lst_messages[incr : incr + batch_size],
-                lst_candidate[incr : incr + batch_size],
+                lst_trajectory_end[incr : incr + batch_size],
             )
         )
     logp = torch.cat(all_logp, dim=0)

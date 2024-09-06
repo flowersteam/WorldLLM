@@ -26,7 +26,7 @@
             "console": "integratedTerminal",
             "args": [
                 "-cn",
-                "playground.yaml",
+                "playground_is.yaml",
                 "algorithm.nb_rules=3"
             ]
         }

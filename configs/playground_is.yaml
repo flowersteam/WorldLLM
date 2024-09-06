@@ -1,0 +1,18 @@
+defaults: 
+  - base_config
+  - algorithm: importance_sampling
+  - llm@theorist: Phi-3-mini-4k-instruct
+  - llm@statistician: Phi-3-mini-4k-instruct
+  - environment: playground
+  - agent: perfectplayground
+  
+exp_name: test_playground
+
+statistician: null
+seed: 60
+algorithm:
+  nb_rules: 100
+  stat_batch_size: 15
+  th_batch_size: 3
+  nb_trajectories: 10
+  add_true_rule: False

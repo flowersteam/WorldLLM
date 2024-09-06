@@ -31,7 +31,7 @@ def generate_answer(msg: List[Dict[str, str]]):
         "temperature": 1,
         "top_k": None,
         "top_p": 1,
-        "max_new_tokens": 100,
+        "max_new_tokens": 200,
         "do_sample": True,
         "output_scores": True,
         "return_dict_in_generate": True,
@@ -48,7 +48,6 @@ def generate_answer(msg: List[Dict[str, str]]):
     # Put the score of the padding token to 0 to ignore(not done by every model)
     logp[:, :, tokenizer.pad_token_id] = 0
     scores = torch.gather(logp, 2, generated_sequences[:, :, None]).squeeze(-1)
-    print(scores)
     aggregated_scores = scores.sum(-1)
     return generated_rules, aggregated_scores.cpu()
 
@@ -95,11 +94,11 @@ base_message = [
     (
         {
             "role": "system",
-            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and respect the prompt.",
         },
         {
             "role": "user",
-            "content": "You are in an environment in front of a door. You have several objects at your disposal.You have access to all combinations of the possible objects: key, card and ball, with the possible colors: red, green and blue, and the possible sizes: small, medium and large.You know that: Medium keys open the door. You are holding a small red key.\nDo you think the door will open ? You must answer only by saying 'The door is opened.' or 'The door is closed.'.",
+            "content": "You are in a simulated environment that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). You can move an object, a plant or a herbivore and place it on another object to make them interact. Predict how the environment will change based on your actions using the same world and style as the scenario start. The current scenario is:\nYou see the baby sheep, the water, the carrot seed, the water, the baby pig, the baby giraffe, the baby giraffe and the potato seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
         },
     )
 ]
@@ -116,5 +115,17 @@ all_message = [base_message[0] + candidate_answer[0]]
 
 scoring = score_answer(all_message, candidate_answer)
 
+candidate_answer2 = [
+    (
+        {
+            "role": "assistant",
+            "content": "You are holding the water. You go to the potato seed. You are standing on the potato seed. You release the water. The potato seed grows into the potato. You grasp the object. You are holding the potato. You go to the baby sheep. You are standing on the baby sheep. You release the potato. The baby sheep grows into the sheep.",
+        },
+    )
+]
+all_message = [base_message[0] + candidate_answer2[0]]
+
+scoring2 = score_answer(all_message, candidate_answer2)
+
 print("rules:", gen_rules)
-print("Score:", scoring, "generated answer:", gen_logp)
+print("Score:", scoring, "Score 2: ", scoring2, "generated answer:", gen_logp)
