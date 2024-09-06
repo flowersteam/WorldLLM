@@ -19,30 +19,6 @@
             "console": "integratedTerminal",
         },
         {
-            "name": "Metropolis",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/main.py",
-            "console": "integratedTerminal",
-            "args": [
-                "-cn",
-                "metropolis.yaml",
-                "algorithm.nb_iterations=2"
-            ]
-        },
-        {
-            "name": "IS",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/main.py",
-            "console": "integratedTerminal",
-            "args": [
-                "-cn",
-                "is.yaml",
-                "algorithm.nb_rules=5"
-            ]
-        },
-        {
             "name": "Playground",
             "type": "debugpy",
             "request": "launch",
@@ -51,7 +27,7 @@
             "args": [
                 "-cn",
                 "playground.yaml",
-                "algorithm.nb_rules=5"
+                "algorithm.nb_rules=3"
             ]
         }
     ]
