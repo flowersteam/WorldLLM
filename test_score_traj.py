@@ -2,7 +2,6 @@ import time
 from typing import Dict, List
 
 import torch
-from regex import R
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 model_name = "microsoft/Phi-3-mini-4k-instruct"
@@ -19,6 +18,102 @@ tokenizer.chat_template = chat_template
 
 
 base_message = [
+    (
+        (
+            {
+                "role": "system",
+                "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+            },
+            {
+                "role": "user",
+                "content": "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. You know that the rule is 'If an object (plant seed or herbivore) is moved onto another object (plant or herbivore), it spawns the object.'. Predict how the environment will change based on my actions.\nYou see the baby sheep, the water, the carrot seed, the water, the baby pig, the baby giraffe, the baby giraffe and the potato seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
+            },
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the potato seed. You are standing on the potato seed. You release the water. The potato seed grows into the potato. You grasp the object. You are holding the potato. You go to the baby sheep. You are standing on the baby sheep. You release the potato. The baby sheep grows into the sheep.",
+            },
+        ),
+    ),
+    (
+        (
+            {
+                "role": "system",
+                "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+            },
+            {
+                "role": "user",
+                "content": "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. You know that the rule is 'Plant seeds with water, move organism, release that (transforms into plant or animal)\n\nThis rule describes the basic process of growth as seen in the given scenarios. It states that when a plant seed is placed in water and an object is removed from that seed, the seed grows into the respective plant. Similarly, when an organism (starting as a small baby) and water are placed together, the organism grows into the respective adult animal. This rule applies universally'. Predict how the environment will change based on my actions.\nYou see the beet seed, the water, the baby elephant, the carrot seed, the water, the baby pig, the baby pig and the berry seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
+            },
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the beet seed. You are standing on the beet seed. You release the water. The beet seed grows into the beet.",
+            },
+        ),
+    ),
+    (
+        (
+            {
+                "role": "system",
+                "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+            },
+            {
+                "role": "user",
+                "content": "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. You know that the rule is 'If an object (plant seed or herbivore) is moved onto another object (plant or herbivore), it spawns the object.'. Predict how the environment will change based on my actions.\nYou see the baby sheep, the water, the carrot seed, the water, the baby pig, the baby giraffe, the baby giraffe and the potato seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
+            },
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the potato seed. You are standing on the potato seed. You release the water. The potato seed grows into the potato. You grasp the object. You are holding the potato. You go to the baby sheep. You are standing on the baby sheep. You release the potato. The baby sheep grows into the sheep.",
+            },
+        ),
+    ),
+    (
+        (
+            {
+                "role": "system",
+                "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+            },
+            {
+                "role": "user",
+                "content": "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. You know that the rule is 'Plant seeds with water, move organism, release that (transforms into plant or animal)\n\nThis rule describes the basic process of growth as seen in the given scenarios. It states that when a plant seed is placed in water and an object is removed from that seed, the seed grows into the respective plant. Similarly, when an organism (starting as a small baby) and water are placed together, the organism grows into the respective adult animal. This rule applies universally'. Predict how the environment will change based on my actions.\nYou see the beet seed, the water, the baby elephant, the carrot seed, the water, the baby pig, the baby pig and the berry seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
+            },
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the beet seed. You are standing on the beet seed. You release the water. The beet seed grows into the beet.",
+            },
+        ),
+    ),
+    (
+        (
+            {
+                "role": "system",
+                "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+            },
+            {
+                "role": "user",
+                "content": "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. You know that the rule is 'If an object (plant seed or herbivore) is moved onto another object (plant or herbivore), it spawns the object.'. Predict how the environment will change based on my actions.\nYou see the baby sheep, the water, the carrot seed, the water, the baby pig, the baby giraffe, the baby giraffe and the potato seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
+            },
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the potato seed. You are standing on the potato seed. You release the water. The potato seed grows into the potato. You grasp the object. You are holding the potato. You go to the baby sheep. You are standing on the baby sheep. You release the potato. The baby sheep grows into the sheep.",
+            },
+        ),
+    ),
+    (
+        (
+            {
+                "role": "system",
+                "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+            },
+            {
+                "role": "user",
+                "content": "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. You know that the rule is 'Plant seeds with water, move organism, release that (transforms into plant or animal)\n\nThis rule describes the basic process of growth as seen in the given scenarios. It states that when a plant seed is placed in water and an object is removed from that seed, the seed grows into the respective plant. Similarly, when an organism (starting as a small baby) and water are placed together, the organism grows into the respective adult animal. This rule applies universally'. Predict how the environment will change based on my actions.\nYou see the beet seed, the water, the baby elephant, the carrot seed, the water, the baby pig, the baby pig and the berry seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
+            },
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the beet seed. You are standing on the beet seed. You release the water. The beet seed grows into the beet.",
+            },
+        ),
+    ),
     (
         (
             {
@@ -69,8 +164,116 @@ candidate_answer = [
             }
         ),
     ),
+    (
+        (
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the potato seed. You are standing on the potato seed. You release the water. The potato seed grows into the potato. You grasp the object. You are holding the potato. You go to the baby sheep. You are standing on the baby sheep. You release the potato. The baby sheep grows into the sheep.",
+            }
+        ),
+    ),
+    (
+        (
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the beet seed. You are standing on the beet seed. You release the water. The beet seed grows into the beet.",
+            }
+        ),
+    ),
+    (
+        (
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the potato seed. You are standing on the potato seed. You release the water. The potato seed grows into the potato. You grasp the object. You are holding the potato. You go to the baby sheep. You are standing on the baby sheep. You release the potato. The baby sheep grows into the sheep.",
+            }
+        ),
+    ),
+    (
+        (
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the beet seed. You are standing on the beet seed. You release the water. The beet seed grows into the beet.",
+            }
+        ),
+    ),
+    (
+        (
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the potato seed. You are standing on the potato seed. You release the water. The potato seed grows into the potato. You grasp the object. You are holding the potato. You go to the baby sheep. You are standing on the baby sheep. You release the potato. The baby sheep grows into the sheep.",
+            }
+        ),
+    ),
+    (
+        (
+            {
+                "role": "assistant",
+                "content": "You are holding the water. You go to the beet seed. You are standing on the beet seed. You release the water. The beet seed grows into the beet.",
+            }
+        ),
+    ),
 ]
 lst_trajectories_end = [
+    [
+        "You are holding the water.",
+        "You go to the potato seed.",
+        "You are standing on the potato seed.",
+        "You release the water.",
+        "The potato seed grows into the potato.",
+        "You grasp the object.",
+        "You are holding the potato.",
+        "You go to the baby sheep.",
+        "You are standing on the baby sheep.",
+        "You release the potato.",
+        "The baby sheep grows into the sheep.",
+    ],
+    [
+        "You are holding the water.",
+        "You go to the beet seed.",
+        "You are standing on the beet seed.",
+        "You release the water.",
+        "The beet seed grows into the beet.",
+    ],
+    [
+        "You are holding the water.",
+        "You go to the potato seed.",
+        "You are standing on the potato seed.",
+        "You release the water.",
+        "The potato seed grows into the potato.",
+        "You grasp the object.",
+        "You are holding the potato.",
+        "You go to the baby sheep.",
+        "You are standing on the baby sheep.",
+        "You release the potato.",
+        "The baby sheep grows into the sheep.",
+    ],
+    [
+        "You are holding the water.",
+        "You go to the beet seed.",
+        "You are standing on the beet seed.",
+        "You release the water.",
+        "The beet seed grows into the beet.",
+    ],
+    [
+        "You are holding the water.",
+        "You go to the potato seed.",
+        "You are standing on the potato seed.",
+        "You release the water.",
+        "The potato seed grows into the potato.",
+        "You grasp the object.",
+        "You are holding the potato.",
+        "You go to the baby sheep.",
+        "You are standing on the baby sheep.",
+        "You release the potato.",
+        "The baby sheep grows into the sheep.",
+    ],
+    [
+        "You are holding the water.",
+        "You go to the beet seed.",
+        "You are standing on the beet seed.",
+        "You release the water.",
+        "The beet seed grows into the beet.",
+    ],
     [
         "You are holding the water.",
         "You go to the potato seed.",
