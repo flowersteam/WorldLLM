@@ -12,7 +12,7 @@ statistician: null
 seed: 60
 algorithm:
   nb_rules: 3
-  stat_batch_size: 15
-  th_batch_size: 3
+  stat_batch_size: 10
+  th_batch_size: 2
   nb_trajectories: 10
   use_hasting_correction: False
