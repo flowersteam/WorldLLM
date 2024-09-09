@@ -34,7 +34,7 @@ class BaseRuleEnv(gym.Env, abc.ABC):
     def __init__(self, **kwargs) -> None:
         self.stat_prompt: str
         self.th_prompt: str
-        self.stat_template: Callable[[str], str]
+        self.stat_template: Callable[[str], Any]
         self.th_template: Callable[[List[str], Optional[str], Optional[List[str]]], str]
         for attr, value in kwargs.items():
             if hasattr(self, attr):

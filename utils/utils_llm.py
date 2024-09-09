@@ -385,8 +385,8 @@ def _score_trajectory(
         pad_left = max_len_candidate - len_candidate[incr_traj]
         for i, traj_elem_tokens in enumerate(reconstructed_tokens):
             # We put 1 for the observation.
-            # In the trajectory the observation and action alternates
-            if i % 2 == 0:
+            # In the trajectory the observation and action alternates with tokens to specify the next one
+            if i % 4 == 0:
                 candidate_mask[
                     incr_traj, pad_left : pad_left + len(traj_elem_tokens)
                 ] = True
@@ -426,13 +426,16 @@ def compute_likelihood(
     lst_messages = []
     lst_trajectory_end = []
     start_score_index = 4
+    assert (
+        start_score_index % 2 == 0
+    ), "The start score index should be even to obtain the observation"
     # Generate messages
     for rule in rules:
         for trajectory in trajectories:
-            user_prompt = (
-                statistician.prompt_info.message_template(rule)
-                + "\n"
-                + " ".join(trajectory.text[:start_score_index])
+            user_prompt, assistant_prompt, candidate_tokens = (
+                statistician.prompt_info.message_template(
+                    rule, trajectory, start_score_index
+                )
             )
             message = (
                 {
@@ -445,11 +448,11 @@ def compute_likelihood(
                 },
                 {
                     "role": "assistant",
-                    "content": " ".join(trajectory.text[start_score_index:]),
+                    "content": assistant_prompt,
                 },
             )
             lst_messages.append(message)
-            lst_trajectory_end.append(trajectory.text[start_score_index:])
+            lst_trajectory_end.append(candidate_tokens)
     batch_size = statistician.prompt_info.batch_size
     all_logp = []
     for incr in tqdm(

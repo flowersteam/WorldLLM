@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import gymnasium as gym
 import numpy as np
 
-from utils.utils_env import BaseAgent
+from utils.utils_env import BaseAgent, Trajectory
 from worldllm_envs.base import BaseRuleEnv
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
@@ -29,15 +29,44 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     """
 
     def __init__(self, **kwargs) -> None:
-        def statisitician_template(rule: str):
+        def statisitician_template(rule: str, trajectory: Trajectory, start_index: int):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
-            msg = (
+            user_prompt = (
                 "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
                 + f"You know that the rule is '{rule}'. "
-                + "Predict how the next observation based on the previous actions and observations and use the same words."
+                + "In the current space:\n"
+                + trajectory.text[0]
+                + "\n\nNow please continue the following sequence: "
             )
-            return msg
+            for i in range(1, start_index):
+                if i % 2 == 1:
+                    # It is an action
+                    user_prompt += f"\na: {trajectory.text[i]} "
+                else:
+                    # It is an observation
+                    user_prompt += f"\no: {trajectory.text[i]} "
+            user_prompt += "\no:"
+            # Compute the prompt for the assistant
+            assistant_prompt = trajectory.text[start_index]
+            for i in range(start_index + 1, len(trajectory.text)):
+                if i % 2 == 1:
+                    # It is an action
+                    assistant_prompt += f" \na: {trajectory.text[i]}"
+                else:
+                    # It is an observation
+                    assistant_prompt += f" \no: {trajectory.text[i]}"
+            # Compute the list of tokens for the assistant
+            assitant_token_lst = [trajectory.text[start_index]]
+            for i in range(start_index + 1, len(trajectory.text)):
+                if i % 2 == 1:
+                    # It is an action
+                    assitant_token_lst.append("\na:")
+                    assitant_token_lst.append(trajectory.text[i])
+                else:
+                    assitant_token_lst.append("\no:")
+                    assitant_token_lst.append(trajectory.text[i])
+            return user_prompt, assistant_prompt, assitant_token_lst
 
         # When designing the template keep in mind that the text generated should be only the rule
         def theorist_template(

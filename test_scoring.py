@@ -98,7 +98,7 @@ base_message = [
         },
         {
             "role": "user",
-            "content": "You are in a simulated environment that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). You can move an object, a plant or a herbivore and place it on another object to make them interact. Predict how the environment will change based on your actions using the same world and style as the scenario start. The current scenario is:\nYou see the baby sheep, the water, the carrot seed, the water, the baby pig, the baby giraffe, the baby giraffe and the potato seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
+            "content": "You are in a simulated environment that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). You can move an object, a plant or a herbivore and place it on another object to make them interact. Predict the next observation based on the previous actions and observations and use the same words:\nYou see the baby sheep, the water, the carrot seed, the water, the baby pig, the baby giraffe, the baby giraffe and the potato seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
         },
     )
 ]
