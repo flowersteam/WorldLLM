@@ -256,7 +256,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             if last_obs_hold[0] == "empty":
                 return f"You are holding the {list(counter_diff.keys())[0]}."
             if len(last_obs_hold) == 1:
-                return f"You are holding the {list(counter_diff.keys())[0]} and the {list(counter_diff.keys())[0]}."
+                return f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}."
             raise ValueError("Inventory cannot contain more than 2 objects")
         elif action_type == "release":
             new_obj = Counter(obs_obj) - Counter(last_obs_obj)
