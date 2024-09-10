@@ -203,9 +203,11 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         if action_type == "go to":
             return f"You go to the {action_obj}."
         elif action_type == "grasp":
-            return "You grasp the object."
+            return "You pick up the object."
         elif action_type == "release":
-            return f"You release the {action_obj}."
+            if action_obj == "all":
+                return "You give all the objects you hold."
+            return f"You give the {action_obj}."
         raise ValueError("The action " + action + " has not been recognized")
 
     def observation_to_text(self, observation: str):
