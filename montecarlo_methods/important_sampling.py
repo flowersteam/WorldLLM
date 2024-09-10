@@ -49,7 +49,7 @@ def important_sampling(
         "likelihoods": [],
         "test_likelihoods": [],
     }
-    for _ in tqdm(range(cfg["nb_collecting"]), desc="Importance Sampling iterations"):
+    for _ in tqdm(range(cfg["nb_collecting"]), desc="Collecting iterations"):
         # Generate trajectories
         prompt_trajectories = generate_text_trajectories(
             env, agent, true_rule, cfg["nb_trajectories"]
