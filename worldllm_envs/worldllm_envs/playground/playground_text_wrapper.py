@@ -574,6 +574,17 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         return np.array([0, 0, release_id])
 
 
+class RandomAgent:
+    """Random agent for the Playground environment"""
+
+    def __init__(self, action_space: gym.Space):
+        pass
+
+    def __call__(self, obs: str, info: Dict[str, Any]) -> str:
+        """Take action according to plan"""
+        return random.choice(info["possible_actions"])
+
+
 class PerfectAgent(BaseAgent):
     """Heuristic agent for the Playground environment"""
 
