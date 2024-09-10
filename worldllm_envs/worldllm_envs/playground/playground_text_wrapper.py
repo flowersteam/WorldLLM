@@ -26,6 +26,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     PlayGroundText is a wrapper for the PlayGroundNavigation environment.
     It convert natural language commands into actions for the PlayGroud environment
     and convert observations into natural language descriptions.
+    For this environment, the rule is the goal.
     """
 
     def __init__(self, **kwargs) -> None:
@@ -155,10 +156,43 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 desc for desc in self.train_descriptions if desc.startswith("Grasp")
             ]
 
-    @staticmethod
-    def generate_rule(custom_rule: Optional[str] = None) -> str:
+    def generate_rule(self, custom_rule: Optional[str] = None) -> str:
         # print("WARNING: no other rule than the default one is available")
-        return "Default rule"
+        # TODO: Implement custom rule generation
+        if custom_rule is not None:
+            return custom_rule
+        if self.train:
+            if self.goal_sampler is not None:
+                raise ValueError("Goal sampler not supported")
+                self.goal_str, self.lp, self.sr, self.sr_delayed, self.temperature = (
+                    self.goal_sampler.sample_goal()
+                )
+            else:
+                lst_goal_possible = []
+                for goal in self.train_descriptions:
+                    lst_components = goal.split(" ")
+                    if not (
+                        lst_components[0] != "Grow"
+                        or lst_components[2] in {"living_thing", "animal"}
+                    ):
+                        lst_goal_possible.append(goal)
+                return random.choice(lst_goal_possible)
+        else:
+            raise NotImplementedError("Test mode not supported yet")
+            # If we are in test mode, we want to test the model on unseen data
+            # Sample goal uniformly for the type 'Grasp', 'Grow', 'Grow then grasp', 'Grow then grow'
+            goal_type = random.choice(
+                [
+                    r"^Grow.*\b(lion|grizzly|shark|fox|bobcat|coyote|small_carnivorous|big_carnivorous)\b",
+                    r"^Grow.*\b(elephant|giraffe|rhinoceros|pig|cow|sheep|small_herbivorous|big_herbivorous)\b",
+                    r"^Grow.*\b(carrot|potato|beet|berry|pea)\b",
+                ]
+            )
+            self.goal_str = random.choice(
+                [goal for goal in self.test_descriptions if re.match(goal_type, goal)]
+            )
+
+            raise ValueError("Test rule generation not implemented")
 
     def action_to_text(self, action: str):
         action_type, action_obj = self._split_action(action)
@@ -250,47 +284,19 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         return lst_objects, lst_standing, lst_holding
 
     def _reset(self, options: Optional[Dict[str, Any]]):
-        # Change the rule if new one is presented
-        if options is not None and "rule" in options:
-            self.rule = options["rule"]
 
         # Old playground reset
         self.lp = None
         self.sr = None
         self.sr_delayed = None
         self.temperature = None
-        # Get goal
-        if options is not None and "goal_str" in options:
-            self.goal_str = options["goal_str"]
-        elif self.train:
-            if self.goal_sampler is not None:
-                self.goal_str, self.lp, self.sr, self.sr_delayed, self.temperature = (
-                    self.goal_sampler.sample_goal()
-                )
-            else:
-                lst_goal_possible = []
-                for goal in self.train_descriptions:
-                    lst_components = goal.split(" ")
-                    if not (
-                        lst_components[0] != "Grow"
-                        or lst_components[2] in {"living_thing", "animal"}
-                    ):
-                        lst_goal_possible.append(goal)
-                self.goal_str = random.choice(lst_goal_possible)
-        else:
-            raise NotImplementedError("Test mode not supported yet")
-            # If we are in test mode, we want to test the model on unseen data
-            # Sample goal uniformly for the type 'Grasp', 'Grow', 'Grow then grasp', 'Grow then grow'
-            goal_type = random.choice(
-                [
-                    r"^Grow.*\b(lion|grizzly|shark|fox|bobcat|coyote|small_carnivorous|big_carnivorous)\b",
-                    r"^Grow.*\b(elephant|giraffe|rhinoceros|pig|cow|sheep|small_herbivorous|big_herbivorous)\b",
-                    r"^Grow.*\b(carrot|potato|beet|berry|pea)\b",
-                ]
-            )
-            self.goal_str = random.choice(
-                [goal for goal in self.test_descriptions if re.match(goal_type, goal)]
-            )
+        # Set goal as rule
+        # Change the rule if new one is presented
+        if options is not None and "rule" in options:
+            self.rule = options["rule"]
+
+        self.goal_str = self.rule
+
         self.goals = self.goal_str.split(" then ")
         self.goals = [goal.capitalize() for goal in self.goals]
         self.goals_reached = [False for _ in self.goals]
