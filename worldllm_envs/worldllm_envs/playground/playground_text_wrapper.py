@@ -522,16 +522,16 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         desc += f'\nInventory ({nb_held}/2): {", ".join(obj_held) if len(obj_held) > 0 else "empty"}'
 
         possible_actions = (
-            ["Grasp"]
+            ["grasp"]
             + [
-                "Go to " + rm_trailing_number(obj)
+                "go to " + rm_trailing_number(obj)
                 for obj in self.obj_dict.keys()
                 if not self.obj_dict[obj]["grasped"]
             ]
-            + ["Release " + obj for obj in obj_held]
+            + ["release " + obj for obj in obj_held]
         )
         if len(obj_held) == 2:
-            possible_actions.append("Release all")
+            possible_actions.append("release all")
 
         info = {
             "goal": self.goal_str,
