@@ -11,7 +11,7 @@ class PlaygroundWrapper(TextWrapper):
 
     def action_to_text(self, action):
         act_text = self.env.unwrapped.action_to_text(action)
-        self.last_action = act_text
+        self.last_action = action
         return act_text
 
     def observation_to_text(self, observation):
