@@ -21,6 +21,257 @@ def rm_trailing_number(input_str):
     return re.sub(r"\d+$", "", input_str)
 
 
+class RandomAgent:
+    """Random agent for the Playground environment"""
+
+    def __init__(self, action_space: gym.Space):
+        pass
+
+    def __call__(self, obs: str, info: Dict[str, Any]) -> str:
+        """Take action according to plan"""
+        return random.choice(info["possible_actions"])
+
+
+class PerfectAgent(BaseAgent):
+    """Heuristic agent for the Playground environment"""
+
+    def __init__(self, action_space: gym.Space):
+        super().__init__(action_space)
+        self.obj_dict: Dict[str, Any]
+        self.goal: str
+        self.dtree: PlaygroundDecisionTree
+        self.lst_actions: List[str]
+        self.index: int
+        self.is_done: bool
+
+    def split_goal(self, goal: str) -> Tuple[str, str]:
+        """Split the goal into objects"""
+        lst_goal = goal.split(" ")
+        assert len(lst_goal) == 3
+        if lst_goal[0] == "Grow":
+            goal_type = "grow"
+        else:
+            raise ValueError(f"Unrecognized {lst_goal[0]} as a goal")
+        goal_obj = lst_goal[2]
+        return goal_type, goal_obj
+
+    def __call__(self, obs: str) -> str:
+        """Take action according to plan"""
+        if getattr(self, "is_done", False) or not hasattr(self, "obj_dict"):
+            raise ValueError("You need to call reset first")
+        action = self.lst_actions[self.index]
+        self.index += 1
+        if self.index == len(self.lst_actions):
+            self.is_done = True
+        return action
+
+    def reset(self, info: Dict[str, Any]):
+        if not getattr(self, "is_done", False) and hasattr(self, "obj_dict"):
+            raise ValueError("You need to finish the plan before resetting")
+        self.obj_dict = info["obj_dict"]
+        self.goal = info["goal"]
+        # Split goal
+        goal_type, goal_obj = self.split_goal(self.goal)
+
+        # Define plan
+        self.dtree = PlaygroundDecisionTree(self.obj_dict, goal_type, goal_obj)
+        self.lst_actions = self.dtree.get_plan()
+        self.index = 0
+        self.is_done = False
+
+
+class PlaygroundDecisionTree:
+    """Decision tree to find the plan to reach a goal in the Playground environment"""
+
+    def __init__(
+        self,
+        obj_dict: Dict[str, Dict[str, Any]],
+        goal_type: str,
+        goal_obj: str,
+    ) -> None:
+        self.obj_dict = obj_dict
+        self.goal_type = goal_type
+        self.goal_obj = goal_obj
+        self.lst_action: List[str] = []
+
+        # Clean obj_dict
+        self.category: Dict[str, Dict[str, str]] = {}
+        for k, v in self.obj_dict.items():
+            if v["category"] not in self.category:
+                self.category[v["category"]] = OrderedDict({k: ""})
+            else:
+                self.category[v["category"]][k] = ""
+        self.obj_cat = {k: v["category"] for k, v in self.obj_dict.items()}
+        # Compute plan
+        if goal_type == "grow":
+            if goal_obj not in {
+                "small_herbivorous",
+                "big_herbivorous",
+                "small_carnivorous",
+                "big_carnivorous",
+                "plant",
+            }:
+                for obj in self.obj_dict.keys():
+                    if goal_obj in obj:
+                        goal_obj = obj
+                        break
+                goal_cat = self.obj_cat[goal_obj]
+            else:
+                goal_cat = goal_obj
+                goal_obj = None
+            if goal_cat == "plant":
+                _, success = self._grow_plant(goal_obj)
+            elif goal_cat == "small_herbivorous":
+                _, success = self._grow_herbivore(goal_obj)
+            elif goal_cat == "big_herbivorous":
+                _, success = self._grow_herbivore(goal_obj, big=True)
+            elif goal_cat == "small_carnivorous":
+                _, success = self._grow_carnivore(goal_obj)
+            elif goal_cat == "big_carnivorous":
+                _, success = self._grow_carnivore(goal_obj, big=True)
+            else:
+                raise ValueError(f"Unrecognized goal category {goal_cat}")
+            if not success:
+                raise ValueError(f"Could not find a plan for {goal_cat} and {goal_obj}")
+        else:
+            raise ValueError(f"Unrecognized goal type {goal_type}")
+
+    def get_plan(self) -> List[str]:
+        """Return list of actions to take"""
+        return self.lst_action
+
+    def _find_object(self, obj: str) -> Tuple[str, bool]:
+        if obj in self.obj_cat:
+            return obj, True
+        return "", False
+
+    def _find_object_category(self, category: str) -> Tuple[str, bool]:
+        if category in self.category:
+            obj, _ = self.category[category].popitem()
+            self.category[category][obj] = ""
+            return obj, True
+        return "", False
+
+    def _grow_plant(self, obj: Optional[str] = None) -> Tuple[str, bool]:
+        if obj is None:
+            obj, has_found = self._find_object_category("plant")
+            if not has_found:
+                return "", False
+        water_obj, has_found = self._find_object_category("supply")
+        if not has_found:
+            return "", False
+        self._go_to(water_obj)
+        self._grasp(water_obj)
+        self._go_to(obj)
+        obj, _ = self._release(obj, water_obj)
+        return obj, True
+
+    def _grow_herbivore(
+        self, obj: Optional[str] = None, big: bool = False
+    ) -> Tuple[str, bool]:
+        if obj is None:
+            if big:
+                obj, has_found = self._find_object_category("big_herbivorous")
+                if not has_found:
+                    return "", False
+            else:
+                obj, has_found = self._find_object_category("small_herbivorous")
+                if not has_found:
+                    return "", False
+        plant, success = self._grow_plant()
+        if not success:
+            return "", False
+        self._grasp(plant)
+        if big:
+            second_plant, success = self._grow_plant()
+            if not success:
+                return "", False
+            self._grasp(second_plant)
+        self._go_to(obj)
+        if big:
+            obj, _ = self._release(obj, plant, second_plant)
+        else:
+            obj, _ = self._release(obj, plant)
+        return obj, True
+
+    def _grow_carnivore(
+        self, obj: Optional[str] = None, big: bool = False
+    ) -> Tuple[str, bool]:
+        if big:
+            if obj is None:
+                obj, has_found = self._find_object_category("big_carnivorous")
+                if not has_found:
+                    return "", False
+
+            herbivorous, success = self._grow_herbivore(big=True)
+            if success:
+                self._grasp(herbivorous)
+                self._go_to(obj)
+                obj, _ = self._release(obj, herbivorous)
+            else:
+                first_herbivorous, first_success = self._grow_herbivore(big=False)
+                if not first_success:
+                    return "", False
+                self._grasp(first_herbivorous)
+                second_herbivorous, second_success = self._grow_herbivore(big=False)
+                if not second_success:
+                    return "", False
+                self._grasp(second_herbivorous)
+                self._go_to(obj)
+                obj, _ = self._release(obj, first_herbivorous, second_herbivorous)
+        else:
+            if obj is None:
+                obj, has_found = self._find_object_category("small_carnivorous")
+                if not has_found:
+                    return "", False
+            herbivorous, success = self._grow_herbivore()
+            if not success:
+                return "", False
+            self._grasp(herbivorous)
+            self._go_to(obj)
+            obj, _ = self._release(obj, herbivorous)
+        return obj, True
+
+    def _remove_obj(self, obj: str):
+        cat = self.obj_cat[obj]
+        del self.obj_cat[obj]
+        del self.category[cat][obj]
+        if len(self.category[cat]) == 0:
+            del self.category[cat]
+
+    # Low level actions
+    def _go_to(self, obj: str):
+        # Remove integers at the end of objects
+        self.lst_action.append("go to " + rm_trailing_number(obj))
+
+    def _grasp(self, obj: str):
+        # Remove integers at the end of objects
+        self.lst_action.append("grasp")
+        self._remove_obj(obj)
+
+    def _release(
+        self, obj: str, release_obj: str, release_obj2: str = ""
+    ) -> Tuple[str, bool]:
+        # Remove integers at the end of objects
+        if release_obj2 == "":
+            self.lst_action.append("release " + rm_trailing_number(release_obj))
+        else:
+            self.lst_action.append("release all")
+        # Modify object
+        obj_cat = self.obj_cat[obj]
+        if obj_cat == "plant":
+            new_obj = rm_trailing_number(obj)[:-5]  # Remove "seed"
+        else:
+            new_obj = rm_trailing_number(obj)[5:]
+        self._remove_obj(obj)
+        self.obj_cat[new_obj] = "grown " + obj_cat
+        if "grown " + obj_cat not in self.category:
+            self.category["grown " + obj_cat] = OrderedDict({new_obj: ""})
+        else:
+            self.category["grown " + obj_cat][new_obj] = ""
+        return new_obj, True
+
+
 class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     """
     PlayGroundText is a wrapper for the PlayGroundNavigation environment.
@@ -573,253 +824,168 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         """
         return np.array([0, 0, release_id])
 
-
-class RandomAgent:
-    """Random agent for the Playground environment"""
-
-    def __init__(self, action_space: gym.Space):
-        pass
-
-    def __call__(self, obs: str, info: Dict[str, Any]) -> str:
-        """Take action according to plan"""
-        return random.choice(info["possible_actions"])
-
-
-class PerfectAgent(BaseAgent):
-    """Heuristic agent for the Playground environment"""
-
-    def __init__(self, action_space: gym.Space):
-        super().__init__(action_space)
-        self.obj_dict: Dict[str, Any]
-        self.goal: str
-        self.dtree: PlaygroundDecisionTree
-        self.lst_actions: List[str]
-        self.index: int
-        self.is_done: bool
-
-    def split_goal(self, goal: str) -> Tuple[str, str]:
-        """Split the goal into objects"""
-        lst_goal = goal.split(" ")
-        assert len(lst_goal) == 3
-        if lst_goal[0] == "Grow":
-            goal_type = "grow"
-        else:
-            raise ValueError(f"Unrecognized {lst_goal[0]} as a goal")
-        goal_obj = lst_goal[2]
-        return goal_type, goal_obj
-
-    def __call__(self, obs: str) -> str:
-        """Take action according to plan"""
-        if getattr(self, "is_done", False) or not hasattr(self, "obj_dict"):
-            raise ValueError("You need to call reset first")
-        action = self.lst_actions[self.index]
-        self.index += 1
-        if self.index == len(self.lst_actions):
-            self.is_done = True
-        return action
-
-    def reset(self, info: Dict[str, Any]):
-        if not getattr(self, "is_done", False) and hasattr(self, "obj_dict"):
-            raise ValueError("You need to finish the plan before resetting")
-        self.obj_dict = info["obj_dict"]
-        self.goal = info["goal"]
-        # Split goal
-        goal_type, goal_obj = self.split_goal(self.goal)
-
-        # Define plan
-        self.dtree = PlaygroundDecisionTree(self.obj_dict, goal_type, goal_obj)
-        self.lst_actions = self.dtree.get_plan()
-        self.index = 0
-        self.is_done = False
-
-
-class PlaygroundDecisionTree:
-    """Decision tree to find the plan to reach a goal in the Playground environment"""
-
-    def __init__(
-        self,
-        obj_dict: Dict[str, Dict[str, Any]],
-        goal_type: str,
-        goal_obj: str,
-    ) -> None:
-        self.obj_dict = obj_dict
-        self.goal_type = goal_type
-        self.goal_obj = goal_obj
-        self.lst_action: List[str] = []
-
-        # Clean obj_dict
-        self.category: Dict[str, Dict[str, str]] = {}
-        for k, v in self.obj_dict.items():
-            if v["category"] not in self.category:
-                self.category[v["category"]] = OrderedDict({k: ""})
-            else:
-                self.category[v["category"]][k] = ""
-        self.obj_cat = {k: v["category"] for k, v in self.obj_dict.items()}
-        # Compute plan
-        if goal_type == "grow":
-            if goal_obj not in {
-                "small_herbivorous",
-                "big_herbivorous",
-                "small_carnivorous",
-                "big_carnivorous",
-                "plant",
-            }:
-                for obj in self.obj_dict.keys():
-                    if goal_obj in obj:
-                        goal_obj = obj
-                        break
-                goal_cat = self.obj_cat[goal_obj]
-            else:
-                goal_cat = goal_obj
-                goal_obj = None
-            if goal_cat == "plant":
-                _, success = self._grow_plant(goal_obj)
-            elif goal_cat == "small_herbivorous":
-                _, success = self._grow_herbivore(goal_obj)
-            elif goal_cat == "big_herbivorous":
-                _, success = self._grow_herbivore(goal_obj, big=True)
-            elif goal_cat == "small_carnivorous":
-                _, success = self._grow_carnivore(goal_obj)
-            elif goal_cat == "big_carnivorous":
-                _, success = self._grow_carnivore(goal_obj, big=True)
-            else:
-                raise ValueError(f"Unrecognized goal category {goal_cat}")
-            if not success:
-                raise ValueError(f"Could not find a plan for {goal_cat} and {goal_obj}")
-        else:
-            raise ValueError(f"Unrecognized goal type {goal_type}")
-
-    def get_plan(self) -> List[str]:
-        """Return list of actions to take"""
-        return self.lst_action
-
-    def _find_object(self, obj: str) -> Tuple[str, bool]:
-        if obj in self.obj_cat:
-            return obj, True
-        return "", False
-
-    def _find_object_category(self, category: str) -> Tuple[str, bool]:
-        if category in self.category:
-            obj, _ = self.category[category].popitem()
-            self.category[category][obj] = ""
-            return obj, True
-        return "", False
-
-    def _grow_plant(self, obj: Optional[str] = None) -> Tuple[str, bool]:
-        if obj is None:
-            obj, has_found = self._find_object_category("plant")
-            if not has_found:
-                return "", False
-        water_obj, has_found = self._find_object_category("supply")
-        if not has_found:
-            return "", False
-        self._go_to(water_obj)
-        self._grasp(water_obj)
-        self._go_to(obj)
-        obj, _ = self._release(obj, water_obj)
-        return obj, True
-
-    def _grow_herbivore(
-        self, obj: Optional[str] = None, big: bool = False
-    ) -> Tuple[str, bool]:
-        if obj is None:
-            if big:
-                obj, has_found = self._find_object_category("big_herbivorous")
-                if not has_found:
-                    return "", False
-            else:
-                obj, has_found = self._find_object_category("small_herbivorous")
-                if not has_found:
-                    return "", False
-        plant, success = self._grow_plant()
-        if not success:
-            return "", False
-        self._grasp(plant)
-        if big:
-            second_plant, success = self._grow_plant()
-            if not success:
-                return "", False
-            self._grasp(second_plant)
-        self._go_to(obj)
-        if big:
-            obj, _ = self._release(obj, plant, second_plant)
-        else:
-            obj, _ = self._release(obj, plant)
-        return obj, True
-
-    def _grow_carnivore(
-        self, obj: Optional[str] = None, big: bool = False
-    ) -> Tuple[str, bool]:
-        if big:
-            if obj is None:
-                obj, has_found = self._find_object_category("big_carnivorous")
-                if not has_found:
-                    return "", False
-
-            herbivorous, success = self._grow_herbivore(big=True)
-            if success:
-                self._grasp(herbivorous)
-                self._go_to(obj)
-                obj, _ = self._release(obj, herbivorous)
-            else:
-                first_herbivorous, first_success = self._grow_herbivore(big=False)
-                if not first_success:
-                    return "", False
-                self._grasp(first_herbivorous)
-                second_herbivorous, second_success = self._grow_herbivore(big=False)
-                if not second_success:
-                    return "", False
-                self._grasp(second_herbivorous)
-                self._go_to(obj)
-                obj, _ = self._release(obj, first_herbivorous, second_herbivorous)
-        else:
-            if obj is None:
-                obj, has_found = self._find_object_category("small_carnivorous")
-                if not has_found:
-                    return "", False
-            herbivorous, success = self._grow_herbivore()
-            if not success:
-                return "", False
-            self._grasp(herbivorous)
-            self._go_to(obj)
-            obj, _ = self._release(obj, herbivorous)
-        return obj, True
-
-    def _remove_obj(self, obj: str):
-        cat = self.obj_cat[obj]
-        del self.obj_cat[obj]
-        del self.category[cat][obj]
-        if len(self.category[cat]) == 0:
-            del self.category[cat]
-
-    # Low level actions
-    def _go_to(self, obj: str):
-        # Remove integers at the end of objects
-        self.lst_action.append("go to " + rm_trailing_number(obj))
-
-    def _grasp(self, obj: str):
-        # Remove integers at the end of objects
-        self.lst_action.append("grasp")
-        self._remove_obj(obj)
-
-    def _release(
-        self, obj: str, release_obj: str, release_obj2: str = ""
-    ) -> Tuple[str, bool]:
-        # Remove integers at the end of objects
-        if release_obj2 == "":
-            self.lst_action.append("release " + rm_trailing_number(release_obj))
-        else:
-            self.lst_action.append("release all")
-        # Modify object
-        obj_cat = self.obj_cat[obj]
-        if obj_cat == "plant":
-            new_obj = rm_trailing_number(obj)[:-5]  # Remove "seed"
-        else:
-            new_obj = rm_trailing_number(obj)[5:]
-        self._remove_obj(obj)
-        self.obj_cat[new_obj] = "grown " + obj_cat
-        if "grown " + obj_cat not in self.category:
-            self.category["grown " + obj_cat] = OrderedDict({new_obj: ""})
-        else:
-            self.category["grown " + obj_cat][new_obj] = ""
-        return new_obj, True
+    @staticmethod
+    def get_test_dataset() -> List[Trajectory]:
+        """Return the test dataset"""
+        trajectories = [
+            Trajectory(
+                [
+                    "You see the carrot seed, the water, the pea seed, the water and the baby cow. You are standing on nothing. Your are holding nothing.",
+                    "You go to the water.",
+                    "You are standing on water",
+                    "You pick up the object.",
+                    "You are holding the water.",
+                    "You go to the pea seed.",
+                    "You are standing on pea seed",
+                    "You give the water.",
+                    "The pea seed grows into the pea.",
+                ]
+            )
+        ]
+        trajectories.append(
+            Trajectory(
+                [
+                    "You see the baby sheep, the water, the berry seed, the berry seed and the baby giraffe. You are standing on nothing. Your are holding nothing.",
+                    "You go to the water.",
+                    "You are standing on water",
+                    "You pick up the object.",
+                    "You are holding the water.",
+                    "You go to the berry seed.",
+                    "You are standing on berry seed",
+                    "You give the water.",
+                    "The berry seed grows into the berry.",
+                    "You pick up the object.",
+                    "You are holding the berry.",
+                    "You go to the baby sheep.",
+                    "You are standing on baby sheep",
+                    "You give the berry.",
+                    "The baby sheep grows into the sheep.",
+                ]
+            )
+        )
+        trajectories.append(
+            Trajectory(
+                [
+                    "You see the baby rhinoceros, the water, the potato seed, the water and the carrot seed. You are standing on nothing. Your are holding nothing.",
+                    "You go to the water.",
+                    "You are standing on water",
+                    "You pick up the object.",
+                    "You are holding the water.",
+                    "You go to the carrot seed.",
+                    "You are standing on carrot seed",
+                    "You give the water.",
+                    "The carrot seed grows into the carrot.",
+                    "You pick up the object.",
+                    "You are holding the carrot.",
+                    "You go to the water.",
+                    "You are standing on water",
+                    "You pick up the object.",
+                    "You are holding the carrot and the water.",
+                    "You go to the potato seed.",
+                    "You are standing on potato seed",
+                    "You give the water.",
+                    "The potato seed grows into the potato.",
+                    "You pick up the object.",
+                    "You are holding the carrot and the potato.",
+                    "You go to the baby rhinoceros.",
+                    "You are standing on baby rhinoceros",
+                    "You give all the objects you hold.",
+                    "The baby rhinoceros grows into the rhinoceros.",
+                ]
+            )
+        )
+        trajectories.append(
+            Trajectory(
+                [
+                    "You see the baby giraffe, the water, the potato seed, the water and the beet seed. You are standing on nothing. Your are holding nothing.",
+                    "You go to the water.",
+                    "You are standing on water",
+                    "You go to the beet seed.",
+                    "You are standing on beet seed",
+                    "You go to the water.",
+                    "You are standing on water",
+                    "You go to the water.",
+                    "Nothing has changed.",
+                    "You go to the beet seed.",
+                    "You are standing on beet seed",
+                    "You pick up the object.",
+                    "You are holding the beet seed.",
+                    "You give the beet seed.",
+                    "Nothing has changed.",
+                    "You go to the water.",
+                    "You are standing on water",
+                    "You pick up the object.",
+                    "You are holding the beet seed and the water.",
+                    "You go to the baby giraffe.",
+                    "You are standing on baby giraffe",
+                    "You go to the baby giraffe.",
+                    "Nothing has changed.",
+                    "You pick up the object.",
+                    "Nothing has changed.",
+                    "You pick up the object.",
+                    "Nothing has changed.",
+                    "You go to the water.",
+                    "You are standing on water",
+                    "You go to the baby giraffe.",
+                    "You are standing on baby giraffe",
+                    "You go to the potato seed.",
+                    "You are standing on potato seed",
+                    "You go to the potato seed.",
+                    "Nothing has changed.",
+                    "You give the water.",
+                    "The potato seed grows into the potato.",
+                    "You pick up the object.",
+                    "You are holding the beet seed and the potato.",
+                    "You give the potato.",
+                    "Nothing has changed.",
+                ]
+            )
+        )
+        trajectories.append(
+            Trajectory(
+                [
+                    "You see the beet seed, the water, the baby pig, the potato seed and the baby cow. You are standing on nothing. Your are holding nothing.",
+                    "You go to the beet seed.",
+                    "You are standing on beet seed",
+                    "You go to the baby cow.",
+                    "You are standing on baby cow",
+                    "You go to the baby pig.",
+                    "You are standing on baby pig",
+                    "You go to the beet seed.",
+                    "You are standing on beet seed",
+                    "You go to the beet seed.",
+                    "Nothing has changed.",
+                    "You pick up the object.",
+                    "You are holding the beet seed.",
+                    "You go to the potato seed.",
+                    "You are standing on potato seed",
+                    "You go to the potato seed.",
+                    "Nothing has changed.",
+                    "You go to the baby cow.",
+                    "You are standing on baby cow",
+                    "You go to the potato seed.",
+                    "You are standing on potato seed",
+                    "You give the beet seed.",
+                    "Nothing has changed.",
+                    "You go to the water.",
+                    "You are standing on water",
+                    "You pick up the object.",
+                    "You are holding the beet seed and the water.",
+                    "You go to the baby pig.",
+                    "You are standing on baby pig",
+                    "You give the beet seed.",
+                    "Nothing has changed.",
+                    "You go to the baby cow.",
+                    "You are standing on baby cow",
+                    "You give the beet seed.",
+                    "Nothing has changed.",
+                    "You go to the potato seed.",
+                    "You are standing on potato seed",
+                    "You give all the objects you hold.",
+                    "Nothing has changed.",
+                    "You go to the potato seed.",
+                    "Nothing has changed.",
+                ]
+            )
+        )
+        return trajectories

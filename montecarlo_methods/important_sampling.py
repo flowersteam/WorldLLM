@@ -38,12 +38,16 @@ def important_sampling(
     # Get true rule
     true_rule = env.rule
 
-    all_dict: Dict[str, List[Any]] = {
+    # Load test dataset:
+    test_trajectories = env.unwrapped.get_test_dataset()
+
+    all_dict: Dict[str, Any] = {
         "rules": [],
         "weights": [],
         "counts": [],
         "importance_probs": [],
         "likelihoods": [],
+        "test_likelihoods": [],
     }
     for _ in tqdm(range(cfg["nb_collecting"]), desc="Importance Sampling iterations"):
         # Generate trajectories
@@ -80,13 +84,16 @@ def important_sampling(
         all_dict["importance_probs"].extend(importance_probs)
         all_dict["likelihoods"].extend(likelihoods)
 
+    all_dict["test_likelihoods"] = compute_likelihood(
+        statistician, all_dict["rules"], test_trajectories
+    )
     # Print rules and weights sorted
-    indices = np.argsort(-np.array(all_dict["likelihoods"]))
+    indices = np.argsort(-np.array(all_dict["test_likelihoods"]))
     print("------------------------")
     print("true rule: " + repr(true_rule))
     print("------------------------")
     for ind in indices:
         print(
-            f"-----rule-----:   {repr(all_dict['rules'][ind])} weight: {all_dict['weights'][ind]:2f}, importance: {all_dict['importance_probs'][ind]:2f}, likelihood: {all_dict['likelihoods'][ind]:2f}, count: {all_dict['counts'][ind]}"
+            f"-----rule-----:   {repr(all_dict['rules'][ind])}\n weight: {all_dict['weights'][ind]:2f}, importance: {all_dict['importance_probs'][ind]:2f}, likelihood: {all_dict['likelihoods'][ind]:2f}, count: {all_dict['counts'][ind]}, test_likelihood: {all_dict['test_likelihoods'][ind]:2f}"
         )
     return RuleOutput(true_rule, all_dict["rules"], all_dict["likelihoods"], all_dict)
