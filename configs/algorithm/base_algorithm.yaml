@@ -3,3 +3,4 @@ stat_sys_prompt: "You like doing a lot of puzzles. Please answer with a brief an
 th_sys_prompt: "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can."
 stat_batch_size: 25
 th_batch_size: 5
+nb_collecting: 10

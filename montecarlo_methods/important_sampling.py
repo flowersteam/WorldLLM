@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from tqdm import tqdm
 
 from utils.utils_env import BaseAgent, generate_text_trajectories
 from utils.utils_llm import LlmModel, compute_likelihood, generate_rules
@@ -38,51 +38,55 @@ def important_sampling(
     # Get true rule
     true_rule = env.rule
 
-    # Generate trajectories
-    prompt_trajectories = generate_text_trajectories(
-        env, agent, true_rule, cfg["nb_trajectories"]
-    )
-    # Sample rules
-    rules, importance_probs = generate_rules(
-        theorist, prompt_trajectories, cfg["nb_rules"]
-    )
-    # Get unique rules and counts
-    rules, counts, importance_probs = get_unique_rules(rules, importance_probs)
-    if cfg["add_true_rule"]:
-        rules.append(true_rule.get_prompt())
-        counts = np.append(counts, 1)
-        importance_probs = np.append(
-            importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
+    all_dict: Dict[str, List[Any]] = {
+        "rules": [],
+        "weights": [],
+        "counts": [],
+        "importance_probs": [],
+        "likelihoods": [],
+    }
+    for _ in tqdm(range(cfg["nb_collecting"]), desc="Importance Sampling iterations"):
+        # Generate trajectories
+        prompt_trajectories = generate_text_trajectories(
+            env, agent, true_rule, cfg["nb_trajectories"]
         )
-    if cfg["add_without_rule"]:
-        rules.append(None)
-        counts = np.append(counts, 1)
-        importance_probs = np.append(
-            importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
+        # Sample rules
+        rules, importance_probs = generate_rules(
+            theorist, prompt_trajectories, cfg["nb_rules"]
         )
-    # Compute likelihoods of new data using the rules
-    likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
+        # Get unique rules and counts
+        rules, counts, importance_probs = get_unique_rules(rules, importance_probs)
+        if cfg["add_true_rule"]:
+            rules.append(true_rule.get_prompt())
+            counts = np.append(counts, 1)
+            importance_probs = np.append(
+                importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
+            )
+        if cfg["add_without_rule"]:
+            rules.append(None)
+            counts = np.append(counts, 1)
+            importance_probs = np.append(
+                importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
+            )
+        # Compute likelihoods of new data using the rules
+        likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
 
-    # weights is just the likelihoods for importance sampling with resampling
-    weights = np.log(counts) + likelihoods - importance_probs
+        # weights is just the likelihoods for importance sampling with resampling
+        weights = np.log(counts) + likelihoods - importance_probs
+
+        all_dict["rules"].extend(rules)
+        all_dict["weights"].extend(weights)
+        all_dict["counts"].extend(counts)
+        all_dict["importance_probs"].extend(importance_probs)
+        all_dict["likelihoods"].extend(likelihoods)
 
     # Print rules and weights sorted
-    indices = np.argsort(-likelihoods)
+    indices = np.argsort(-all_dict["likelihoods"])
     print("------------------------")
     print("true rule: " + repr(true_rule))
     print("------------------------")
     for ind in indices:
         print(
-            f"-----rule-----:   {repr(rules[ind])} weight: {weights[ind]:2f}, importance: {importance_probs[ind]:2f}, likelihood: {likelihoods[ind]:2f}, count: {counts[ind]}"
+            f"-----rule-----:   {repr(all_dict['rules'][ind])} weight: {all_dict['weights'][ind]:2f}, importance: {all_dict['importance_probs'][ind]:2f}, likelihood: {all_dict['likelihoods'][ind]:2f}, count: {all_dict['counts'][ind]}"
         )
-    return RuleOutput(
-        true_rule,
-        rules,
-        likelihoods,
-        {
-            "weights": weights,
-            "counts": counts,
-            "importance_probs": importance_probs,
-            "likelihoods": likelihoods,
-        },
-    )
+    return RuleOutput(true_rule, all_dict["rules"], all_dict["likelihoods"], all_dict)

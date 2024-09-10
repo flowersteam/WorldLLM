@@ -85,7 +85,11 @@ def generate_text_trajectories(
     # Set rule
     obs, info = env.reset(options={"rule": rule})
     lst_trajectory = []
-    for _ in tqdm(range(nb_trajectories), desc="Generating trajectories"):
+    for _ in tqdm(
+        range(nb_trajectories),
+        desc="Generating trajectories",
+        leave=False,
+    ):
         obs, info = env.reset()
         agent.reset(info)
         done = False
