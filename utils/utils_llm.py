@@ -255,7 +255,7 @@ def generate_rules(
 
     generation_args = {
         "temperature": 1,
-        "max_new_tokens": 100,
+        "max_new_tokens": 200,
         "do_sample": True,
         "top_k": None,
         "top_p": 1,
@@ -306,7 +306,7 @@ def evolve_rules(
         "temperature": 1,
         "top_k": None,
         "top_p": 1,
-        "max_new_tokens": 100,
+        "max_new_tokens": 200,
         "do_sample": True,
         "output_scores": True,
         "return_dict_in_generate": True,
