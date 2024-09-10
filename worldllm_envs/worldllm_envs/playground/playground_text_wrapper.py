@@ -37,7 +37,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             user_prompt = (
                 "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
-                + f"You know that the rule is '{rule}'. "
+                + f"You know that: \n{rule}\n"
                 if rule is not None
                 else ""
                 + "In the current space:\n"
@@ -88,15 +88,15 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             for trajectory in trajectories:
                 msg += f"{trajectory}\n"
             if previous_rule is None:
-                msg += "\nCan you find a rule to predict how the environment will change based on these? It should respect all the trajectories while still being as general as possible. Answer with just the rule"
+                msg += "\nCan you find a set of easily undestandable and concise rules to predict how the environment will change based on these trajectories? They should respect all the trajectories while still being as general as possible. Answer with just the rules."
             else:
                 if worst_trajectories is not None:
-                    msg += f"\nCan you find a rule to predict how the environment will change based on these? You can take inspiration from the previous rule:'{previous_rule}'. You also know that the previous rule failed the most on those trajectories:\n"
+                    msg += f"\nCan you find a set of easily undestandable and concise rules to predict how the environment will change based on these trajectories? You can take inspiration from the previous rules:\n{previous_rule}\nYou also know that the previous set of rules failed the most on those trajectories:\n"
                     for trajectory in worst_trajectories:
                         msg += f"{trajectory}\n"
-                    msg += "\nAnswer with just the rule."
+                    msg += "\nAnswer with just the rules."
                 else:
-                    msg += f"\nCan you find a rule to predict how the environment will change based on these? You can take inspiration from the previous rule:'{previous_rule}'. Answer with just the rule"
+                    msg += f"\nCan you find a set of easily undestandable and concise rules to predict how the environment will change based on these trajectories? You can take inspiration from the previous rules:\n{previous_rule}\nAnswer with just the rules."
             return msg
 
         # WorldLLM parameters

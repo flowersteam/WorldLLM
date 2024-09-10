@@ -16,3 +16,4 @@ algorithm:
   th_batch_size: 2
   nb_trajectories: 10
   add_true_rule: False
+  add_without_rule: true

@@ -54,7 +54,7 @@ def important_sampling(
         importance_probs = np.append(
             importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
         )
-    if cfg["add_no_rule"]:
+    if cfg["add_without_rule"]:
         rules.append(None)
         counts = np.append(counts, 1)
         importance_probs = np.append(
