@@ -84,6 +84,7 @@ def important_sampling(
         all_dict["importance_probs"].extend(importance_probs)
         all_dict["likelihoods"].extend(likelihoods)
 
+    # Compute likelihoods of test data for the rules
     all_dict["test_likelihoods"] = compute_likelihood(
         statistician, all_dict["rules"], test_trajectories
     )
