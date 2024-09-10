@@ -81,7 +81,7 @@ def important_sampling(
         all_dict["likelihoods"].extend(likelihoods)
 
     # Print rules and weights sorted
-    indices = np.argsort(-all_dict["likelihoods"])
+    indices = np.argsort(-np.array(all_dict["likelihoods"]))
     print("------------------------")
     print("true rule: " + repr(true_rule))
     print("------------------------")
