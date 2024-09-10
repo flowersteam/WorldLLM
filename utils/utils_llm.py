@@ -17,7 +17,7 @@ class PromptInfo:
     """Prompting info to give to the LLM"""
 
     system_prompt: str
-    message_template: Callable[..., str]
+    message_template: Callable[..., Any]
     batch_size: int
 
 
@@ -418,7 +418,7 @@ def _score_trajectory(
 
 def compute_likelihood(
     statistician: LlmModel,
-    rules: List[str],
+    rules: List[Optional[str]],
     trajectories: List[Trajectory],
     return_all_logp: bool = False,
 ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
@@ -434,7 +434,7 @@ def compute_likelihood(
         for trajectory in trajectories:
             user_prompt, assistant_prompt, candidate_tokens = (
                 statistician.prompt_info.message_template(
-                    rule, trajectory, start_score_index
+                    trajectory, start_score_index, rule
                 )
             )
             message = (

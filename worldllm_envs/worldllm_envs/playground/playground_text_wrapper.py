@@ -30,12 +30,16 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     """
 
     def __init__(self, **kwargs) -> None:
-        def statisitician_template(rule: str, trajectory: Trajectory, start_index: int):
+        def statisitician_template(
+            trajectory: Trajectory, start_index: int, rule: Optional[str] = None
+        ):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
             user_prompt = (
                 "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
                 + f"You know that the rule is '{rule}'. "
+                if rule is not None
+                else ""
                 + "In the current space:\n"
                 + trajectory.text[0]
                 + "\n\nNow please continue the following sequence: "
