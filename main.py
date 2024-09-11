@@ -27,7 +27,11 @@ def main(cfg: DictConfig) -> None:
     env: BaseRuleEnv = build_env(cfg)
     # Set Rule
     if cfg.environment.rule is not None:
-        env_rules = env.generate_rule(OmegaConf.to_object(cfg.environment)["rule"])
+        rules = OmegaConf.to_object(cfg.environment)["rule"]
+        if not isinstance(rules, list):
+            env_rules = env.generate_rule(rules)
+        else:
+            env_rules = [env.generate_rule(rule) for rule in rules]
     else:
         env_rules = env.generate_rule()
     # Set Agent

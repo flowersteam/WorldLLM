@@ -408,10 +408,10 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 desc for desc in self.train_descriptions if desc.startswith("Grasp")
             ]
 
-    def generate_rule(self, custom_rules: Optional[List[str]] = None) -> List[str]:
+    def generate_rule(self, custom_rule: Optional[List[str]] = None) -> str:
         # print("WARNING: no other rule than the default one is available")
-        if custom_rules is not None:
-            return custom_rules
+        if custom_rule is not None:
+            return custom_rule
         if self.train:
             if self.goal_sampler is not None:
                 raise ValueError("Goal sampler not supported")
@@ -427,7 +427,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                         or lst_components[2] in {"living_thing", "animal"}
                     ):
                         lst_goal_possible.append(goal)
-                return [random.choice(lst_goal_possible)]
+                return random.choice(lst_goal_possible)
         else:
             raise NotImplementedError("Test mode not supported yet")
             # If we are in test mode, we want to test the model on unseen data
@@ -511,7 +511,9 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             new_obj = Counter(obs_obj) - Counter(last_obs_obj)
             assert len(new_obj) == 1, "There should be only one new object emerging"
             old_obj = Counter(last_obs_obj) - Counter(obs_obj)
-            return f"The {list(old_obj)[0]} grows into the {list(new_obj)[0]}."
+            if action_obj == "all":
+                return f"The {last_obs_hold[0]}, {last_obs_hold[1]} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}."
+            return f"The {action_obj} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}."
         raise ValueError(
             f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
         )
