@@ -418,6 +418,7 @@ class SmallCarnivorous(Animals):
                         self.min_max_sizes[1][1] + self.obj_size_update,
                     )
                     self._update_size(size)
+                    self.grasped = False
                     rm_obj.append(obj)
 
         return super().update_state(
@@ -501,6 +502,7 @@ class BigCarnivorous(Animals):
                             self.min_max_sizes[1][1] + self.obj_size_update,
                         )
                         self._update_size(size)
+                        self.grasped = False
                         rm_obj.append(obj1)
                         rm_obj.append(obj2)
 
@@ -542,6 +544,7 @@ class BigCarnivorous(Animals):
                             self.min_max_sizes[1][1] + self.obj_size_update,
                         )
                         self._update_size(size)
+                        self.grasped = False
                         rm_obj.append(obj)
 
         return super().update_state(
@@ -606,6 +609,7 @@ class SmallHerbivorous(Animals):
                         self.min_max_sizes[1][1] + self.obj_size_update,
                     )
                     self._update_size(size)
+                    self.grasped = False
                     rm_obj.append(obj)
 
         return super().update_state(
@@ -689,6 +693,7 @@ class BigHerbivorous(Animals):
                             self.min_max_sizes[1][1] + self.obj_size_update,
                         )
                         self._update_size(size)
+                        self.grasped = False
                         rm_obj.append(obj1)
                         rm_obj.append(obj2)
 
