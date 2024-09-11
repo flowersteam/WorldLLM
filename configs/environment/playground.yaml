@@ -5,6 +5,4 @@ kwargs:
   max_steps: 30
 
 rule:
-  - "Grow any plant"
-  - "Grow any small_herbivorous"
   - "Grow any big_herbivorous"
