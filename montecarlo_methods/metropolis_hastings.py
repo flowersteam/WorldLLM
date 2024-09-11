@@ -33,16 +33,16 @@ def metropolis_hastings(
     theorist: LlmModel,
     statistician: LlmModel,
     cfg: Dict[str, Any],
+    curriculum_rules: List[str],
 ) -> RuleOutput:
     """Metropolis-Hasting algorithm"""
-    # Get true rule
-    true_rule = env.rule
 
     # Load test dataset:
     test_trajectories = env.unwrapped.get_test_dataset()
 
     all_dict: Dict[str, Any] = {
         "rules": [],
+        "current_true_rule": [],
         "weights": [],
         "importance_probs": [],
         "likelihoods": [],
@@ -52,7 +52,7 @@ def metropolis_hastings(
 
     # Generate trajectories
     prompt_trajectories = generate_text_trajectories(
-        env, agent, true_rule, cfg["nb_trajectories"]
+        env, agent, curriculum_rules[0], cfg["nb_trajectories"]
     )
     # Sample rules
     if cfg["first_rules"] is not None:
@@ -77,8 +77,16 @@ def metropolis_hastings(
     all_dict["importance_probs"] = [0] * cfg["nb_rules"]
     all_dict["prev_rules_ind"] = [-1] * cfg["nb_rules"]
     all_dict["weights"] = [0] * cfg["nb_rules"]
+    all_dict["current_true_rule"] = [
+        curriculum_rules[0] for _ in range(cfg["nb_rules"])
+    ]
     prev_rules_ind = np.zeros((cfg["nb_rules"],), dtype=int)
-    for _ in tqdm(range(cfg["nb_collecting"]), desc="Collecting iterations"):
+    for incr_collecting in tqdm(
+        range(cfg["nb_collecting"]), desc="Collecting iterations"
+    ):
+        rule_to_test = curriculum_rules[
+            int(incr_collecting * len(curriculum_rules) / cfg["nb_collecting"])
+        ]
         for i in tqdm(
             range(cfg["nb_iterations"]),
             desc="Metropolis-Hastings iterations",
@@ -142,6 +150,9 @@ def metropolis_hastings(
             all_dict["weights"].extend(weights)
             all_dict["likelihoods"] = np.append(all_dict["likelihoods"], likelihoods)
             all_dict["prev_rules_ind"].extend(prev_rules_ind)
+            all_dict["current_true_rule"].extend(
+                [rule_to_test for _ in range(len(rules))]
+            )
             # Accept or reject
             mask = np.where(np.log(np.random.rand()) < weights, 1, 0)
             prev_rules_ind = np.where(mask, i + 1, prev_rules_ind)
@@ -159,22 +170,19 @@ def metropolis_hastings(
                 )
         # Regenerate trajectories
         prompt_trajectories = generate_text_trajectories(
-            env, agent, true_rule, cfg["nb_trajectories"]
+            env, agent, rule_to_test, cfg["nb_trajectories"]
         )
     # Compute likelihoods of test data for the rules
     all_dict["test_likelihoods"] = compute_likelihood(
         statistician, all_dict["rules"], test_trajectories
     )
     indices = np.argsort(-np.array(all_dict["test_likelihoods"]))
-    print("------------------------")
-    print("true rule: " + repr(true_rule))
-    print("------------------------")
     for ind in indices:
         print(
-            f"-----rule-----:{ind%len(rules)}-{ind//len(rules)}({all_dict['prev_rules_ind'][ind]}):   {repr(all_dict['rules'][ind])}\nlikelihood: {all_dict['likelihoods'][ind]:2f}, weight: {all_dict['weights'][ind]:2f}, test_likelihood: {all_dict['test_likelihoods'][ind]:2f}"
+            f"-----true_rule-----: {all_dict['current_true_rule'][ind]}, rule:  {ind%len(rules)}-{ind//len(rules)}({all_dict['prev_rules_ind'][ind]}):   {repr(all_dict['rules'][ind])}\nlikelihood: {all_dict['likelihoods'][ind]:2f}, weight: {all_dict['weights'][ind]:2f}, test_likelihood: {all_dict['test_likelihoods'][ind]:2f}"
         )
     return RuleOutput(
-        true_rule,
+        curriculum_rules,
         all_dict["rules"],
         all_dict["likelihoods"],
         all_dict,

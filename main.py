@@ -50,7 +50,12 @@ def main(cfg: DictConfig) -> None:
         )
     elif cfg.algorithm.name == "metropolis_hastings":
         output = metropolis_hastings(
-            env, agent, theorist, statistician, OmegaConf.to_object(cfg.algorithm)
+            env,
+            agent,
+            theorist,
+            statistician,
+            OmegaConf.to_object(cfg.algorithm),
+            env_rules,
         )
     else:
         raise NotImplementedError(f"Algorithm {cfg.algorithm} not implemented.")
