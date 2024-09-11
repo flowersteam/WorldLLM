@@ -27,10 +27,9 @@ def main(cfg: DictConfig) -> None:
     env: BaseRuleEnv = build_env(cfg)
     # Set Rule
     if cfg.environment.rule is not None:
-        env_rule = env.generate_rule(OmegaConf.to_object(cfg.environment)["rule"])
+        env_rules = env.generate_rule(OmegaConf.to_object(cfg.environment)["rule"])
     else:
-        env_rule = env.generate_rule()
-    env.reset(options={"rule": env_rule})
+        env_rules = env.generate_rule()
     # Set Agent
     agent = hydra.utils.instantiate(cfg.agent, action_space=env.action_space)
     if not isinstance(agent, BaseAgent):
@@ -42,7 +41,12 @@ def main(cfg: DictConfig) -> None:
     # Run the algorithm
     if cfg.algorithm.name == "importance_sampling":
         output = important_sampling(
-            env, agent, theorist, statistician, OmegaConf.to_object(cfg.algorithm)
+            env,
+            agent,
+            theorist,
+            statistician,
+            OmegaConf.to_object(cfg.algorithm),
+            curriculum_rules=env_rules,
         )
     elif cfg.algorithm.name == "metropolis_hastings":
         output = metropolis_hastings(

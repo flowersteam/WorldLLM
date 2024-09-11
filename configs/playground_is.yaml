@@ -14,6 +14,6 @@ algorithm:
   nb_rules: 100
   stat_batch_size: 10
   th_batch_size: 2
-  nb_trajectories: 5
+  nb_trajectories: 6
   add_true_rule: False
   add_without_rule: true

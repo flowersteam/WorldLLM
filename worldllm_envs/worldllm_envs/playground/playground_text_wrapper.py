@@ -408,11 +408,10 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 desc for desc in self.train_descriptions if desc.startswith("Grasp")
             ]
 
-    def generate_rule(self, custom_rule: Optional[str] = None) -> str:
+    def generate_rule(self, custom_rules: Optional[List[str]] = None) -> List[str]:
         # print("WARNING: no other rule than the default one is available")
-        # TODO: Implement custom rule generation
-        if custom_rule is not None:
-            return custom_rule
+        if custom_rules is not None:
+            return custom_rules
         if self.train:
             if self.goal_sampler is not None:
                 raise ValueError("Goal sampler not supported")
@@ -428,7 +427,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                         or lst_components[2] in {"living_thing", "animal"}
                     ):
                         lst_goal_possible.append(goal)
-                return random.choice(lst_goal_possible)
+                return [random.choice(lst_goal_possible)]
         else:
             raise NotImplementedError("Test mode not supported yet")
             # If we are in test mode, we want to test the model on unseen data

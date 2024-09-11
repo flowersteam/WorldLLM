@@ -31,19 +31,19 @@ class RuleOutput:
 
     def __init__(
         self,
-        true_rule: BaseRule,
+        true_rules: List[str],
         rules: List[str],
         likelihoods: List[float],
         metrics: Dict[str, Any],
     ) -> None:
-        self.true_rule = true_rule
+        self.true_rules = true_rules
         self.rules = rules
         self.likelihoods = likelihoods
         self.metrics = metrics
 
     def to_json(self, filename):
         data = {
-            "true_rule": self.true_rule,
+            "true_rules": self.true_rules,
             "rules": self.rules,
             "likelihoods": self.likelihoods,
             "metrics": self.metrics,

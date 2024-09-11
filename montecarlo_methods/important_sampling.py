@@ -34,25 +34,30 @@ def important_sampling(
     theorist: LlmModel,
     statistician: LlmModel,
     cfg: Dict[str, Any],
+    curriculum_rules: List[str],
 ) -> RuleOutput:
-    # Get true rule
-    true_rule = env.rule
 
     # Load test dataset:
     test_trajectories = env.unwrapped.get_test_dataset()
 
     all_dict: Dict[str, Any] = {
         "rules": [],
+        "current_true_rule": [],
         "weights": [],
         "counts": [],
         "importance_probs": [],
         "likelihoods": [],
         "test_likelihoods": [],
     }
-    for _ in tqdm(range(cfg["nb_collecting"]), desc="Collecting iterations"):
+    for incr_collecting in tqdm(
+        range(cfg["nb_collecting"]), desc="Collecting iterations"
+    ):
+        rule_to_test = curriculum_rules[
+            int(incr_collecting * len(curriculum_rules) / cfg["nb_collecting"])
+        ]
         # Generate trajectories
         prompt_trajectories = generate_text_trajectories(
-            env, agent, true_rule, cfg["nb_trajectories"]
+            env, agent, rule_to_test, cfg["nb_trajectories"]
         )
         # Sample rules
         rules, importance_probs = generate_rules(
@@ -61,7 +66,7 @@ def important_sampling(
         # Get unique rules and counts
         rules, counts, importance_probs = get_unique_rules(rules, importance_probs)
         if cfg["add_true_rule"]:
-            rules.append(true_rule.get_prompt())
+            rules.append(rule_to_test)
             counts = np.append(counts, 1)
             importance_probs = np.append(
                 importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
@@ -83,6 +88,7 @@ def important_sampling(
         all_dict["counts"].extend(counts)
         all_dict["importance_probs"].extend(importance_probs)
         all_dict["likelihoods"].extend(likelihoods)
+        all_dict["current_true_rule"].extend([rule_to_test for _ in range(len(rules))])
 
     # Compute likelihoods of test data for the rules
     all_dict["test_likelihoods"] = compute_likelihood(
@@ -90,11 +96,10 @@ def important_sampling(
     )
     # Print rules and weights sorted
     indices = np.argsort(-np.array(all_dict["test_likelihoods"]))
-    print("------------------------")
-    print("true rule: " + repr(true_rule))
-    print("------------------------")
     for ind in indices:
         print(
-            f"-----rule-----:   {repr(all_dict['rules'][ind])}\n weight: {all_dict['weights'][ind]:2f}, importance: {all_dict['importance_probs'][ind]:2f}, likelihood: {all_dict['likelihoods'][ind]:2f}, count: {all_dict['counts'][ind]}, test_likelihood: {all_dict['test_likelihoods'][ind]:2f}"
+            f"-----true_rule-----: {all_dict['current_true_rule'][ind]}, rule:  {repr(all_dict['rules'][ind])}\n weight: {all_dict['weights'][ind]:2f}, importance: {all_dict['importance_probs'][ind]:2f}, likelihood: {all_dict['likelihoods'][ind]:2f}, count: {all_dict['counts'][ind]}, test_likelihood: {all_dict['test_likelihoods'][ind]:2f}"
         )
-    return RuleOutput(true_rule, all_dict["rules"], all_dict["likelihoods"], all_dict)
+    return RuleOutput(
+        curriculum_rules, all_dict["rules"], all_dict["likelihoods"], all_dict
+    )
