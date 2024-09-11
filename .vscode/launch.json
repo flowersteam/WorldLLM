@@ -27,7 +27,8 @@
             "args": [
                 "-cn",
                 "playground_is.yaml",
-                "algorithm.nb_rules=3"
+                "algorithm.nb_rules=3",
+                "agent=randomplayground.yaml"
             ]
         }
     ]

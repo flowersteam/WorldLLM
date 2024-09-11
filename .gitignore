@@ -126,3 +126,5 @@ dmypy.json
 # Custom
 outputs/
 lab.py
+
+.vscode/launch.json

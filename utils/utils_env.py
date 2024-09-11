@@ -17,7 +17,7 @@ class BaseAgent(abc.ABC):
         self.action_space = action_space
 
     @abc.abstractmethod
-    def __call__(self, obs):
+    def __call__(self, obs, **kwargs):
         """Generate action"""
 
     def reset(self, info: Dict[str, Any]):
@@ -94,7 +94,7 @@ def generate_text_trajectories(
         agent.reset(info)
         done = False
         while not done:
-            action = agent(obs)
+            action = agent(obs, **info)
             obs, _, terminated, truncated, info = env.step(action)
             done = terminated or truncated
         lst_trajectory.append(Trajectory(info["text_trajectory"]))

@@ -21,15 +21,12 @@ def rm_trailing_number(input_str):
     return re.sub(r"\d+$", "", input_str)
 
 
-class RandomAgent:
+class RandomAgent(BaseAgent):
     """Random agent for the Playground environment"""
 
-    def __init__(self, action_space: gym.Space):
-        pass
-
-    def __call__(self, obs: str, info: Dict[str, Any]) -> str:
+    def __call__(self, obs: str, **kwargs) -> str:
         """Take action according to plan"""
-        return random.choice(info["possible_actions"])
+        return random.choice(kwargs["possible_actions"])
 
 
 class PerfectAgent(BaseAgent):
@@ -55,7 +52,7 @@ class PerfectAgent(BaseAgent):
         goal_obj = lst_goal[2]
         return goal_type, goal_obj
 
-    def __call__(self, obs: str) -> str:
+    def __call__(self, obs: str, **kwargs) -> str:
         """Take action according to plan"""
         if getattr(self, "is_done", False) or not hasattr(self, "obj_dict"):
             raise ValueError("You need to call reset first")
