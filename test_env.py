@@ -22,7 +22,7 @@ for _ in range(15):
     done = False
     while not done:
         # Record inputs from keyboard
-        action = agent(obs)
+        action = agent(obs, **info)
         obs, _, done, _, info = env.step(action)
         index += 1
     # print(" ".join(info["text_trajectory"]))
