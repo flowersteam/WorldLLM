@@ -285,10 +285,11 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             user_prompt = (
                 "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
-                + f"You know that: \n{rule}\n"
-                if rule is not None
-                else ""
-                + "In the current space:\n"
+            )
+            if rule is not None:
+                user_prompt += f"You know that: \n{rule}\n"
+            user_prompt += (
+                "In the current space:\n"
                 + trajectory.text[0]
                 + "\n\nNow please continue the following sequence: "
             )
