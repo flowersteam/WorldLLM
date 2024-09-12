@@ -283,7 +283,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         ):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
             user_prompt = (
-                "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
+                "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
             )
             if rule is not None:
@@ -343,7 +343,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         ):
             """Template given to the theorist to sample new rules given trajectories"""
             msg = (
-                "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
+                "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
                 + "Your previous experiences were: \n\n"
             )
