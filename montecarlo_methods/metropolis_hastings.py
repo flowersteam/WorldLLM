@@ -46,7 +46,6 @@ def metropolis_hastings(
         "weights": [],
         "importance_probs": [],
         "likelihoods": [],
-        "all_prev_rules_ind": [],
         "test_likelihoods": [],
     }
 
@@ -80,6 +79,7 @@ def metropolis_hastings(
     all_dict["current_true_rule"] = [
         curriculum_rules[0] for _ in range(cfg["nb_rules"])
     ]
+    all_dict["nb_rules"] = cfg["nb_rules"]
     prev_rules_ind = np.zeros((cfg["nb_rules"],), dtype=int)
     for incr_collecting in tqdm(
         range(cfg["nb_collecting"]), desc="Collecting iterations"
@@ -155,7 +155,9 @@ def metropolis_hastings(
             )
             # Accept or reject
             mask = np.where(np.log(np.random.rand()) < weights, 1, 0)
-            prev_rules_ind = np.where(mask, i + 1, prev_rules_ind)
+            prev_rules_ind = np.where(
+                mask, (incr_collecting * cfg["nb_iterations"]) + i + 1, prev_rules_ind
+            )
             prev_rules = np.where(mask, rules, prev_rules)
             prev_likelihoods = np.where(mask, likelihoods, prev_likelihoods)
             if (
