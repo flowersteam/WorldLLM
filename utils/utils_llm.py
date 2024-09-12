@@ -178,7 +178,6 @@ def score_rules(
     worst_trajectories: Optional[List[List[Trajectory]]] = None,
 ) -> np.ndarray:
     """Score rules given the trajectories."""
-    trajectories = [trajectory.get_full_text() for trajectory in trajectories]
     all_log_probs = []
     lst_message = []
     lst_candidate = []
@@ -189,7 +188,7 @@ def score_rules(
             else theorist.prompt_info.message_template(
                 trajectories,
                 prev_rule,
-                [worst_traj.get_full_text() for worst_traj in worst_trajectories[incr]],
+                worst_trajectories[incr],
             )
         )
         lst_message.append(
@@ -263,7 +262,6 @@ def generate_rules(
         "return_dict_in_generate": True,
     }
     generation_args.update(theorist.generation_kwargs)
-    trajectories = [trajectory.get_full_text() for trajectory in trajectories]
     all_rules = []
     all_log_probs = []
     for batch in tqdm(
@@ -312,7 +310,6 @@ def evolve_rules(
         "return_dict_in_generate": True,
     }
     generation_args.update(theorist.generation_kwargs)
-    trajectories = [trajectory.get_full_text() for trajectory in trajectories]
     all_rules = []
     all_log_probs = []
     lst_message = []
@@ -323,7 +320,7 @@ def evolve_rules(
             else theorist.prompt_info.message_template(
                 trajectories,
                 prev_rule,
-                [worst_traj.get_full_text() for worst_traj in worst_trajectories[incr]],
+                worst_trajectories[incr],
             )
         )
         message = (

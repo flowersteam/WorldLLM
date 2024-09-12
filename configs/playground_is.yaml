@@ -13,7 +13,7 @@ seed: 60
 algorithm:
   nb_rules: 100
   stat_batch_size: 10
-  th_batch_size: 2
+  th_batch_size: 1
   nb_trajectories: 6
   add_true_rule: False
   add_without_rule: true

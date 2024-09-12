@@ -26,9 +26,10 @@
             "console": "integratedTerminal",
             "args": [
                 "-cn",
-                "playground_is.yaml",
+                "playground_metropolis.yaml",
                 "algorithm.nb_rules=3",
-                "agent=randomplayground.yaml"
+                "algorithm.nb_iterations=3",
+                "algorithm.num_worst_trajectories=5"
             ]
         }
     ]
