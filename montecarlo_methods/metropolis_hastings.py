@@ -50,8 +50,9 @@ def metropolis_hastings(
     }
 
     # Generate trajectories
+    rule_to_test = curriculum_rules[0]
     prompt_trajectories = generate_text_trajectories(
-        env, agent, curriculum_rules[0], cfg["nb_trajectories"]
+        env, agent, rule_to_test, cfg["nb_trajectories"]
     )
     # Sample rules
     if cfg["first_rules"] is not None:
@@ -84,9 +85,6 @@ def metropolis_hastings(
     for incr_collecting in tqdm(
         range(cfg["nb_collecting"]), desc="Collecting iterations"
     ):
-        rule_to_test = curriculum_rules[
-            int(incr_collecting * len(curriculum_rules) / cfg["nb_collecting"])
-        ]
         for i in tqdm(
             range(cfg["nb_iterations"]),
             desc="Metropolis-Hastings iterations",
@@ -170,10 +168,22 @@ def metropolis_hastings(
                     worst_trajectories,
                     prev_worst_trajectories,
                 )
-        # Regenerate trajectories
-        prompt_trajectories = generate_text_trajectories(
-            env, agent, rule_to_test, cfg["nb_trajectories"]
-        )
+        # Regenerate trajectories if not last iteration
+        if incr_collecting + 1 < cfg["nb_collecting"]:
+            # Regenerate trajectories
+            rule_to_test = curriculum_rules[
+                ((incr_collecting + 1) * len(curriculum_rules)) // cfg["nb_collecting"]
+            ]
+            prompt_trajectories = generate_text_trajectories(
+                env, agent, rule_to_test, cfg["nb_trajectories"]
+            )
+            # Recompute the likelihoods for the new trajectories
+            prev_likelihoods, all_logp = compute_likelihood(
+                statistician, prev_rules, prompt_trajectories, return_all_logp=True
+            )
+            prev_worst_trajectories = get_worst_trajectories(
+                all_logp, prompt_trajectories, cfg["num_worst_trajectories"]
+            )
     # Compute likelihoods of test data for the rules
     all_dict["test_likelihoods"] = compute_likelihood(
         statistician, all_dict["rules"], test_trajectories
