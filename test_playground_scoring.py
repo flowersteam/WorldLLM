@@ -1,4 +1,5 @@
 import time
+from typing import List
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -122,32 +123,33 @@ print("Time taken: ", time.perf_counter() - start)
 len_candidate = torch.tensor([c - 1 for c in len_reconstruct_trajectory])
 max_len_candidate = torch.max(len_candidate).item()
 
-mask = torch.zeros(
-    (len(len_reconstruct_trajectory), max_len_candidate),
-    dtype=torch.bool,
-)
+all_indices_obs = []
 for incr_traj, reconstructed_tokens in enumerate(lst_reconstructed_tokens):
+    indices: List[List[int]] = []
     pad_left = max_len_candidate - len_candidate[incr_traj]
     for i, traj_elem_tokens in enumerate(reconstructed_tokens):
-        # We put 1 for the observation.
-        # In the trajectory the observation and action alternates
         if i % 4 == 0:
-            mask[incr_traj, pad_left : pad_left + len(traj_elem_tokens)] = True
+            indices.append(list(range(pad_left, pad_left + len(traj_elem_tokens))))
         pad_left += len(traj_elem_tokens)
+    all_indices_obs.append(indices)
+
+
 print("Time taken: ", time.perf_counter() - start)
 # Check if mask is correct
-for incr, mask_row in enumerate(mask):
+for incr, index_row in enumerate(all_indices_obs):
     flat_lst = []
     for i, elem in enumerate(lst_reconstructed_tokens[incr]):
         if i % 4 == 0:
             flat_lst += elem
     flat_lst = torch.tensor(flat_lst)
-    assert torch.all(
-        flat_lst
-        == torch.tensor(candidate_tokens[incr])[1:][
-            mask_row[-len(candidate_tokens[incr]) + 1 :]
+    all_tokens = torch.tensor(
+        [
+            candidate_tokens[incr][1:][index - index_row[0][0]]
+            for index_transition in index_row
+            for index in index_transition
         ]
     )
+    assert torch.all(flat_lst == all_tokens)
 print("Time taken: ", time.perf_counter() - start)
 with torch.no_grad():
     inputs = tokenizer.apply_chat_template(
@@ -163,14 +165,24 @@ with torch.no_grad():
         attention_mask=inputs["attention_mask"],
     )
     inputs = inputs.to("cpu")
-    # We need to shift the logits to the right to match the candidate
+print("Time taken: ", time.perf_counter() - start)
+# We need to shift the logits to the right to match the candidate
 logits = results.logits[:, -max_len_candidate - 1 : -1].to("cpu")
 logp = torch.nn.functional.log_softmax(logits, dim=-1)
 # We need to pad to 0 the logits to ignore padding
-logp = logp.masked_fill_(~mask[:, :, None], 0)
-score = torch.gather(
-    logp, 2, inputs["input_ids"][:, -max_len_candidate:, None]
-).squeeze(-1)
-aggregated_scores = score.sum(-1)
+traj_scoring = []
+all_transition_scoring = []
+for incr_traj, traj_obs_ind in enumerate(all_indices_obs):
+    transition_scoring = []
+    for incr_transi, obs_ind in enumerate(traj_obs_ind):
+        values = logp[
+            incr_traj,
+            obs_ind,
+            inputs["input_ids"][incr_traj, -max_len_candidate:][obs_ind],
+        ]
+        transition_scoring.append(values.sum(-1).item())
+
+    all_transition_scoring.append(transition_scoring)
+    traj_scoring.append(sum(transition_scoring))
 print("Time taken: ", time.perf_counter() - start)
-print(aggregated_scores)
+print(traj_scoring)
