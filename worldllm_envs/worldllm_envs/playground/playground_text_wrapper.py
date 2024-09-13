@@ -278,9 +278,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     """
 
     def __init__(self, **kwargs) -> None:
-        def statisitician_template(
-            trajectory: Trajectory, start_index: int, rule: Optional[str] = None
-        ):
+        def statisitician_template(trajectory: Trajectory, rule: Optional[str] = None):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
             user_prompt = (
                 "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
@@ -288,22 +286,18 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             )
             if rule is not None:
                 user_prompt += f"You know that: \n{rule}\n"
-            user_prompt += (
-                "In the current space:\n"
-                + trajectory.text[0]
-                + "\n\nNow please continue the following sequence: "
-            )
-            for i in range(1, start_index):
-                if i % 2 == 1:
-                    # It is an action
-                    user_prompt += f"\na: {trajectory.text[i]} "
-                else:
-                    # It is an observation
-                    user_prompt += f"\no: {trajectory.text[i]} "
+            user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form:\n\n"
+            # Give example trajectory
+            user_prompt += "In the current space:\nYou see the baby sheep, the water, the carrot seed, the baby rhinoceros, the beet seed, the pea seed, the water and the potato seed. You are standing on the baby rhinoceros. Your are holding nothing. \na: You go to the water. \no: You are standing on the water. \na: You pick up the object. \no: You are holding the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You give the water. \no: The water and potato seed transform into the potato. \na: You pick up the object. \no: You are holding the potato. \na: You go to the baby sheep. \no: You are standing on the baby sheep. \na: You give the potato. \no: The potato and baby sheep transform into the sheep. "
+            user_prompt += "\n\nNow please complete the sequence:\n\n"
+            user_prompt += "In the current space:\n"
+            # Add initialisation observation and first action
+            user_prompt += trajectory.text[0] + " "
+            user_prompt += f"\na: {trajectory.text[1]} "
             user_prompt += "\no:"
             # Compute the prompt for the assistant
-            assistant_prompt = trajectory.text[start_index]
-            for i in range(start_index + 1, len(trajectory.text)):
+            assistant_prompt = trajectory.text[2]
+            for i in range(3, len(trajectory.text)):
                 if i % 2 == 1:
                     # It is an action
                     assistant_prompt += f" \na: {trajectory.text[i]}"
@@ -311,8 +305,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     # It is an observation
                     assistant_prompt += f" \no: {trajectory.text[i]}"
             # Compute the list of tokens for the assistant
-            assitant_token_lst = [trajectory.text[start_index]]
-            for i in range(start_index + 1, len(trajectory.text)):
+            assitant_token_lst = [trajectory.text[2]]
+            for i in range(3, len(trajectory.text)):
                 if i % 2 == 1:
                     # It is an action
                     assitant_token_lst.append("\na:")

@@ -427,17 +427,11 @@ def compute_likelihood(
     """Compute the likelihood of the new data given the rules."""
     lst_messages = []
     lst_trajectory_end = []
-    start_score_index = 4
-    assert (
-        start_score_index % 2 == 0
-    ), "The start score index should be even to obtain the observation"
     # Generate messages
     for rule in rules:
         for trajectory in trajectories:
             user_prompt, assistant_prompt, candidate_tokens = (
-                statistician.prompt_info.message_template(
-                    trajectory, start_score_index, rule
-                )
+                statistician.prompt_info.message_template(trajectory, rule)
             )
             message = (
                 {
