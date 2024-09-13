@@ -48,6 +48,7 @@ def important_sampling(
         "importance_probs": [],
         "likelihoods": [],
         "test_likelihoods": [],
+        "test_transition_scores": [],
     }
     for incr_collecting in tqdm(
         range(cfg["nb_collecting"]), desc="Collecting iterations"
@@ -78,7 +79,7 @@ def important_sampling(
                 importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
             )
         # Compute likelihoods of new data using the rules
-        likelihoods = compute_likelihood(statistician, rules, prompt_trajectories)
+        likelihoods, _ = compute_likelihood(statistician, rules, prompt_trajectories)
 
         # weights is just the likelihoods for importance sampling with resampling
         weights = np.log(counts) + likelihoods - importance_probs
@@ -91,8 +92,8 @@ def important_sampling(
         all_dict["current_true_rule"].extend([rule_to_test for _ in range(len(rules))])
 
     # Compute likelihoods of test data for the rules
-    all_dict["test_likelihoods"] = compute_likelihood(
-        statistician, all_dict["rules"], test_trajectories
+    all_dict["test_likelihoods"], all_dict["test_transition_scores"] = (
+        compute_likelihood(statistician, all_dict["rules"], test_trajectories)
     )
     # Print rules and weights sorted
     indices = np.argsort(-np.array(all_dict["test_likelihoods"]))

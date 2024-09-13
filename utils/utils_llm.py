@@ -353,7 +353,7 @@ def _score_trajectory(
     llm: LlmModel,
     lst_message: List[Tuple[Dict[str, str], Dict[str, str]]],
     lst_trajectory: List[List[str]],
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor, List[List[float]]]:
     """Scoring the rule or trajectory given message and candidates."""
     # Encode each trajectory observation and action
     lst_reconstructed_tokens = []
@@ -375,19 +375,16 @@ def _score_trajectory(
     len_candidate = torch.tensor([c - 1 for c in len_reconstruct_trajectory])
     max_len_candidate = torch.max(len_candidate).item()
 
-    candidate_mask = torch.zeros(
-        (len(len_reconstruct_trajectory), max_len_candidate), dtype=torch.bool
-    )
+    all_indices_obs = []
     for incr_traj, reconstructed_tokens in enumerate(lst_reconstructed_tokens):
+        indices: List[List[int]] = []
         pad_left = max_len_candidate - len_candidate[incr_traj]
         for i, traj_elem_tokens in enumerate(reconstructed_tokens):
-            # We put 1 for the observation.
-            # In the trajectory the observation and action alternates with tokens to specify the next one
+            # In the trajectory the observation and action alternates with tokens to specify the next one(o: obs, a: act)
             if i % 4 == 0:
-                candidate_mask[
-                    incr_traj, pad_left : pad_left + len(traj_elem_tokens)
-                ] = True
+                indices.append(list(range(pad_left, pad_left + len(traj_elem_tokens))))
             pad_left += len(traj_elem_tokens)
+        all_indices_obs.append(indices)
 
     with torch.no_grad():
         inputs = llm.tokenizer.apply_chat_template(
@@ -404,13 +401,21 @@ def _score_trajectory(
     # We need to shift the logits to the right to match the candidate
     logits = results.logits[:, -max_len_candidate - 1 : -1]
     logp = torch.nn.functional.log_softmax(logits, dim=-1)
-    # We need to pad to 0 the logits to ignore padding
-    logp = logp.masked_fill_(~candidate_mask[:, :, None], 0)
-    score = torch.gather(
-        logp, 2, inputs["input_ids"][:, -max_len_candidate:, None]
-    ).squeeze(-1)
-    aggregated_scores = score.sum(-1)
-    return aggregated_scores.cpu()
+    traj_scoring = torch.zeros(logp.shape[0])
+    all_transition_scoring = []
+    for incr_traj, traj_obs_ind in enumerate(all_indices_obs):
+        transition_scoring = []
+        for incr_transi, obs_ind in enumerate(traj_obs_ind):
+            values = logp[
+                incr_traj,
+                obs_ind,
+                inputs["input_ids"][incr_traj, -max_len_candidate:][obs_ind],
+            ]
+            transition_scoring.append(values.sum(-1).item())
+
+        all_transition_scoring.append(transition_scoring)
+        traj_scoring[incr_traj] = sum(transition_scoring)
+    return traj_scoring, all_transition_scoring
 
 
 def compute_likelihood(
@@ -418,7 +423,7 @@ def compute_likelihood(
     rules: List[Optional[str]],
     trajectories: List[Trajectory],
     return_all_logp: bool = False,
-) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+) -> Tuple[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]], List[List[float]]]:
     """Compute the likelihood of the new data given the rules."""
     lst_messages = []
     lst_trajectory_end = []
@@ -451,24 +456,33 @@ def compute_likelihood(
             lst_messages.append(message)
             lst_trajectory_end.append(candidate_tokens)
     batch_size = statistician.prompt_info.batch_size
+
+    all_transitions_scores = []
     all_logp = []
     for incr in tqdm(
         range(0, len(rules) * len(trajectories), batch_size),
         desc="Computing likelihood",
         leave=False,
     ):
-        all_logp.append(
-            _score_trajectory(
-                statistician,
-                lst_messages[incr : incr + batch_size],
-                lst_trajectory_end[incr : incr + batch_size],
-            )
+        logp_trajectory, transition_scores = _score_trajectory(
+            statistician,
+            lst_messages[incr : incr + batch_size],
+            lst_trajectory_end[incr : incr + batch_size],
         )
+        all_logp.append(logp_trajectory)
+        all_transitions_scores.extend(transition_scores)
+    transition_scores = [
+        [
+            all_transitions_scores[j]
+            for j in range(i * len(trajectories), (i + 1) * len(trajectories))
+        ]
+        for i in range(len(rules))
+    ]
     logp = torch.cat(all_logp, dim=0)
     logp = torch.stack(torch.split(logp, len(trajectories)))
 
     log_probability = logp.sum(dim=1)
 
     if return_all_logp:
-        return log_probability.numpy(), logp.numpy()
-    return log_probability.numpy()
+        return (log_probability.numpy(), logp.numpy()), transition_scores
+    return log_probability.numpy(), transition_scores

@@ -47,6 +47,7 @@ def metropolis_hastings(
         "importance_probs": [],
         "likelihoods": [],
         "test_likelihoods": [],
+        "test_transition_scores": [],
     }
 
     # Generate trajectories
@@ -61,7 +62,7 @@ def metropolis_hastings(
     else:
         prev_rules, _ = generate_rules(theorist, prompt_trajectories, cfg["nb_rules"])
     if cfg["num_worst_trajectories"] and cfg["num_worst_trajectories"] > 0:
-        prev_likelihoods, all_logp = compute_likelihood(
+        (prev_likelihoods, all_logp), _ = compute_likelihood(
             statistician, prev_rules, prompt_trajectories, return_all_logp=True
         )
         prev_worst_trajectories = get_worst_trajectories(
@@ -69,7 +70,7 @@ def metropolis_hastings(
         )
         all_worst_trajectories = copy(prev_worst_trajectories)
     else:
-        prev_likelihoods = compute_likelihood(
+        prev_likelihoods, _ = compute_likelihood(
             statistician, prev_rules, prompt_trajectories
         )
     all_dict["rules"] = copy(prev_rules)
@@ -102,7 +103,7 @@ def metropolis_hastings(
                     worst_trajectories=prev_worst_trajectories,
                 )
                 # Compute likelihoods of new data using the rules
-                likelihoods, all_logp = compute_likelihood(
+                (likelihoods, all_logp), _ = compute_likelihood(
                     statistician, rules, prompt_trajectories, return_all_logp=True
                 )
                 worst_trajectories = get_worst_trajectories(
@@ -123,7 +124,7 @@ def metropolis_hastings(
                     theorist, prompt_trajectories, prev_rules
                 )
                 # Compute likelihoods of new data using the rules
-                likelihoods = compute_likelihood(
+                likelihoods, _ = compute_likelihood(
                     statistician, rules, prompt_trajectories
                 )
                 if cfg["use_hasting_correction"]:
@@ -178,15 +179,15 @@ def metropolis_hastings(
                 env, agent, rule_to_test, cfg["nb_trajectories"]
             )
             # Recompute the likelihoods for the new trajectories
-            prev_likelihoods, all_logp = compute_likelihood(
+            (prev_likelihoods, all_logp), _ = compute_likelihood(
                 statistician, prev_rules, prompt_trajectories, return_all_logp=True
             )
             prev_worst_trajectories = get_worst_trajectories(
                 all_logp, prompt_trajectories, cfg["num_worst_trajectories"]
             )
     # Compute likelihoods of test data for the rules
-    all_dict["test_likelihoods"] = compute_likelihood(
-        statistician, all_dict["rules"], test_trajectories
+    all_dict["test_likelihoods"], all_dict["test_transition_scores"] = (
+        compute_likelihood(statistician, all_dict["rules"], test_trajectories)
     )
     indices = np.argsort(-np.array(all_dict["test_likelihoods"]))
     for ind in indices:
