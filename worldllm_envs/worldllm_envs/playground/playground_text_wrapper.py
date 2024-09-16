@@ -835,22 +835,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     @staticmethod
     def get_test_dataset() -> List[Trajectory]:
         """Return the test dataset"""
+        # Small Herbivores
         trajectories = [
-            Trajectory(
-                [
-                    "You see the beet seed, the water, the baby giraffe, the baby cow and the beet seed. You are standing on nothing. Your are holding nothing.",
-                    "You go to the water.",
-                    "You are standing on the water.",
-                    "You pick up the object.",
-                    "You are holding the water.",
-                    "You go to the beet seed.",
-                    "You are standing on the beet seed.",
-                    "You give the water.",
-                    "The water and beet seed transform into the beet.",
-                ]
-            )
-        ]
-        trajectories.append(
             Trajectory(
                 [
                     "You see the baby cow, the water, the berry seed, the baby giraffe and the baby giraffe. You are standing on nothing. Your are holding nothing.",
@@ -870,7 +856,50 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "The berry and baby cow transform into the cow.",
                 ]
             )
+        ]
+        trajectories.append(
+            Trajectory(
+                [
+                    "You see the baby pig, the water, the potato seed, the pea seed and the baby giraffe. You are standing on nothing. Your are holding nothing.",
+                    "You go to the water.",
+                    "You are standing on the water.",
+                    "You pick up the object.",
+                    "You are holding the water.",
+                    "You go to the pea seed.",
+                    "You are standing on the pea seed.",
+                    "You give the water.",
+                    "The water and pea seed transform into the pea.",
+                    "You pick up the object.",
+                    "You are holding the pea.",
+                    "You go to the baby pig.",
+                    "You are standing on the baby pig.",
+                    "You give the pea.",
+                    "The pea and baby pig transform into the pig.",
+                ]
+            )
         )
+        trajectories.append(
+            Trajectory(
+                [
+                    "You see the baby sheep, the water, the pea seed, the carrot seed and the berry seed. You are standing on nothing. Your are holding nothing.",
+                    "You go to the water.",
+                    "You are standing on the water.",
+                    "You pick up the object.",
+                    "You are holding the water.",
+                    "You go to the berry seed.",
+                    "You are standing on the berry seed.",
+                    "You give the water.",
+                    "The water and berry seed transform into the berry.",
+                    "You pick up the object.",
+                    "You are holding the berry.",
+                    "You go to the baby sheep.",
+                    "You are standing on the baby sheep.",
+                    "You give the berry.",
+                    "The berry and baby sheep transform into the sheep.",
+                ]
+            )
+        )
+        # Big Herbivores
         trajectories.append(
             Trajectory(
                 [
@@ -902,6 +931,69 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 ]
             )
         )
+        trajectories.append(
+            Trajectory(
+                [
+                    "You see the baby rhinoceros, the water, the potato seed, the water and the berry seed. You are standing on nothing. Your are holding nothing.",
+                    "You go to the water.",
+                    "You are standing on the water.",
+                    "You pick up the object.",
+                    "You are holding the water.",
+                    "You go to the berry seed.",
+                    "You are standing on the berry seed.",
+                    "You give the water.",
+                    "The water and berry seed transform into the berry.",
+                    "You pick up the object.",
+                    "You are holding the berry.",
+                    "You go to the water.",
+                    "You are standing on the water.",
+                    "You pick up the object.",
+                    "You are holding the berry and the water.",
+                    "You go to the potato seed.",
+                    "You are standing on the potato seed.",
+                    "You give the water.",
+                    "The water and potato seed transform into the potato.",
+                    "You pick up the object.",
+                    "You are holding the berry and the potato.",
+                    "You go to the baby rhinoceros.",
+                    "You are standing on the baby rhinoceros.",
+                    "You give all the objects you hold.",
+                    "The potato, berry and baby rhinoceros transform into the rhinoceros.",
+                ]
+            )
+        )
+        trajectories.append(
+            Trajectory(
+                [
+                    "You see the baby elephant, the water, the potato seed, the water and the pea seed. You are standing on nothing. Your are holding nothing.",
+                    "You go to the water.",
+                    "You are standing on the water.",
+                    "You pick up the object.",
+                    "You are holding the water.",
+                    "You go to the pea seed.",
+                    "You are standing on the pea seed.",
+                    "You give the water.",
+                    "The water and pea seed transform into the pea.",
+                    "You pick up the object.",
+                    "You are holding the pea.",
+                    "You go to the water.",
+                    "You are standing on the water.",
+                    "You pick up the object.",
+                    "You are holding the pea and the water.",
+                    "You go to the potato seed.",
+                    "You are standing on the potato seed.",
+                    "You give the water.",
+                    "The water and potato seed transform into the potato.",
+                    "You pick up the object.",
+                    "You are holding the pea and the potato.",
+                    "You go to the baby elephant.",
+                    "You are standing on the baby elephant.",
+                    "You give all the objects you hold.",
+                    "The potato, pea and baby elephant transform into the elephant.",
+                ]
+            )
+        )
+        # Random Trajectories
         trajectories.append(
             Trajectory(
                 [
@@ -992,6 +1084,53 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "You give the beet.",
                     "Nothing has changed.",
                     "You pick up the object.",
+                    "Nothing has changed.",
+                ]
+            )
+        )
+        trajectories.append(
+            Trajectory(
+                [
+                    "You see the baby elephant, the water, the pea seed, the water and the pea seed. You are standing on nothing. Your are holding nothing.",
+                    "You go to the water.",
+                    "You are standing on the water.",
+                    "You pick up the object.",
+                    "You are holding the water.",
+                    "You go to the baby elephant.",
+                    "You are standing on the baby elephant.",
+                    "You go to the water.",
+                    "You are standing on the water.",
+                    "You pick up the object.",
+                    "You are holding the water and the water.",
+                    "You go to the pea seed.",
+                    "You are standing on the pea seed.",
+                    "You give all the objects you hold.",
+                    "Nothing has changed.",
+                    "You pick up the object.",
+                    "Nothing has changed.",
+                    "You give all the objects you hold.",
+                    "Nothing has changed.",
+                    "You pick up the object.",
+                    "Nothing has changed.",
+                    "You give the water.",
+                    "The water and pea seed transform into the pea.",
+                    "You go to the pea seed.",
+                    "You are standing on the pea seed.",
+                    "You go to the baby elephant.",
+                    "You are standing on the baby elephant.",
+                    "You go to the pea.",
+                    "You are standing on the pea.",
+                    "You go to the pea seed.",
+                    "You are standing on the pea seed.",
+                    "You go to the pea.",
+                    "You are standing on the pea.",
+                    "You give the water.",
+                    "Nothing has changed.",
+                    "You go to the pea seed.",
+                    "You are standing on the pea seed.",
+                    "You give the water.",
+                    "The water and pea seed transform into the pea.",
+                    "You go to the pea.",
                     "Nothing has changed.",
                 ]
             )
