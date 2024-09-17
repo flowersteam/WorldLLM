@@ -286,9 +286,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             )
             if rule is not None:
                 user_prompt += f"You know that: \n{rule}\n"
-            user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form:\n\n"
+            user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form:\n\nIn the current space:\nYou see the baby sheep, the water, the carrot seed, the baby rhinoceros, the beet seed, the pea seed, the water and the potato seed. You are standing on the baby rhinoceros. Your are holding nothing. \na: You go to the water. \no: You are standing on the water. \na: You pick up the object. \no: You are holding the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You give the water. \no: The water and potato seed transform into the potato. "
             # Give example trajectory
-            user_prompt += "In the current space:\nYou see the baby sheep, the water, the carrot seed, the baby rhinoceros, the beet seed, the pea seed, the water and the potato seed. You are standing on the baby rhinoceros. Your are holding nothing. \na: You go to the water. \no: You are standing on the water. \na: You pick up the object. \no: You are holding the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You give the water. \no: The water and potato seed transform into the potato. \na: You pick up the object. \no: You are holding the potato. \na: You go to the baby sheep. \no: You are standing on the baby sheep. \na: You give the potato. \no: The potato and baby sheep transform into the sheep. "
             user_prompt += "\n\nNow please complete the sequence:\n\n"
             user_prompt += "In the current space:\n"
             # Add initialisation observation and first action

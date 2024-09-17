@@ -16,6 +16,9 @@ chat_template = "{{ bos_token }}{% for message in messages %}{% if (message['rol
 
 tokenizer.chat_template = chat_template
 
+test_content = "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. \n"
+test_content += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form:\n\n In the current space:\nYou see the baby sheep, the water, the carrot seed, the baby rhinoceros, the beet seed, the pea seed, the water and the potato seed. You are standing on the baby rhinoceros. Your are holding nothing. \na: You go to the water. \no: You are standing on the water. \na: You go to the water. \no: You are standing on the water. \na: You pick up the object. \no: You are holding the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You give the water. \no: The water and potato seed transform into the potato."
+test_content += "\n\nNow please complete the sequence:\n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \na: You go to the water. \no: "
 
 base_message = [
     (
@@ -25,11 +28,11 @@ base_message = [
         },
         {
             "role": "user",
-            "content": "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. You know that the rule is 'If an object (plant seed or herbivore) is moved onto another object (plant or herbivore), it spawns the object.'. In the current space:\nYou see the baby sheep, the water, the carrot seed, the water, the baby pig, the baby giraffe, the baby giraffe and the potato seed. You are standing on nothing. Your are holding nothing. \n\nNow please continue the following sequence: \na: You go to the water. \no: You are standing on the water. \na: You grasp the object. \no:",
+            "content": test_content,
         },
         {
             "role": "assistant",
-            "content": "You are holding the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You release the water. \no: The potato seed grows into the potato. \na: You grasp the object. \no: You are holding the potato. \na: You go to the baby sheep. \no: You are standing on the baby sheep. \na: You release the potato. \no: The baby sheep grows into the sheep.",
+            "content": "You are standing on the water. \na: You pick up the object. \no: You are holding the water. \na: You go to the beet seed. \no: You are standing on the beet seed. \na: You give the water. \no: The water and beet seed transform into the beet. \na: You pick up the object. \no: You are holding the beet. \na: You go to the water. \no: You are standing on the water. \na: You pick up the object. \no: You are holding the beet and the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You give the water. \no: The water and potato seed transform into the potato. \na: You pick up the object. \no: You are holding the beet and the potato. \na: You go to the baby rhinoceros. \no: You are standing on the baby rhinoceros. \na: You give all the objects you hold. \no: The potato, beet and baby rhinoceros transform into the rhinoceros.",
         },
     ),
     (
@@ -39,11 +42,11 @@ base_message = [
         },
         {
             "role": "user",
-            "content": "I am in a space that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. You know that the rule is 'Plant seeds with water, move organism, release that (transforms into plant or animal)\n\nThis rule describes the basic process of growth as seen in the given scenarios. It states that when a plant seed is placed in water and an object is removed from that seed, the seed grows into the respective plant. Similarly, when an organism (starting as a small baby) and water are placed together, the organism grows into the respective adult animal. This rule applies universally'. Predict the next observation based on the previous actions and observations and use the same words:\nYou see the beet seed, the water, the baby elephant, the carrot seed, the water, the baby pig, the baby pig and the berry seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. \nYour objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form:\n\n In the current space:\nYou see the baby sheep, the water, the carrot seed, the baby rhinoceros, the beet seed, the pea seed, the water and the potato seed. You are standing on the baby rhinoceros. Your are holding nothing. \na: You go to the water. \no: You are standing on the water. \na: You pick up the object. \no: You are holding the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You give the water. \no: The water and potato seed transform into the potato. \na: You pick up the object. \no: You are holding the potato. \na: You go to the baby sheep. \no: You are standing on the baby sheep. \na: You give the potato. \no: The potato and baby sheep transform into the sheep. \n\nNow please complete the sequence:\n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \na: You go to the water. \no:",
         },
         {
             "role": "assistant",
-            "content": "You are holding the water. You go to the beet seed. You are standing on the beet seed. You release the water. The beet seed grows into the beet.",
+            "content": "You are standing on the water. \na: You pick up the object. \no: You are holding the water. \na: You go to the beet seed. \no: You are standing on the beet seed. \na: You give the water. \no: The water and beet seed transform into the beet. \na: You pick up the object. \no: You are holding the beet. \na: You go to the water. \no: You are standing on the water. \na: You pick up the object. \no: You are holding the beet and the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You give the water. \no: The water and potato seed transform into the potato. \na: You pick up the object. \no: You are holding the beet and the potato. \na: You go to the baby rhinoceros. \no: You are standing on the baby rhinoceros. \na: You give all the objects you hold. \no: The potato, beet and baby rhinoceros transform into the rhinoceros.",
         },
     ),
 ]
@@ -51,46 +54,110 @@ candidate_answer = [
     (
         {
             "role": "assistant",
-            "content": "You are holding the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You release the water. \no: The potato seed grows into the potato. \na: You grasp the object. \no: You are holding the potato. \na: You go to the baby sheep. \no: You are standing on the baby sheep. \na: You release the potato. \no: The baby sheep grows into the sheep.",
+            "content": "You are standing on the water. \na: You pick up the object. \no: You are holding the water. \na: You go to the beet seed. \no: You are standing on the beet seed. \na: You give the water. \no: The water and beet seed transform into the beet. \na: You pick up the object. \no: You are holding the beet. \na: You go to the water. \no: You are standing on the water. \na: You pick up the object. \no: You are holding the beet and the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You give the water. \no: The water and potato seed transform into the potato. \na: You pick up the object. \no: You are holding the beet and the potato. \na: You go to the baby rhinoceros. \no: You are standing on the baby rhinoceros. \na: You give all the objects you hold. \no: The potato, beet and baby rhinoceros transform into the rhinoceros.",
         },
     ),
     (
         {
             "role": "assistant",
-            "content": "You are holding the water. You go to the beet seed. You are standing on the beet seed. You release the water. The beet seed grows into the beet.",
+            "content": "You are standing on the water. \na: You pick up the object. \no: You are holding the water. \na: You go to the beet seed. \no: You are standing on the beet seed. \na: You give the water. \no: The water and beet seed transform into the beet. \na: You pick up the object. \no: You are holding the beet. \na: You go to the water. \no: You are standing on the water. \na: You pick up the object. \no: You are holding the beet and the water. \na: You go to the potato seed. \no: You are standing on the potato seed. \na: You give the water. \no: The water and potato seed transform into the potato. \na: You pick up the object. \no: You are holding the beet and the potato. \na: You go to the baby rhinoceros. \no: You are standing on the baby rhinoceros. \na: You give all the objects you hold. \no: The potato, beet and baby rhinoceros transform into the rhinoceros.",
         },
     ),
 ]
 lst_trajectories_end = [
     [
+        "You are standing on the water.",
+        "\na:",
+        "You pick up the object.",
+        "\no:",
         "You are holding the water.",
+        "\na:",
+        "You go to the beet seed.",
+        "\no:",
+        "You are standing on the beet seed.",
+        "\na:",
+        "You give the water.",
+        "\no:",
+        "The water and beet seed transform into the beet.",
+        "\na:",
+        "You pick up the object.",
+        "\no:",
+        "You are holding the beet.",
+        "\na:",
+        "You go to the water.",
+        "\no:",
+        "You are standing on the water.",
+        "\na:",
+        "You pick up the object.",
+        "\no:",
+        "You are holding the beet and the water.",
         "\na:",
         "You go to the potato seed.",
         "\no:",
         "You are standing on the potato seed.",
         "\na:",
-        "You release the water.",
+        "You give the water.",
         "\no:",
-        "The potato seed grows into the potato.",
+        "The water and potato seed transform into the potato.",
         "\na:",
-        "You grasp the object.",
+        "You pick up the object.",
         "\no:",
-        "You are holding the potato.",
+        "You are holding the beet and the potato.",
         "\na:",
-        "You go to the baby sheep.",
+        "You go to the baby rhinoceros.",
         "\no:",
-        "You are standing on the baby sheep.",
+        "You are standing on the baby rhinoceros.",
         "\na:",
-        "You release the potato.",
+        "You give all the objects you hold.",
         "\no:",
-        "The baby sheep grows into the sheep.",
+        "The potato, beet and baby rhinoceros transform into the rhinoceros.",
     ],
     [
+        "You are standing on the water.",
+        "\na:",
+        "You pick up the object.",
+        "\no:",
         "You are holding the water.",
+        "\na:",
         "You go to the beet seed.",
+        "\no:",
         "You are standing on the beet seed.",
-        "You release the water.",
-        "The beet seed grows into the beet.",
+        "\na:",
+        "You give the water.",
+        "\no:",
+        "The water and beet seed transform into the beet.",
+        "\na:",
+        "You pick up the object.",
+        "\no:",
+        "You are holding the beet.",
+        "\na:",
+        "You go to the water.",
+        "\no:",
+        "You are standing on the water.",
+        "\na:",
+        "You pick up the object.",
+        "\no:",
+        "You are holding the beet and the water.",
+        "\na:",
+        "You go to the potato seed.",
+        "\no:",
+        "You are standing on the potato seed.",
+        "\na:",
+        "You give the water.",
+        "\no:",
+        "The water and potato seed transform into the potato.",
+        "\na:",
+        "You pick up the object.",
+        "\no:",
+        "You are holding the beet and the potato.",
+        "\na:",
+        "You go to the baby rhinoceros.",
+        "\no:",
+        "You are standing on the baby rhinoceros.",
+        "\na:",
+        "You give all the objects you hold.",
+        "\no:",
+        "The potato, beet and baby rhinoceros transform into the rhinoceros.",
     ],
 ]
 start = time.perf_counter()
@@ -185,4 +252,4 @@ for incr_traj, traj_obs_ind in enumerate(all_indices_obs):
     all_transition_scoring.append(transition_scoring)
     traj_scoring.append(sum(transition_scoring))
 print("Time taken: ", time.perf_counter() - start)
-print(traj_scoring)
+print(traj_scoring, all_transition_scoring)
