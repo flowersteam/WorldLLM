@@ -21,6 +21,13 @@ def rm_trailing_number(input_str):
     return re.sub(r"\d+$", "", input_str)
 
 
+class DiverseAgent(BaseAgent):
+    """Generate diverse trajectories. Just used as a flag"""
+
+    def __call__(self, obs: str, **kwargs) -> str:
+        raise NotImplementedError("DiverseAgent does not generate actions")
+
+
 class RandomAgent(BaseAgent):
     """Random agent for the Playground environment"""
 
@@ -1135,3 +1142,43 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             )
         )
         return trajectories
+
+
+def generate_diverse_trajectories(env: PlayGroundText) -> List[Trajectory]:
+    """Generate 2 Small Herbivores, 2 Big Herbivores and 2 Random trajectories"""
+    obs, info = env.reset(options={"rule": "Grow any small_herbivorous"})
+    trajectories = []
+    perfect_agent = PerfectAgent(env.action_space)
+    for _ in range(2):
+        obs, info = env.reset()
+        perfect_agent.reset(info)
+        done = False
+        while not done:
+            action = perfect_agent(obs, **info)
+            obs, _, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+        trajectories.append(Trajectory(info["text_trajectory"]))
+
+    obs, info = env.reset(options={"rule": "Grow any big_herbivorous"})
+    for _ in range(2):
+        obs, info = env.reset()
+        perfect_agent.reset(info)
+        done = False
+        while not done:
+            action = perfect_agent(obs, **info)
+            obs, _, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+        trajectories.append(Trajectory(info["text_trajectory"]))
+
+    random_agent = RandomAgent(env.action_space)
+    obs, info = env.reset(options={"rule": "Grow any big_herbivorous"})
+    for _ in range(2):
+        obs, info = env.reset()
+        random_agent.reset(info)
+        done = False
+        while not done:
+            action = random_agent(obs, **info)
+            obs, _, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+        trajectories.append(Trajectory(info["text_trajectory"]))
+    return trajectories

@@ -14,6 +14,10 @@ from utils.utils_llm import (
 )
 from utils.utils_save import RuleOutput
 from worldllm_envs.base import BaseRuleEnv
+from worldllm_envs.playground.playground_text_wrapper import (
+    DiverseAgent,
+    generate_diverse_trajectories,
+)
 
 
 def get_worst_trajectories(
@@ -52,9 +56,13 @@ def metropolis_hastings(
 
     # Generate trajectories
     rule_to_test = curriculum_rules[0]
-    prompt_trajectories = generate_text_trajectories(
-        env, agent, rule_to_test, cfg["nb_trajectories"]
-    )
+    if isinstance(agent, DiverseAgent):
+        prompt_trajectories = generate_diverse_trajectories(env)
+        assert len(prompt_trajectories) == cfg["nb_trajectories"]
+    else:
+        prompt_trajectories = generate_text_trajectories(
+            env, agent, rule_to_test, cfg["nb_trajectories"]
+        )
     # Sample rules
     if cfg["first_rules"] is not None:
         prev_rules = cfg["first_rules"]
@@ -175,9 +183,13 @@ def metropolis_hastings(
             rule_to_test = curriculum_rules[
                 ((incr_collecting + 1) * len(curriculum_rules)) // cfg["nb_collecting"]
             ]
-            prompt_trajectories = generate_text_trajectories(
-                env, agent, rule_to_test, cfg["nb_trajectories"]
-            )
+            if isinstance(agent, DiverseAgent):
+                prompt_trajectories = generate_diverse_trajectories(env)
+                assert len(prompt_trajectories) == cfg["nb_trajectories"]
+            else:
+                prompt_trajectories = generate_text_trajectories(
+                    env, agent, rule_to_test, cfg["nb_trajectories"]
+                )
             # Recompute the likelihoods for the new trajectories
             (prev_likelihoods, all_logp), _ = compute_likelihood(
                 statistician, prev_rules, prompt_trajectories, return_all_logp=True

@@ -7,6 +7,10 @@ from utils.utils_env import BaseAgent, generate_text_trajectories
 from utils.utils_llm import LlmModel, compute_likelihood, generate_rules
 from utils.utils_save import RuleOutput
 from worldllm_envs.base import BaseRuleEnv
+from worldllm_envs.playground.playground_text_wrapper import (
+    DiverseAgent,
+    generate_diverse_trajectories,
+)
 
 
 def get_unique_rules(
@@ -57,9 +61,13 @@ def important_sampling(
             int(incr_collecting * len(curriculum_rules) / cfg["nb_collecting"])
         ]
         # Generate trajectories
-        prompt_trajectories = generate_text_trajectories(
-            env, agent, rule_to_test, cfg["nb_trajectories"]
-        )
+        if isinstance(agent, DiverseAgent):
+            prompt_trajectories = generate_diverse_trajectories(env)
+            assert len(prompt_trajectories) == cfg["nb_trajectories"]
+        else:
+            prompt_trajectories = generate_text_trajectories(
+                env, agent, rule_to_test, cfg["nb_trajectories"]
+            )
         # Sample rules
         rules, importance_probs = generate_rules(
             theorist, prompt_trajectories, cfg["nb_rules"]
