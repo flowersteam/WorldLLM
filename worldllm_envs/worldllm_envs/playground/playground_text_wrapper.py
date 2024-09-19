@@ -293,7 +293,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             )
             if rule is not None:
                 user_prompt += f"You know that: \n{rule}\n"
-            user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form, with x,y and z 3 objects and a an action:\n\n In the current space:\nYou see x, y, and z. You are standing on the y. Your are holding nothing. \na: action. \no: You are standing on x. \na: action. \no: You are holding y. \na: action. \no: x and y transform into z. \na: action. \no: Nothing has changed."
+            user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form, with x,y, z and w 4 objects and action an action:\n\n In the current space:\nYou see x, y, and z. You are standing on the y. Your are holding nothing. \na: action. \no: You are standing on x. \na: action. \no: You are holding y. \na: action. \no: You are holding y and z. \na: action. \no: x and y transform into z. \na: action. \no: x, y and z transform into w. \na: action. \no: Nothing has changed."
             # Give example trajectory
             user_prompt += "\n\nNow please complete the sequence:\n\n"
             user_prompt += "In the current space:\n"
