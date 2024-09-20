@@ -1230,6 +1230,9 @@ class PlayGroundDiscrete(PlayGroundText):
         # Keep track of the inventory
         self.inventory = []
 
+        # WE save last observation to compute the difference
+        self._last_text_obs = None
+
     def obj_to_index(self, incr: int, obj_name: str) -> Tuple[int, int, int, int]:
         """Return the index of the object in the observation"""
         obs_name = rm_trailing_number(obj_name)
@@ -1329,7 +1332,9 @@ class PlayGroundDiscrete(PlayGroundText):
             else:
                 self.action_mask[28:] = True
 
-    def _reset(self, options: Optional[Dict[str, Any]]) -> np.ndarray:
+    def _reset(
+        self, options: Optional[Dict[str, Any]]
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
         # Old playground reset
         self.lp = None
         self.sr = None
@@ -1353,10 +1358,80 @@ class PlayGroundDiscrete(PlayGroundText):
 
         self.update_obj_info()
         obs = self.dict_to_feature(self.obj_dict)
+        # Compute the str description
+        obs_desc, _ = self.generate_description()
+        text_obs = self.observation_to_text(obs_desc)
         self._update_action_mask(obs)
-        info = {"goal": self.goal_str, "action_mask": self.action_mask}
+        info = {
+            "goal": self.goal_str,
+            "action_mask": self.action_mask,
+            "text_obs": text_obs,
+        }
+        self._last_text_obs = obs_desc
 
         return obs, info
+
+    def get_diff(
+        self, last_observation: str, observation: str, action: str
+    ) -> Tuple[str, float]:
+        """Compute the difference between two observations and return reward"""
+        # Split text description
+        last_obs_obj, last_obs_stand, last_obs_hold = self._split_description(
+            last_observation
+        )
+        obs_obj, obs_stand, obs_hold = self._split_description(observation)
+        action_type, action_obj = self._split_action(action)
+        if (
+            Counter(last_obs_obj) == Counter(obs_obj)
+            and Counter(last_obs_stand) == Counter(obs_stand)
+            and Counter(last_obs_hold) == Counter(obs_hold)
+        ):
+            return "Nothing has changed.", 1.8
+        elif action_type == "go to":
+            if action_obj == "nothing":
+                return "You are standing on nothing."
+            return f"You are standing on the {action_obj}.", 1.4
+        elif action_type == "grasp":
+            counter_diff = Counter(obs_hold) - Counter(last_obs_hold)
+            assert (
+                len(counter_diff) == 1
+            ), "There should be only one object grasped at a time"
+            if last_obs_hold[0] == "empty":
+                return f"You are holding the {list(counter_diff.keys())[0]}.", 0.8
+            if len(last_obs_hold) == 1:
+                return (
+                    f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}.",
+                    5.5,
+                )
+            raise ValueError("Inventory cannot contain more than 2 objects")
+        elif action_type == "release":
+            new_obj = Counter(obs_obj) - Counter(last_obs_obj)
+            assert len(new_obj) == 1, "There should be only one new object emerging"
+            old_obj = Counter(last_obs_obj) - Counter(obs_obj)
+            new_object_type = list(new_obj.keys())[0]
+            new_object_category = self.types_to_categories[new_object_type]
+            if new_object_category == "plant":
+                reward = 5
+            elif new_object_category == "small_herbivorous":
+                reward = 3.8
+            elif new_object_category == "big_herbivorous":
+                reward = 11
+            else:
+                raise ValueError(
+                    "The category " + new_object_category + " is not supported"
+                )
+            if action_obj == "all":
+                return (
+                    f"The {last_obs_hold[0]}, {last_obs_hold[1]} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
+                    reward,
+                )
+            return (
+                f"The {action_obj} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
+                reward,
+            )
+        raise ValueError(
+            f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
+        )
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         action_str = self.discrete_action_to_text(action)
@@ -1419,11 +1494,22 @@ class PlayGroundDiscrete(PlayGroundText):
         self.update_obj_info()
         obs = self.dict_to_feature(self.obj_dict)
         self._update_action_mask(obs)
-        info = {"goal": self.goal_str, "action_mask": self.action_mask}
+        # Compute the str description
+        obs_desc, _ = self.generate_description()
+        text_obs, reward = self.get_diff(self._last_text_obs, obs_desc, action_str)
+        text_action = self.action_to_text(action_str)
+        info = {
+            "goal": self.goal_str,
+            "action_mask": self.action_mask,
+            "text_obs": text_obs,
+            "obs_desc": obs_desc,
+            "text_action": text_action,
+        }
+        self._last_text_obs = obs_desc
         # Reset the size of obj help to find the obj grown in the current step
         self.playground.unwrapped.reset_size()
 
-        return obs, float(r), done, False, info
+        return obs, reward, done, False, info
 
     def render(self):
         raise NotImplementedError("Rendering is not supported for the environment")
