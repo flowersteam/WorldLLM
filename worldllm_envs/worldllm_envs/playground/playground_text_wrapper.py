@@ -1182,3 +1182,251 @@ def generate_diverse_trajectories(env: PlayGroundText) -> List[Trajectory]:
             done = terminated or truncated
         trajectories.append(Trajectory(info["text_trajectory"]))
     return trajectories
+
+
+class PlayGroundDiscrete(PlayGroundText):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # 4 because 1 for what you see, 1 for what you stand on, 2 for what you hold
+        # 13 because we have 12 objects and 1 for the empty space
+        # 2 because we have 2 states for the object (evolved or not)
+        # 4 because we have 4 categories of objects
+        self.observation_space = gym.spaces.MultiDiscrete((4, 13, 2, 4))
+        observation_array = np.zeros((4, 13, 2, 4))
+        observation_array[0] = (
+            4  # With 8 objects on the scene there can't be more than 3 of the same object
+        )
+        observation_array[1:] = (
+            2  # Only one object can you stand on or one object you hold per slot in the inventory
+        )
+        self.observation_space = gym.spaces.MultiDiscrete(observation_array)
+        self.action_space = gym.spaces.Discrete(30)
+
+        self.types_to_id = {
+            k: (i + 1) for i, k in enumerate(self.env_params["attributes"]["types"])
+        }
+        self.types_to_id["empty"] = 0
+        self.id_to_types = {
+            (i + 1): k for i, k in enumerate(self.env_params["attributes"]["types"])
+        }
+        self.id_to_types[0] = "empty"
+        self.types_to_categories = {}
+        sorted_categories = sorted(self.env_params["categories"].keys())
+        for cat in sorted_categories:
+            if cat == "living_thing":
+                continue  # Skip living things there are just to make all work
+            for k in self.env_params["categories"][cat]:
+                self.types_to_categories[k] = cat
+
+        self.categories_to_id = {}
+        i = 0
+        for cat in sorted_categories:
+            if cat == "living_thing":
+                continue
+            self.categories_to_id[cat] = i
+            i += 1
+        # Add mask for the actions
+        self.action_mask = np.ones(30, dtype=bool)
+        # Keep track of the inventory
+        self.inventory = []
+
+    def obj_to_index(self, incr: int, obj_name: str) -> Tuple[int, int, int, int]:
+        """Return the index of the object in the observation"""
+        obs_name = rm_trailing_number(obj_name)
+        split_obs = obs_name.split(" ")
+        if len(split_obs) == 1:
+            obs_name = split_obs[0]
+            is_evolved = 1
+        else:
+            if split_obs[0] == "baby":
+                obs_name = split_obs[1]
+            elif split_obs[1] == "seed":
+                obs_name = split_obs[0]
+            else:
+                raise ValueError("The object name " + obj_name + " is not recognized")
+            is_evolved = 0
+        return (
+            incr,
+            self.types_to_id[obs_name],
+            is_evolved,
+            self.categories_to_id[self.types_to_categories[obs_name]],
+        )
+
+    def dict_to_feature(self, obj_dict: Dict[str, Dict[str, Any]]) -> np.ndarray:
+        """Convert the object dictionary to the observation"""
+        # TODO: Sort the obj dict to make sur the order is always the same
+        sorted_objs = sorted(obj_dict.keys())
+        self.inventory = []
+        standing_object = None
+        obs = np.zeros(self.observation_space.shape)
+        i = 0
+        for obj_name in sorted_objs:
+            if obj_dict[obj_name]["grasped"]:
+                self.inventory.append(obj_name)
+                continue  # We add it at the end
+            elif obj_dict[obj_name]["agent_on"]:
+                standing_object = obj_name
+                continue
+            index = self.obj_to_index(i, obj_name)
+            obs[index] += 1
+        # We leave 0 if there are no more seen objects
+        i = 1
+        if standing_object is not None:
+            index = self.obj_to_index(i, standing_object)
+            obs[index] = 1
+        assert (
+            len(self.inventory) <= 2
+        ), "The inventory cannot contain more than 2 objects"
+        i += 1
+        for obj_name in self.inventory:
+            index = self.obj_to_index(i, obj_name)
+            obs[index] = 1
+            i += 1
+        return obs
+
+    def discrete_action_to_text(self, action: int) -> str:
+        """Convert the discrete action to a text action"""
+        if action < 26:
+            if action >= 13:
+                # Evolved object
+                return "go to " + self.id_to_types[action - 13]
+            if self.types_to_categories[self.id_to_types[action]] in {
+                "small_herbivorous",
+                "big_herbivorous",
+            }:
+                return "go to baby " + self.id_to_types[action]
+            elif self.types_to_categories[self.id_to_types[action]] == "plant":
+                return "go to " + self.id_to_types[action] + " seed"
+            raise ValueError(
+                f"The object with category {self.types_to_categories[self.id_to_types[action]]} is not supported"
+            )
+        elif action == 26:
+            return "grasp"
+        elif action in {27, 28}:
+            return "release " + self.inventory[action - 27]
+        else:
+            return "release all"
+
+    def _update_action_mask(self, obs: np.ndarray) -> None:
+        """Return the possible actions from given state"""
+        # Check go to action
+        # We don't need to take care of the category
+        # We need to flip the numpy array with column then
+        flatten_seen_obs = obs[0].sum(-1).flatten("F")
+        self.action_mask[:26] = flatten_seen_obs >= 1
+        # Check grasp action
+        if np.all(obs[1] == 0):
+            self.action_mask[26] = False
+        else:
+            self.action_mask[26] = True
+        # Check release action
+        if np.all(obs[2] == 0):
+            self.action_mask[27:] = False
+        else:
+            self.action_mask[27] = True
+            if np.all(obs[3] == 0):
+                self.action_mask[28:] = False
+            else:
+                self.action_mask[28:] = True
+
+    def _reset(self, options: Optional[Dict[str, Any]]) -> np.ndarray:
+        # Old playground reset
+        self.lp = None
+        self.sr = None
+        self.sr_delayed = None
+        self.temperature = None
+        # Set goal as rule
+        # Change the rule if new one is presented
+        if options is not None and "rule" in options:
+            self.rule = options["rule"]
+
+        self.goal_str = self.rule
+
+        self.goals = self.goal_str.split(" then ")
+        self.goals = [goal.capitalize() for goal in self.goals]
+        self.goals_reached = [False for _ in self.goals]
+        # Reset playground engine and start a new episode
+        self.playground.reset()
+        self.playground.reset_with_goal(self.goal_str)
+        o, _, _, _, _ = self.playground.step(np.array([0, 0, 0]))  # Init step
+        self.current_step = 0
+
+        self.update_obj_info()
+        obs = self.dict_to_feature(self.obj_dict)
+        self._update_action_mask(obs)
+        info = {"goal": self.goal_str, "action_mask": self.action_mask}
+
+        return obs, info
+
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        action_str = self.discrete_action_to_text(action)
+        # Old playground step
+        if action_str[:5].lower() == "go to":
+            action = self.go_to(action_str[6:])
+        elif action_str.lower() == "grasp":
+            action = self.grasp()
+        elif action_str[:7].lower() == "release":
+            if "all" in action_str:
+                release_id = 4
+            else:
+                obj_to_release = action_str[8:]
+                if obj_to_release == self.inventory[0]:
+                    release_id = 2
+                else:
+                    release_id = 3
+
+            action = self.release(release_id=release_id)
+        else:
+            raise ValueError("The action " + action_str + " is incorrect")
+
+        # Used for the hindsight method
+        grasp = (
+            action_str.lower() == "grasp"
+            and self.playground.unwrapped.gripper_state != 1
+        )
+
+        # Take a step in the playgroud environment
+        o, _, _, _, _ = self.playground.step(action)
+
+        # There is a problem if you move directly to one of the objects, the state of the object is not updated
+        # So we need to take a step with no action to update the state of the objects
+        if action[:2].sum() != 0:  # If we moved
+            o, _, _, _, _ = self.playground.step(
+                np.array([0, 0, self.playground.unwrapped.gripper_state])
+            )
+
+        self.current_step += 1
+
+        self.goals_reached[0] = (
+            get_reward_from_state(o, self.goals[0], self.env_params)
+            or self.goals_reached[0]
+        )
+        if len(self.goals_reached) == 2:
+            self.goals_reached[1] = (
+                get_reward_from_state(o, self.goals[1], self.env_params)
+                and self.goals_reached[0]
+                or self.goals_reached[1]
+            )
+        elif len(self.goals_reached) > 2:
+            raise ValueError(
+                "The number of sequential goals is greater than 2. It is not supported"
+            )
+
+        r = all(self.goals_reached)
+
+        done = self.current_step == self.max_steps or r
+
+        self.update_obj_info()
+        obs = self.dict_to_feature(self.obj_dict)
+        self._update_action_mask(obs)
+        info = {"goal": self.goal_str, "action_mask": self.action_mask}
+        # Reset the size of obj help to find the obj grown in the current step
+        self.playground.unwrapped.reset_size()
+
+        return obs, float(r), done, False, info
+
+    def render(self):
+        raise NotImplementedError("Rendering is not supported for the environment")
+
+    def get_action_mask(self) -> np.ndarray:
+        return self.action_mask

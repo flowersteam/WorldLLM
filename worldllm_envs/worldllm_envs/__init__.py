@@ -14,3 +14,7 @@ register(
     entry_point="worldllm_envs.playground.playground_text_wrapper:PlayGroundText",
     additional_wrappers=(PlaygroundWrapper.wrapper_spec(),),
 )
+register(
+    id="worldllm_envs/Playground-v1",
+    entry_point="worldllm_envs.playground.playground_text_wrapper:PlayGroundDiscrete",
+)
