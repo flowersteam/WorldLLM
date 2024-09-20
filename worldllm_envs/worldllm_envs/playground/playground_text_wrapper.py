@@ -1191,15 +1191,12 @@ class PlayGroundDiscrete(PlayGroundText):
         # 13 because we have 12 objects and 1 for the empty space
         # 2 because we have 2 states for the object (evolved or not)
         # 4 because we have 4 categories of objects
-        self.observation_space = gym.spaces.MultiDiscrete((4, 13, 2, 4))
-        observation_array = np.zeros((4, 13, 2, 4))
-        observation_array[0] = (
-            4  # With 8 objects on the scene there can't be more than 3 of the same object
+        self.observation_space = gym.spaces.MultiDiscrete(
+            np.ones(
+                4 * 13 * 2 * 4,
+            )
+            * 4
         )
-        observation_array[1:] = (
-            2  # Only one object can you stand on or one object you hold per slot in the inventory
-        )
-        self.observation_space = gym.spaces.MultiDiscrete(observation_array)
         self.action_space = gym.spaces.Discrete(30)
 
         self.types_to_id = {
@@ -1261,7 +1258,14 @@ class PlayGroundDiscrete(PlayGroundText):
         sorted_objs = sorted(obj_dict.keys())
         self.inventory = []
         standing_object = None
-        obs = np.zeros(self.observation_space.shape)
+        obs = np.zeros(
+            (
+                4,
+                13,
+                2,
+                4,
+            )
+        )
         i = 0
         for obj_name in sorted_objs:
             if obj_dict[obj_name]["grasped"]:
@@ -1369,7 +1373,7 @@ class PlayGroundDiscrete(PlayGroundText):
         }
         self._last_text_obs = obs_desc
 
-        return obs, info
+        return obs.flatten(), info
 
     def get_diff(
         self, last_observation: str, observation: str, action: str
@@ -1411,11 +1415,11 @@ class PlayGroundDiscrete(PlayGroundText):
             new_object_type = list(new_obj.keys())[0]
             new_object_category = self.types_to_categories[new_object_type]
             if new_object_category == "plant":
-                reward = 5
+                reward = 5.0
             elif new_object_category == "small_herbivorous":
                 reward = 3.8
             elif new_object_category == "big_herbivorous":
-                reward = 11
+                reward = 11.0
             else:
                 raise ValueError(
                     "The category " + new_object_category + " is not supported"
@@ -1509,7 +1513,7 @@ class PlayGroundDiscrete(PlayGroundText):
         # Reset the size of obj help to find the obj grown in the current step
         self.playground.unwrapped.reset_size()
 
-        return obs, reward, done, False, info
+        return obs.flatten(), reward, done, False, info
 
     def render(self):
         raise NotImplementedError("Rendering is not supported for the environment")
