@@ -26,10 +26,13 @@ class BaseAgent(abc.ABC):
 
 
 class RandomAgent(BaseAgent):
-    """The agent that samples actions uniformly."""
+    """The agent that samples actions uniformly while respecting the action mask."""
 
-    def __call__(self, obs):
-        return self.action_space.sample()
+    def __call__(self, obs, **kwargs):
+        if "action_mask" in kwargs:
+            action_mask = kwargs["action_mask"]
+            possible_actions = np.arange(len(action_mask))[action_mask]
+        return possible_actions[np.random.randint(len(possible_actions))]
 
 
 class AllAgent(BaseAgent):
