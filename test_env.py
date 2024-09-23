@@ -15,19 +15,25 @@ env: BaseRuleEnv = gymnasium.make(
 
 
 agent = RandomAgent(env.action_space)
+mean_reward = 0
+n_episodes = 1
 start_time = time.perf_counter()
-for _ in tqdm(range(1000)):
+for _ in tqdm(range(n_episodes)):
     new_rule = "grow any small_herbivorous then grow any big_herbivorous"
     obs, info = env.reset(options={"rule": new_rule})
     # Compute plan
     agent.reset(info)
     index = 0
     done = False
+    sum_reward = 0
     while not done:
         # Record inputs from keyboard
         # Print possible actions
         action = agent(obs, **info)
         obs, reward, done, _, info = env.step(action)
         index += 1
+        sum_reward += reward
+    mean_reward += sum_reward
+print("Mean reward:", mean_reward / n_episodes)
 print(f"Time: {time.perf_counter() - start_time}")
 print("Done.")
