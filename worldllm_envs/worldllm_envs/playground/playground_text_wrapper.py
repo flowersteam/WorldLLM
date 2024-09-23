@@ -1385,27 +1385,39 @@ class PlayGroundDiscrete(PlayGroundText):
         )
         obs_obj, obs_stand, obs_hold = self._split_description(observation)
         action_type, action_obj = self._split_action(action)
+        rewards = {
+            "nothing": 1.8,
+            "standing": 1.4,
+            "holding1": 0.8,
+            "holding2": 5.5,
+            "transformP": 5.0,
+            "transformSH": 3.8,
+            "transformBH": 11.0,
+        }
         if (
             Counter(last_obs_obj) == Counter(obs_obj)
             and Counter(last_obs_stand) == Counter(obs_stand)
             and Counter(last_obs_hold) == Counter(obs_hold)
         ):
-            return "Nothing has changed.", 1.8
+            return "Nothing has changed.", rewards["nothing"]
         elif action_type == "go to":
             if action_obj == "nothing":
-                return "You are standing on nothing."
-            return f"You are standing on the {action_obj}.", 1.4
+                return "You are standing on nothing.", rewards["standing"]
+            return f"You are standing on the {action_obj}.", rewards["standing"]
         elif action_type == "grasp":
             counter_diff = Counter(obs_hold) - Counter(last_obs_hold)
             assert (
                 len(counter_diff) == 1
             ), "There should be only one object grasped at a time"
             if last_obs_hold[0] == "empty":
-                return f"You are holding the {list(counter_diff.keys())[0]}.", 0.8
+                return (
+                    f"You are holding the {list(counter_diff.keys())[0]}.",
+                    rewards["holding1"],
+                )
             if len(last_obs_hold) == 1:
                 return (
                     f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}.",
-                    5.5,
+                    rewards["holding2"],
                 )
             raise ValueError("Inventory cannot contain more than 2 objects")
         elif action_type == "release":
@@ -1415,11 +1427,11 @@ class PlayGroundDiscrete(PlayGroundText):
             new_object_type = list(new_obj.keys())[0]
             new_object_category = self.types_to_categories[new_object_type]
             if new_object_category == "plant":
-                reward = 5.0
+                reward = rewards["transformP"]
             elif new_object_category == "small_herbivorous":
-                reward = 3.8
+                reward = rewards["transformSH"]
             elif new_object_category == "big_herbivorous":
-                reward = 11.0
+                reward = rewards["transformBH"]
             else:
                 raise ValueError(
                     "The category " + new_object_category + " is not supported"
