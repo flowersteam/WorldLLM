@@ -1386,7 +1386,7 @@ class PlayGroundDiscrete(PlayGroundText):
 
     def get_diff(
         self, last_observation: str, observation: str, action: str
-    ) -> Tuple[str, float]:
+    ) -> Tuple[str, float, str]:
         """Compute the difference between two observations and return reward"""
         # Split text description
         last_obs_obj, last_obs_stand, last_obs_hold = self._split_description(
@@ -1412,6 +1412,7 @@ class PlayGroundDiscrete(PlayGroundText):
             return (
                 "Nothing has changed.",
                 rewards["nothing"] / self.count_based["nothing"],
+                "nothing",
             )
         elif action_type == "go to":
             self.count_based["standing"] += 1
@@ -1419,10 +1420,12 @@ class PlayGroundDiscrete(PlayGroundText):
                 return (
                     "You are standing on nothing.",
                     rewards["standing"] / self.count_based["standing"],
+                    "standing",
                 )
             return (
                 f"You are standing on the {action_obj}.",
                 rewards["standing"] / self.count_based["standing"],
+                "standing",
             )
         elif action_type == "grasp":
             counter_diff = Counter(obs_hold) - Counter(last_obs_hold)
@@ -1434,12 +1437,14 @@ class PlayGroundDiscrete(PlayGroundText):
                 return (
                     f"You are holding the {list(counter_diff.keys())[0]}.",
                     rewards["holding1"] / self.count_based["holding1"],
+                    "holding1",
                 )
             if len(last_obs_hold) == 1:
                 self.count_based["holding2"] += 1
                 return (
                     f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}.",
                     rewards["holding2"] / self.count_based["holding2"],
+                    "holding2",
                 )
             raise ValueError("Inventory cannot contain more than 2 objects")
         elif action_type == "release":
@@ -1451,12 +1456,15 @@ class PlayGroundDiscrete(PlayGroundText):
             if new_object_category == "plant":
                 self.count_based["transformP"] += 1
                 reward = rewards["transformP"] / self.count_based["transformP"]
+                transition_type = "transformP"
             elif new_object_category == "small_herbivorous":
                 self.count_based["transformSH"] += 1
                 reward = rewards["transformSH"] / self.count_based["transformSH"]
+                transition_type = "transformSH"
             elif new_object_category == "big_herbivorous":
                 self.count_based["transformBH"] += 1
                 reward = rewards["transformBH"] / self.count_based["transformBH"]
+                transition_type = "transformBH"
             else:
                 raise ValueError(
                     "The category " + new_object_category + " is not supported"
@@ -1465,10 +1473,12 @@ class PlayGroundDiscrete(PlayGroundText):
                 return (
                     f"The {last_obs_hold[0]}, {last_obs_hold[1]} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
                     reward,
+                    transition_type,
                 )
             return (
                 f"The {action_obj} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
                 reward,
+                transition_type,
             )
         raise ValueError(
             f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
@@ -1537,7 +1547,9 @@ class PlayGroundDiscrete(PlayGroundText):
         self._update_action_mask(obs)
         # Compute the str description
         obs_desc, _ = self.generate_description()
-        text_obs, reward = self.get_diff(self._last_text_obs, obs_desc, action_str)
+        text_obs, reward, transition_type = self.get_diff(
+            self._last_text_obs, obs_desc, action_str
+        )
         text_action = self.action_to_text(action_str)
         info = {
             "goal": self.goal_str,
@@ -1545,6 +1557,7 @@ class PlayGroundDiscrete(PlayGroundText):
             "text_obs": text_obs,
             "obs_desc": obs_desc,
             "text_action": text_action,
+            "transition_type": transition_type,
         }
         self._last_text_obs = obs_desc
         # Reset the size of obj help to find the obj grown in the current step
