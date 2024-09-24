@@ -1322,7 +1322,7 @@ class PlayGroundDiscrete(PlayGroundText):
         elif action == 26:
             return "grasp"
         elif action in {27, 28}:
-            return "release " + self.inventory[action - 27]
+            return "release " + rm_trailing_number(self.inventory[action - 27])
         else:
             return "release all"
 
