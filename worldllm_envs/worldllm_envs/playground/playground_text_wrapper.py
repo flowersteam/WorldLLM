@@ -1230,6 +1230,19 @@ class PlayGroundDiscrete(PlayGroundText):
         # WE save last observation to compute the difference
         self._last_text_obs = None
 
+        # Keep count of the transitions:
+
+        # Keep count of the transtitions:
+        self.count_based = {
+            "nothing": 0,
+            "standing": 0,
+            "holding1": 0,
+            "holding2": 0,
+            "transformP": 0,
+            "transformSH": 0,
+            "transformBH": 0,
+        }
+
     def obj_to_index(self, incr: int, obj_name: str) -> Tuple[int, int, int, int]:
         """Return the index of the object in the observation"""
         obs_name = rm_trailing_number(obj_name)
@@ -1395,25 +1408,38 @@ class PlayGroundDiscrete(PlayGroundText):
             and Counter(last_obs_stand) == Counter(obs_stand)
             and Counter(last_obs_hold) == Counter(obs_hold)
         ):
-            return "Nothing has changed.", rewards["nothing"]
+            self.count_based["nothing"] += 1
+            return (
+                "Nothing has changed.",
+                rewards["nothing"] / self.count_based["nothing"],
+            )
         elif action_type == "go to":
+            self.count_based["standing"] += 1
             if action_obj == "nothing":
-                return "You are standing on nothing.", rewards["standing"]
-            return f"You are standing on the {action_obj}.", rewards["standing"]
+                return (
+                    "You are standing on nothing.",
+                    rewards["standing"] / self.count_based["standing"],
+                )
+            return (
+                f"You are standing on the {action_obj}.",
+                rewards["standing"] / self.count_based["standing"],
+            )
         elif action_type == "grasp":
             counter_diff = Counter(obs_hold) - Counter(last_obs_hold)
             assert (
                 len(counter_diff) == 1
             ), "There should be only one object grasped at a time"
             if last_obs_hold[0] == "empty":
+                self.count_based["holding1"] += 1
                 return (
                     f"You are holding the {list(counter_diff.keys())[0]}.",
-                    rewards["holding1"],
+                    rewards["holding1"] / self.count_based["holding1"],
                 )
             if len(last_obs_hold) == 1:
+                self.count_based["holding2"] += 1
                 return (
                     f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}.",
-                    rewards["holding2"],
+                    rewards["holding2"] / self.count_based["holding2"],
                 )
             raise ValueError("Inventory cannot contain more than 2 objects")
         elif action_type == "release":
@@ -1423,11 +1449,14 @@ class PlayGroundDiscrete(PlayGroundText):
             new_object_type = list(new_obj.keys())[0]
             new_object_category = self.types_to_categories[new_object_type]
             if new_object_category == "plant":
-                reward = rewards["transformP"]
+                self.count_based["transformP"] += 1
+                reward = rewards["transformP"] / self.count_based["transformP"]
             elif new_object_category == "small_herbivorous":
-                reward = rewards["transformSH"]
+                self.count_based["transformSH"] += 1
+                reward = rewards["transformSH"] / self.count_based["transformSH"]
             elif new_object_category == "big_herbivorous":
-                reward = rewards["transformBH"]
+                self.count_based["transformBH"] += 1
+                reward = rewards["transformBH"] / self.count_based["transformBH"]
             else:
                 raise ValueError(
                     "The category " + new_object_category + " is not supported"
