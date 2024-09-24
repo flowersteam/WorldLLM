@@ -1225,7 +1225,7 @@ class PlayGroundDiscrete(PlayGroundText):
         # Add mask for the actions
         self.action_mask = np.ones(30, dtype=bool)
         # Keep track of the inventory
-        self.inventory = []
+        self.obj_inventory = []
 
         # WE save last observation to compute the difference
         self._last_text_obs = None
@@ -1269,7 +1269,7 @@ class PlayGroundDiscrete(PlayGroundText):
         """Convert the object dictionary to the observation"""
         # TODO: Sort the obj dict to make sur the order is always the same
         sorted_objs = sorted(obj_dict.keys())
-        self.inventory = []
+        self.obj_inventory = []
         standing_object = None
         obs = np.zeros(
             (
@@ -1282,7 +1282,7 @@ class PlayGroundDiscrete(PlayGroundText):
         i = 0
         for obj_name in sorted_objs:
             if obj_dict[obj_name]["grasped"]:
-                self.inventory.append(obj_name)
+                self.obj_inventory.append(obj_name)
                 continue  # We add it at the end
             elif obj_dict[obj_name]["agent_on"]:
                 standing_object = obj_name
@@ -1294,10 +1294,10 @@ class PlayGroundDiscrete(PlayGroundText):
             index = self.obj_to_index(i, standing_object)
             obs[index] = 1
         assert (
-            len(self.inventory) <= 2
+            len(self.obj_inventory) <= 2
         ), "The inventory cannot contain more than 2 objects"
         i += 1
-        for obj_name in self.inventory:
+        for obj_name in self.obj_inventory:
             index = self.obj_to_index(i, obj_name)
             obs[index] = 1
             i += 1
@@ -1322,7 +1322,7 @@ class PlayGroundDiscrete(PlayGroundText):
         elif action == 26:
             return "grasp"
         elif action in {27, 28}:
-            return "release " + rm_trailing_number(self.inventory[action - 27])
+            return "release " + rm_trailing_number(self.obj_inventory[action - 27])
         else:
             return "release all"
 
@@ -1372,7 +1372,7 @@ class PlayGroundDiscrete(PlayGroundText):
         self.update_obj_info()
         obs = self.dict_to_feature(self.obj_dict)
         # Compute the str description
-        obs_desc, _ = self.generate_description()
+        obs_desc, info_description = self.generate_description()
         text_obs = self.observation_to_text(obs_desc)
         self._update_action_mask(obs)
         info = {
@@ -1381,6 +1381,7 @@ class PlayGroundDiscrete(PlayGroundText):
             "text_obs": text_obs,
         }
         self._last_text_obs = obs_desc
+        self.inventory = info_description["inventory"]
 
         return obs.flatten(), info
 
@@ -1546,7 +1547,7 @@ class PlayGroundDiscrete(PlayGroundText):
         obs = self.dict_to_feature(self.obj_dict)
         self._update_action_mask(obs)
         # Compute the str description
-        obs_desc, _ = self.generate_description()
+        obs_desc, info_description = self.generate_description()
         text_obs, reward, transition_type = self.get_diff(
             self._last_text_obs, obs_desc, action_str
         )
@@ -1560,6 +1561,7 @@ class PlayGroundDiscrete(PlayGroundText):
             "transition_type": transition_type,
         }
         self._last_text_obs = obs_desc
+        self.inventory = info_description["inventory"]
         # Reset the size of obj help to find the obj grown in the current step
         self.playground.unwrapped.reset_size()
 
