@@ -1576,3 +1576,9 @@ class PlayGroundDiscrete(PlayGroundText):
 
     def get_action_mask(self) -> np.ndarray:
         return self.action_mask
+
+    def get_shared_countbased(self) -> Dict[str, int]:
+        return self.count_based
+
+    def set_shared_countbased(self, count_based: Dict[str, int]) -> None:
+        self.count_based = count_based
