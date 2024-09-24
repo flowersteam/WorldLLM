@@ -1412,7 +1412,7 @@ class PlayGroundDiscrete(PlayGroundText):
             self.count_based["nothing"] += 1
             return (
                 "Nothing has changed.",
-                rewards["nothing"] / self.count_based["nothing"],
+                rewards["nothing"] / np.sqrt(self.count_based["nothing"]),
                 "nothing",
             )
         elif action_type == "go to":
@@ -1420,12 +1420,12 @@ class PlayGroundDiscrete(PlayGroundText):
             if action_obj == "nothing":
                 return (
                     "You are standing on nothing.",
-                    rewards["standing"] / self.count_based["standing"],
+                    rewards["standing"] / np.sqrt(self.count_based["standing"]),
                     "standing",
                 )
             return (
                 f"You are standing on the {action_obj}.",
-                rewards["standing"] / self.count_based["standing"],
+                rewards["standing"] / np.sqrt(self.count_based["standing"]),
                 "standing",
             )
         elif action_type == "grasp":
@@ -1437,14 +1437,14 @@ class PlayGroundDiscrete(PlayGroundText):
                 self.count_based["holding1"] += 1
                 return (
                     f"You are holding the {list(counter_diff.keys())[0]}.",
-                    rewards["holding1"] / self.count_based["holding1"],
+                    rewards["holding1"] / np.sqrt(self.count_based["holding1"]),
                     "holding1",
                 )
             if len(last_obs_hold) == 1:
                 self.count_based["holding2"] += 1
                 return (
                     f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}.",
-                    rewards["holding2"] / self.count_based["holding2"],
+                    rewards["holding2"] / np.sqrt(self.count_based["holding2"]),
                     "holding2",
                 )
             raise ValueError("Inventory cannot contain more than 2 objects")
@@ -1456,15 +1456,19 @@ class PlayGroundDiscrete(PlayGroundText):
             new_object_category = self.types_to_categories[new_object_type]
             if new_object_category == "plant":
                 self.count_based["transformP"] += 1
-                reward = rewards["transformP"] / self.count_based["transformP"]
+                reward = rewards["transformP"] / np.sqrt(self.count_based["transformP"])
                 transition_type = "transformP"
             elif new_object_category == "small_herbivorous":
                 self.count_based["transformSH"] += 1
-                reward = rewards["transformSH"] / self.count_based["transformSH"]
+                reward = rewards["transformSH"] / np.sqrt(
+                    self.count_based["transformSH"]
+                )
                 transition_type = "transformSH"
             elif new_object_category == "big_herbivorous":
                 self.count_based["transformBH"] += 1
-                reward = rewards["transformBH"] / self.count_based["transformBH"]
+                reward = rewards["transformBH"] / np.sqrt(
+                    self.count_based["transformBH"]
+                )
                 transition_type = "transformBH"
             else:
                 raise ValueError(
