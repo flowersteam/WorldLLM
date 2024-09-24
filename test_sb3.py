@@ -1,4 +1,6 @@
+import argparse
 from functools import partial
+from itertools import product
 from typing import Any, Dict
 
 import gymnasium
@@ -43,23 +45,13 @@ def mask_fn(env):
     return env.unwrapped.action_mask
 
 
-seed = None
-# Load first environment
-env: BaseRuleEnv = gymnasium.make(
-    "worldllm_envs/Playground-v1",
-    **{"max_steps": 30, "seed": seed, "playground_config": {"max_nb_objects": 8}},
-)
-new_rule = "grow any small_herbivorous then grow any big_herbivorous"
-env.reset(options={"rule": new_rule})
-env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-
-countbased = env.unwrapped.get_shared_countbased()
-
-
 def make_env(countbased_dict: Dict[str, int]):
     env: BaseRuleEnv = gymnasium.make(
         "worldllm_envs/Playground-v1",
-        **{"max_steps": 30, "seed": seed, "playground_config": {"max_nb_objects": 8}},
+        **{
+            "max_steps": 30,
+            "playground_config": {"max_nb_objects": 8},
+        },
     )
     new_rule = "grow any small_herbivorous then grow any big_herbivorous"
     env.reset(options={"rule": new_rule})
@@ -68,39 +60,69 @@ def make_env(countbased_dict: Dict[str, int]):
     return env
 
 
-envs = make_vec_env(
-    partial(make_env, countbased_dict=countbased),
-    n_envs=9,
-)
-# Train PPO
-model = MaskablePPO(
-    "MlpPolicy",
-    envs,
-    gamma=0.99,
-    learning_rate=0.0005,
-    ent_coef=0.01,
-    vf_coef=0.1,
-    n_steps=256,
-    n_epochs=10,
-    gae_lambda=0.9,
-    device="cuda",
-    verbose=1,
-    tensorboard_log="./logs_ppo_sb3",
-)
-callback = TransitionCounterCallback(model.verbose)
-model.learn(50_000, tb_log_name="PPO_Test_vecEnv", progress_bar=True, callback=callback)
-model.save("ppo_mask")
-# Load model
-model = MaskablePPO.load("ppo_mask")
+# hyperparameters = {
+#     "gamma": [0.95, 0.99],
+#     "learning_rate": [1e-3, 5e-4, 1e-4],
+#     "vf_coef": [0.1, 0.25, 0.5],
+#     "n_steps": [128, 256, 512, 1024],
+#     "n_epochs": [2, 5, 10],
+# }
 
-for _ in range(3):
-    print("New episode")
-    obs, _ = env.reset()
-    done = False
-    while not done:
-        # Retrieve current action mask
-        action_masks = get_action_masks(env)
-        action, _ = model.predict(obs, action_masks=action_masks)
-        obs, reward, terminated, truncated, info = env.step(action.item())
-        done = terminated or truncated
-        print(info["text_obs"])
+if __name__ == "__main__":
+    argsparser = argparse.ArgumentParser()
+    argsparser.add_argument("--gamma", type=float)
+    argsparser.add_argument("--lr", type=float)
+    argsparser.add_argument("--vf_coef", type=float)
+    argsparser.add_argument("--n_steps", type=int)
+    argsparser.add_argument("--n_epochs", type=int)
+    config = vars(argsparser.parse_args())
+
+    # Load first environment
+    env: BaseRuleEnv = gymnasium.make(
+        "worldllm_envs/Playground-v1",
+        **{"max_steps": 30, "playground_config": {"max_nb_objects": 8}},
+    )
+    new_rule = "grow any small_herbivorous then grow any big_herbivorous"
+    env.reset(options={"rule": new_rule})
+    env = ActionMasker(env, mask_fn)  # Wrap to enable masking
+
+    countbased = env.unwrapped.get_shared_countbased()
+
+    envs = make_vec_env(
+        partial(make_env, countbased_dict=countbased),
+        n_envs=9,
+    )
+    # Train PPO
+    model = MaskablePPO(
+        "MlpPolicy",
+        envs,
+        gamma=config["gamma"],
+        learning_rate=config["lr"],
+        ent_coef=0.01,
+        vf_coef=config["vf_coef"],
+        n_steps=config["n_steps"],
+        n_epochs=config["n_epochs"],
+        gae_lambda=0.9,
+        device="cuda",
+        verbose=1,
+        tensorboard_log="./logs_ppo_sb3",
+    )
+    callback = TransitionCounterCallback(model.verbose)
+    model.learn(
+        50_000, tb_log_name="PPO_Test_vecEnv", progress_bar=True, callback=callback
+    )
+    model.save("ppo_mask")
+    # Load model
+    model = MaskablePPO.load("ppo_mask")
+
+    for _ in range(3):
+        print("New episode")
+        obs, _ = env.reset()
+        done = False
+        while not done:
+            # Retrieve current action mask
+            action_masks = get_action_masks(env)
+            action, _ = model.predict(obs, action_masks=action_masks)
+            obs, reward, terminated, truncated, info = env.step(action.item())
+            done = terminated or truncated
+            print(info["text_obs"])
