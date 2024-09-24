@@ -1273,7 +1273,6 @@ class PlayGroundDiscrete(PlayGroundText):
                 continue  # We add it at the end
             elif obj_dict[obj_name]["agent_on"]:
                 standing_object = obj_name
-                continue
             index = self.obj_to_index(i, obj_name)
             obs[index] += 1
         # We leave 0 if there are no more seen objects
@@ -1321,11 +1320,8 @@ class PlayGroundDiscrete(PlayGroundText):
         # We need to flip the numpy array with column then
         flatten_seen_obs = obs[0].sum(-1).flatten("F")
         self.action_mask[:26] = flatten_seen_obs >= 1
-        # Check grasp action
-        if np.all(obs[1] == 0):
-            self.action_mask[26] = False
-        else:
-            self.action_mask[26] = True
+        # Check grasp action always possible
+        self.action_mask[26] = True
         # Check release action
         if np.all(obs[2] == 0):
             self.action_mask[27:] = False
