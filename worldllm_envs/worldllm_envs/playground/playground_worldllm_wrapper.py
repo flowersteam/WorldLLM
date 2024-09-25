@@ -48,4 +48,11 @@ class PlaygroundWrapper(TextWrapper):
     def reset(self, seed=None, options=None):
         self.last_obs = None
         self.last_action = None
-        return super().reset(seed=seed, options=options)
+        observation, info = self.env.reset(seed=seed, options=options)
+        text_obs, add_info = self.observation_to_text(observation)
+        info.update(add_info)
+        self.text_trajectory = [text_obs]
+        self.obs_trajectory = [observation]
+        info["text_trajectory"] = self.text_trajectory
+        info["obs_trajectory"] = self.obs_trajectory
+        return text_obs, info
