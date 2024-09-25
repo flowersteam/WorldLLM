@@ -75,6 +75,7 @@ if __name__ == "__main__":
     argsparser.add_argument("--vf_coef", type=float)
     argsparser.add_argument("--n_steps", type=int)
     argsparser.add_argument("--n_epochs", type=int)
+    argsparser.add_argument("--gae", type=float)
     config = vars(argsparser.parse_args())
 
     # Load first environment
@@ -98,18 +99,18 @@ if __name__ == "__main__":
         envs,
         gamma=config["gamma"],
         learning_rate=config["lr"],
-        ent_coef=0.01,
+        ent_coef=0.0001,
         vf_coef=config["vf_coef"],
         n_steps=config["n_steps"],
         n_epochs=config["n_epochs"],
-        gae_lambda=0.9,
+        gae_lambda=config["gae"],
         device="cuda",
         verbose=1,
         tensorboard_log="./logs_ppo_sb3",
     )
     callback = TransitionCounterCallback(model.verbose)
     model.learn(
-        50_000, tb_log_name="PPO_Test_vecEnv", progress_bar=True, callback=callback
+        500_000, tb_log_name="PPO_Test_vecEnv", progress_bar=True, callback=callback
     )
     model.save("ppo_mask")
     # Load model
