@@ -495,7 +495,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
     def get_diff_description(
         self, last_observation: str, observation: str, action: str
-    ) -> str:
+    ) -> Tuple[str, Dict[str, Any]]:
         """Compute the difference between two observations"""
         # Split text description
         last_obs_obj, last_obs_stand, last_obs_hold = self._split_description(
@@ -503,33 +503,57 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         )
         obs_obj, obs_stand, obs_hold = self._split_description(observation)
         action_type, action_obj = self._split_action(action)
+        info = {}
         if (
             Counter(last_obs_obj) == Counter(obs_obj)
             and Counter(last_obs_stand) == Counter(obs_stand)
             and Counter(last_obs_hold) == Counter(obs_hold)
         ):
-            return "Nothing has changed."
+            info["transition_type"] = "nothing"
+            return "Nothing has changed.", info
         elif action_type == "go to":
+            info["transition_type"] = "standing"
             if action_obj == "nothing":
-                return "You are standing on nothing."
-            return f"You are standing on the {action_obj}."
+                return "You are standing on nothing.", info
+            return f"You are standing on the {action_obj}.", info
         elif action_type == "grasp":
             counter_diff = Counter(obs_hold) - Counter(last_obs_hold)
             assert (
                 len(counter_diff) == 1
             ), "There should be only one object grasped at a time"
             if last_obs_hold[0] == "empty":
-                return f"You are holding the {list(counter_diff.keys())[0]}."
+                info["transition_type"] = "holding1"
+                return f"You are holding the {list(counter_diff.keys())[0]}.", info
             if len(last_obs_hold) == 1:
-                return f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}."
+                info["transition_type"] = "holding2"
+                return (
+                    f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}.",
+                    info,
+                )
             raise ValueError("Inventory cannot contain more than 2 objects")
         elif action_type == "release":
             new_obj = Counter(obs_obj) - Counter(last_obs_obj)
             assert len(new_obj) == 1, "There should be only one new object emerging"
             old_obj = Counter(last_obs_obj) - Counter(obs_obj)
+            if list(new_obj)[0] in self.env_params["categories"]["plant"]:
+                info["transition_type"] = "transformP"
+            elif list(new_obj)[0] in self.env_params["categories"]["small_herbivorous"]:
+                info["transition_type"] = "transformSH"
+            elif list(new_obj)[0] in self.env_params["categories"]["big_herbivorous"]:
+                info["transition_type"] = "transformBH"
+            else:
+                raise ValueError(
+                    f"The new object {list(new_obj)[0]} is not recognized."
+                )
             if action_obj == "all":
-                return f"The {last_obs_hold[0]}, {last_obs_hold[1]} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}."
-            return f"The {action_obj} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}."
+                return (
+                    f"The {last_obs_hold[0]}, {last_obs_hold[1]} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
+                    info,
+                )
+            return (
+                f"The {action_obj} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
+                info,
+            )
         raise ValueError(
             f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
         )
@@ -1144,21 +1168,30 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         return trajectories
 
 
-def generate_diverse_trajectories(env: PlayGroundText) -> List[Trajectory]:
+def generate_diverse_trajectories(
+    env: PlayGroundText,
+) -> Tuple[List[Trajectory], Set[str]]:
     """Generate 2 Small Herbivores, 2 Big Herbivores and 2 Random trajectories"""
     trajectories = []
+    set_discovered_transition = set()
     perfect_agent = PerfectAgent(env.action_space)
-    trajectories.extend(
-        generate_text_trajectories(env, perfect_agent, "Grow any small_herbivorous", 2)
+    new_trajectories, new_discovered_transitions = generate_text_trajectories(
+        env, perfect_agent, "Grow any small_herbivorous", 2
     )
-    trajectories.extend(
-        generate_text_trajectories(env, perfect_agent, "Grow any big_herbivorous", 2)
+    trajectories.extend(new_trajectories)
+    set_discovered_transition.update(new_discovered_transitions)
+    new_trajectories, new_discovered_transitions = generate_text_trajectories(
+        env, perfect_agent, "Grow any big_herbivorous", 2
     )
+    trajectories.extend(new_trajectories)
+    set_discovered_transition.update(new_discovered_transitions)
     random_agent = RandomAgent(env.action_space)
-    trajectories.extend(
-        generate_text_trajectories(env, random_agent, "Grow any big_herbivorous", 2)
+    new_trajectories, new_discovered_transitions = generate_text_trajectories(
+        env, random_agent, "Grow any big_herbivorous", 2
     )
-    return trajectories
+    trajectories.extend(new_trajectories)
+    set_discovered_transition.update(new_discovered_transitions)
+    return trajectories, set_discovered_transition
 
 
 class PlayGroundDiscrete(PlayGroundText):

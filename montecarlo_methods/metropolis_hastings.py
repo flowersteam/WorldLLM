@@ -57,10 +57,12 @@ def metropolis_hastings(
     # Generate trajectories
     rule_to_test = curriculum_rules[0]
     if isinstance(agent, DiverseAgent):
-        prompt_trajectories = generate_diverse_trajectories(env)
+        prompt_trajectories, set_discovered_transitions = generate_diverse_trajectories(
+            env
+        )
         assert len(prompt_trajectories) == cfg["nb_trajectories"]
     else:
-        prompt_trajectories = generate_text_trajectories(
+        prompt_trajectories, set_discovered_transitions = generate_text_trajectories(
             env, agent, rule_to_test, cfg["nb_trajectories"]
         )
     # Sample rules
@@ -184,11 +186,15 @@ def metropolis_hastings(
                 ((incr_collecting + 1) * len(curriculum_rules)) // cfg["nb_collecting"]
             ]
             if isinstance(agent, DiverseAgent):
-                prompt_trajectories = generate_diverse_trajectories(env)
+                prompt_trajectories, set_discovered_transitions = (
+                    generate_diverse_trajectories(env)
+                )
                 assert len(prompt_trajectories) == cfg["nb_trajectories"]
             else:
-                prompt_trajectories = generate_text_trajectories(
-                    env, agent, rule_to_test, cfg["nb_trajectories"]
+                prompt_trajectories, set_discovered_transitions = (
+                    generate_text_trajectories(
+                        env, agent, rule_to_test, cfg["nb_trajectories"]
+                    )
                 )
             # Recompute the likelihoods for the new trajectories
             (prev_likelihoods, all_logp), _ = compute_likelihood(

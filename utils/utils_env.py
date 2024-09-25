@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set, Tuple
 
 import gymnasium as gym
 import numpy as np
@@ -83,11 +83,12 @@ def build_env(cfg: DictConfig):
 
 def generate_text_trajectories(
     env: BaseRuleEnv, agent: BaseAgent, rule: BaseRule, nb_trajectories: int
-) -> List[Trajectory]:
+) -> Tuple[List[Trajectory], Set[str]]:
     """Generate random trajectories for the environment."""
     # Set rule
     obs, info = env.reset(options={"rule": rule})
     lst_trajectory = []
+    set_discovered_transitions = set()
     for _ in tqdm(
         range(nb_trajectories),
         desc="Generating trajectories",
@@ -99,6 +100,7 @@ def generate_text_trajectories(
         while not done:
             action = agent(obs, **info)
             obs, _, terminated, truncated, info = env.step(action)
+            set_discovered_transitions.add(info["transition_type"])
             done = terminated or truncated
         lst_trajectory.append(Trajectory(info["text_trajectory"]))
-    return lst_trajectory
+    return lst_trajectory, set_discovered_transitions
