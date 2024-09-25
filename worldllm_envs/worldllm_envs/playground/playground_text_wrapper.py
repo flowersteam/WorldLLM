@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import gymnasium as gym
 import numpy as np
 
-from utils.utils_env import BaseAgent, Trajectory
+from utils.utils_env import BaseAgent, Trajectory, generate_text_trajectories
 from worldllm_envs.base import BaseRuleEnv
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
@@ -1146,41 +1146,18 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
 def generate_diverse_trajectories(env: PlayGroundText) -> List[Trajectory]:
     """Generate 2 Small Herbivores, 2 Big Herbivores and 2 Random trajectories"""
-    obs, info = env.reset(options={"rule": "Grow any small_herbivorous"})
     trajectories = []
     perfect_agent = PerfectAgent(env.action_space)
-    for _ in range(2):
-        obs, info = env.reset()
-        perfect_agent.reset(info)
-        done = False
-        while not done:
-            action = perfect_agent(obs, **info)
-            obs, _, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-        trajectories.append(Trajectory(info["text_trajectory"]))
-
-    obs, info = env.reset(options={"rule": "Grow any big_herbivorous"})
-    for _ in range(2):
-        obs, info = env.reset()
-        perfect_agent.reset(info)
-        done = False
-        while not done:
-            action = perfect_agent(obs, **info)
-            obs, _, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-        trajectories.append(Trajectory(info["text_trajectory"]))
-
+    trajectories.extend(
+        generate_text_trajectories(env, perfect_agent, "Grow any small_herbivorous", 2)
+    )
+    trajectories.extend(
+        generate_text_trajectories(env, perfect_agent, "Grow any big_herbivorous", 2)
+    )
     random_agent = RandomAgent(env.action_space)
-    obs, info = env.reset(options={"rule": "Grow any big_herbivorous"})
-    for _ in range(2):
-        obs, info = env.reset()
-        random_agent.reset(info)
-        done = False
-        while not done:
-            action = random_agent(obs, **info)
-            obs, _, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-        trajectories.append(Trajectory(info["text_trajectory"]))
+    trajectories.extend(
+        generate_text_trajectories(env, random_agent, "Grow any big_herbivorous", 2)
+    )
     return trajectories
 
 
