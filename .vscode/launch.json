@@ -19,6 +19,21 @@
             "console": "integratedTerminal",
         },
         {
+            "name": "RL",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_sb3.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--gamma=0.99",
+                "--lr=0.0005",
+                "--vf_coef=0.5",
+                "--n_steps=256",
+                "--n_epochs=4",
+                "--gae=0.9"
+            ]
+        },
+        {
             "name": "Playground",
             "type": "debugpy",
             "request": "launch",
@@ -27,9 +42,10 @@
             "args": [
                 "-cn",
                 "playground_metropolis.yaml",
-                "algorithm.nb_rules=3",
-                "algorithm.nb_iterations=3",
-                "algorithm.num_worst_trajectories=5"
+                "algorithm.nb_rules=2",
+                "algorithm.nb_iterations=2",
+                "algorithm.nb_collecting=2",
+                "agent=randomplayground.yaml"
             ]
         }
     ]

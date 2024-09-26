@@ -1408,6 +1408,7 @@ class PlayGroundDiscrete(PlayGroundText):
             "goal": self.goal_str,
             "action_mask": self.action_mask,
             "text_obs": text_obs,
+            "step": self.current_step,
         }
         self._last_text_obs = obs_desc
         self.inventory = info_description["inventory"]
@@ -1589,6 +1590,7 @@ class PlayGroundDiscrete(PlayGroundText):
             "obs_desc": obs_desc,
             "text_action": text_action,
             "transition_type": transition_type,
+            "step": self.current_step,
         }
         self._last_text_obs = obs_desc
         self.inventory = info_description["inventory"]
