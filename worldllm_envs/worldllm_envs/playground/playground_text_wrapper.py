@@ -579,6 +579,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
     def _split_action(self, action: str) -> Tuple[str, str]:
         """Split the action into type and object"""
+        action = action.lower()
         if "go to" in action:
             return "go to", action.split("go to ")[1]
         elif "grasp" in action:
@@ -718,6 +719,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
         hindsights = list(set(hindsights) - set(self.hindsights_mem))
 
+        info["success"] = r
         info["hindsight"] = hindsights
         if self.lp is not None:
             info["lp"] = self.lp
@@ -830,16 +832,16 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         desc += f'\nInventory ({nb_held}/2): {", ".join(obj_held) if len(obj_held) > 0 else "empty"}'
 
         possible_actions = (
-            ["grasp"]
+            ["Grasp"]
             + [
-                "go to " + rm_trailing_number(obj)
+                "Go to " + rm_trailing_number(obj)
                 for obj in self.obj_dict.keys()
                 if not self.obj_dict[obj]["grasped"]
             ]
-            + ["release " + obj for obj in obj_held]
+            + ["Release " + obj for obj in obj_held]
         )
         if len(obj_held) == 2:
-            possible_actions.append("release all")
+            possible_actions.append("Release all")
 
         info = {
             "goal": self.goal_str,
@@ -1427,9 +1429,9 @@ class PlayGroundDiscrete(PlayGroundText):
         action_type, action_obj = self._split_action(action)
         rewards = {
             "nothing": 1.8,
-            "standing": 1.4,
-            "holding1": 0.8,
-            "holding2": 5.5,
+            "standing": 1.2,
+            "holding1": 0.5,
+            "holding2": 4.2,
             "transformP": 5.0,
             "transformSH": 3.8,
             "transformBH": 11.0,
@@ -1591,6 +1593,7 @@ class PlayGroundDiscrete(PlayGroundText):
             "text_action": text_action,
             "transition_type": transition_type,
             "step": self.current_step,
+            "success": r,
         }
         self._last_text_obs = obs_desc
         self.inventory = info_description["inventory"]
