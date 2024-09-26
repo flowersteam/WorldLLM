@@ -1,6 +1,6 @@
 import warnings
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
@@ -22,6 +22,13 @@ class PromptInfo:
 
 
 @dataclass
+class StatPromptInfo(PromptInfo):
+    """Prompting info to give to the Statistician"""
+
+    discovered_transitions: Set[str]
+
+
+@dataclass
 class LlmModel:
     """Data class for the LLM model."""
 
@@ -31,9 +38,13 @@ class LlmModel:
     generation_kwargs: Optional[Dict[str, Any]] = None  # Not required for stat
 
 
+class Statistician(LlmModel):
+    prompt_info: StatPromptInfo
+
+
 def build_llms(
     cfg: DictConfig, env_prompt_info: EnvPromptInfo
-) -> Tuple[LlmModel, LlmModel]:
+) -> Tuple[Statistician, LlmModel]:
     """Build the llms and prompts from config and environment"""
     theorist_model = load_transformers(cfg.theorist)
     if cfg.statistician is not None:
@@ -54,7 +65,7 @@ def build_llms(
         cfg.algorithm.th_batch_size,
     )
     # Set prompt information
-    statistician = LlmModel(
+    statistician = Statistician(
         statistician_model[0],
         statistician_model[1],
         stat_prompt_info,
@@ -122,10 +133,12 @@ def build_stat_prompt_info(
     env_prompt_info: EnvPromptInfo,
     base_system_prompt: str,
     batch_size: int,
-) -> PromptInfo:
+) -> StatPromptInfo:
     """Build the prompt and message necessary for the Statistician."""
     system_prompt = base_system_prompt + env_prompt_info.stat_prompt
-    return PromptInfo(system_prompt, env_prompt_info.stat_template, batch_size)
+    return StatPromptInfo(
+        system_prompt, env_prompt_info.stat_template, batch_size, set()
+    )
 
 
 def _score_candidate(
@@ -419,7 +432,7 @@ def _score_trajectory(
 
 
 def compute_likelihood(
-    statistician: LlmModel,
+    statistician: Statistician,
     rules: List[Optional[str]],
     trajectories: List[Trajectory],
     return_all_logp: bool = False,
@@ -431,7 +444,9 @@ def compute_likelihood(
     for rule in rules:
         for trajectory in trajectories:
             user_prompt, assistant_prompt, candidate_tokens = (
-                statistician.prompt_info.message_template(trajectory, rule)
+                statistician.prompt_info.message_template(
+                    trajectory, statistician.prompt_info.discovered_transitions, rule
+                )
             )
             message = (
                 {

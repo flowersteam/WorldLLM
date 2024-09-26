@@ -7,6 +7,7 @@ from tqdm import tqdm
 from utils.utils_env import BaseAgent, Trajectory, generate_text_trajectories
 from utils.utils_llm import (
     LlmModel,
+    Statistician,
     compute_likelihood,
     evolve_rules,
     generate_rules,
@@ -35,7 +36,7 @@ def metropolis_hastings(
     env: BaseRuleEnv,
     agent: BaseAgent,
     theorist: LlmModel,
-    statistician: LlmModel,
+    statistician: Statistician,
     cfg: Dict[str, Any],
     curriculum_rules: List[str],
 ) -> RuleOutput:
@@ -65,6 +66,8 @@ def metropolis_hastings(
         prompt_trajectories, set_discovered_transitions = generate_text_trajectories(
             env, agent, rule_to_test, cfg["nb_trajectories"]
         )
+    # Update seen transitions for the statistician
+    statistician.prompt_info.discovered_transitions.update(set_discovered_transitions)
     # Sample rules
     if cfg["first_rules"] is not None:
         prev_rules = cfg["first_rules"]
@@ -196,6 +199,10 @@ def metropolis_hastings(
                         env, agent, rule_to_test, cfg["nb_trajectories"]
                     )
                 )
+            # Update seen transitions for the statistician
+            statistician.prompt_info.discovered_transitions.update(
+                set_discovered_transitions
+            )
             # Recompute the likelihoods for the new trajectories
             (prev_likelihoods, all_logp), _ = compute_likelihood(
                 statistician, prev_rules, prompt_trajectories, return_all_logp=True
@@ -203,6 +210,16 @@ def metropolis_hastings(
             prev_worst_trajectories = get_worst_trajectories(
                 all_logp, prompt_trajectories, cfg["num_worst_trajectories"]
             )
+    # Add all transtion to the statistician for scoring the test
+    statistician.prompt_info.discovered_transitions = {
+        "standing",
+        "holding1",
+        "holding2",
+        "transformP",
+        "transformSH",
+        "transformBH",
+        "nothing",
+    }
     # Compute likelihoods of test data for the rules
     all_dict["test_likelihoods"], all_dict["test_transition_scores"] = (
         compute_likelihood(statistician, all_dict["rules"], test_trajectories)

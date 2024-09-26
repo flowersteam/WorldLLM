@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import tqdm
 
 from utils.utils_env import BaseAgent, generate_text_trajectories
-from utils.utils_llm import LlmModel, compute_likelihood, generate_rules
+from utils.utils_llm import LlmModel, Statistician, compute_likelihood, generate_rules
 from utils.utils_save import RuleOutput
 from worldllm_envs.base import BaseRuleEnv
 from worldllm_envs.playground.playground_text_wrapper import (
@@ -36,7 +36,7 @@ def important_sampling(
     env: BaseRuleEnv,
     agent: BaseAgent,
     theorist: LlmModel,
-    statistician: LlmModel,
+    statistician: Statistician,
     cfg: Dict[str, Any],
     curriculum_rules: List[str],
 ) -> RuleOutput:
@@ -62,12 +62,20 @@ def important_sampling(
         ]
         # Generate trajectories
         if isinstance(agent, DiverseAgent):
-            prompt_trajectories = generate_diverse_trajectories(env)
+            prompt_trajectories, set_discovered_transitions = (
+                generate_diverse_trajectories(env)
+            )
             assert len(prompt_trajectories) == cfg["nb_trajectories"]
         else:
-            prompt_trajectories = generate_text_trajectories(
-                env, agent, rule_to_test, cfg["nb_trajectories"]
+            prompt_trajectories, set_discovered_transitions = (
+                generate_text_trajectories(
+                    env, agent, rule_to_test, cfg["nb_trajectories"]
+                )
             )
+        # Update seen transitions for the statistician
+        statistician.prompt_info.discovered_transitions.update(
+            set_discovered_transitions
+        )
         # Sample rules
         rules, importance_probs = generate_rules(
             theorist, prompt_trajectories, cfg["nb_rules"]
@@ -99,6 +107,16 @@ def important_sampling(
         all_dict["likelihoods"].extend(likelihoods)
         all_dict["current_true_rule"].extend([rule_to_test for _ in range(len(rules))])
 
+    # Add all transtion to the statistician for scoring the test
+    statistician.prompt_info.discovered_transitions = {
+        "standing",
+        "holding1",
+        "holding2",
+        "transformP",
+        "transformSH",
+        "transformBH",
+        "nothing",
+    }
     # Compute likelihoods of test data for the rules
     all_dict["test_likelihoods"], all_dict["test_transition_scores"] = (
         compute_likelihood(statistician, all_dict["rules"], test_trajectories)

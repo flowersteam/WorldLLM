@@ -285,16 +285,35 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     """
 
     def __init__(self, **kwargs) -> None:
-        def statisitician_template(trajectory: Trajectory, rule: Optional[str] = None):
+        def statisitician_template(
+            trajectory: Trajectory,
+            discovered_transition: Set[str],
+            rule: Optional[str] = None,
+        ):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
+            transition_to_abstract_traj = {
+                "standing": "You are standing on x. ",
+                "holding1": "You are holding y. ",
+                "holding2": "You are holding y and z. ",
+                "transformP": "x and y transform into z. ",
+                "transformBH": "x, y and z transform into w. ",
+                "nothing": "Nothing has changed. ",
+            }
+
             user_prompt = (
                 "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
             )
             if rule is not None:
                 user_prompt += f"You know that: \n{rule}\n"
-            user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form, with x,y, z and w 4 objects and action an action:\n\n In the current space:\nYou see x, y, and z. You are standing on the y. Your are holding nothing. \na: action. \no: You are standing on x. \na: action. \no: You are holding y. \na: action. \no: You are holding y and z. \na: action. \no: x and y transform into z. \na: action. \no: x, y and z transform into w. \na: action. \no: Nothing has changed."
-            # Give example trajectory
+            user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form, with x,y, z and w 4 objects and action an action:"
+
+            # Give abstract trajectory
+            user_prompt += "\n\n In the current space:\nYou see x, y, and z. You are standing on y. Your are holding nothing. "
+            for transition_type, transition_text in transition_to_abstract_traj.items():
+                if transition_type in discovered_transition:
+                    user_prompt += "\na: action. \no: " + transition_text
+            # give real trajectory
             user_prompt += "\n\nNow please complete the sequence:\n\n"
             user_prompt += "In the current space:\n"
             # Add initialisation observation and first action
