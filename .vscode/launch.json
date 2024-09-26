@@ -15,7 +15,7 @@
             "name": "Env",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/test_env.py",
+            "program": "${workspaceFolder}/test_gymenv.py",
             "console": "integratedTerminal",
         },
         {
