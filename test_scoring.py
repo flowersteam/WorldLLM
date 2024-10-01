@@ -1,3 +1,4 @@
+import time
 from typing import Dict, List
 
 import torch
@@ -90,42 +91,306 @@ def score_answer(lst_message, lst_candidate):
     return aggregated_scores.cpu()
 
 
+def score_reuse_answer(base_message, lst_candidate):
+    """Score and reuse the pas key and values"""
+    inputs_candidate = tokenizer.apply_chat_template(
+        lst_candidate, add_generation_prompt=False, return_dict=True
+    )
+    # Pad the candidate to the same length and remove the bos token
+    max_len_candidate = max(len(c) - 1 for c in inputs_candidate["input_ids"])
+    inputs_candidate_ids = torch.stack(
+        [
+            torch.nn.functional.pad(
+                torch.tensor(input_ids[1:]),
+                (0, max_len_candidate - len(input_ids) + 1),
+                value=tokenizer.pad_token_id,
+            )
+            for input_ids in inputs_candidate["input_ids"]
+        ]
+    ).to("cuda")
+    inputs_candidate_mask = torch.stack(
+        [
+            torch.nn.functional.pad(
+                torch.tensor(attention_mask[1:]),
+                (0, max_len_candidate - len(attention_mask) + 1),
+                value=0,
+            )
+            for attention_mask in inputs_candidate["attention_mask"]
+        ]
+    ).to("cuda")
+    with torch.no_grad():
+        inputs_base = tokenizer.apply_chat_template(
+            base_message,
+            add_generation_prompt=False,
+            return_tensors="pt",
+            return_dict=True,
+        ).to(model.device)
+        results = model(
+            inputs_base["input_ids"],
+            attention_mask=inputs_base["attention_mask"],
+            use_cache=True,
+        )
+        last_logits = results.logits[0, -1]
+        # Create full mask
+        full_mask = torch.cat(
+            [
+                inputs_base["attention_mask"].repeat(len(inputs_candidate_mask), 1),
+                inputs_candidate_mask,
+            ],
+            dim=1,
+        )
+        # Duplicate the past key and values
+        past_key_values = results.past_key_values
+        all_keys_values = []
+        for past_key_value in past_key_values:
+            all_keys_values.append(
+                (
+                    past_key_value[0].repeat(len(inputs_candidate_mask), 1, 1, 1),
+                    past_key_value[1].repeat(len(inputs_candidate_mask), 1, 1, 1),
+                )
+            )
+        past_key_values = tuple(all_keys_values)
+        results = model(
+            inputs_candidate_ids,
+            attention_mask=full_mask,
+            past_key_values=past_key_values,
+            use_cache=True,
+        )
+    logits = torch.cat(
+        (
+            last_logits[None, None, :].repeat(len(results.logits), 1, 1),
+            results.logits[:, :-1, :],
+        ),
+        dim=1,
+    )
+    logp = torch.nn.functional.log_softmax(logits, dim=-1)
+    # We need to pad to 0 the logits to ignore padding
+    logp = logp.masked_fill_(inputs_candidate_mask[:, :, None] == 0, 0)
+    score = torch.gather(logp, 2, inputs_candidate_ids[:, :, None]).squeeze(-1)
+    aggregated_scores = score.sum(-1)
+    return aggregated_scores.cpu()
+
+
+all_message = [
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+        {"role": "assistant", "content": "Grasp"},
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+        {"role": "assistant", "content": "Go to baby rhinoceros"},
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+        {"role": "assistant", "content": "Go to water"},
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+        {"role": "assistant", "content": "Go to pea seed"},
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+        {"role": "assistant", "content": "Go to water"},
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+        {"role": "assistant", "content": "Go to potato seed"},
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+        {"role": "assistant", "content": "Go to baby rhinoceros"},
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+        {"role": "assistant", "content": "Go to potato seed"},
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+        {"role": "assistant", "content": "Go to beet seed"},
+    ),
+]
 base_message = [
     (
         {
             "role": "system",
-            "content": "You like doing a lot of puzzles. Please answer with a brief answer and respect the prompt.",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
         },
         {
             "role": "user",
-            "content": "You are in a simulated environment that can contain water, plant seeds(carrot, porator, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). You can move an object, a plant or a herbivore and place it on another object to make them interact. Predict the next observation based on the previous actions and observations and use the same words:\nYou see the baby sheep, the water, the carrot seed, the water, the baby pig, the baby giraffe, the baby giraffe and the potato seed. You are standing on nothing. Your are holding nothing. You go to the water. You are standing on the water. You grasp the object.",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
         },
-    )
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+    ),
+    (
+        {
+            "role": "system",
+            "content": "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
+        },
+        {
+            "role": "user",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+        },
+    ),
+]
+true_answer = [
+    ({"role": "assistant", "content": "Grasp"},),
+    ({"role": "assistant", "content": "Go to baby rhinoceros"},),
+    ({"role": "assistant", "content": "Go to water"},),
+    ({"role": "assistant", "content": "Go to pea seed"},),
+    ({"role": "assistant", "content": "Go to water"},),
+    ({"role": "assistant", "content": "Go to potato seed"},),
+    ({"role": "assistant", "content": "Go to baby rhinoceros"},),
+    ({"role": "assistant", "content": "Go to potato seed"},),
+    ({"role": "assistant", "content": "Go to beet seed"},),
 ]
 gen_rules, gen_logp = generate_answer(base_message)
+
 candidate_answer = [
     (
         {
             "role": "assistant",
-            "content": gen_rules[0],
+            "content": gen_rule,
         },
     )
+    for gen_rule in gen_rules
 ]
-all_message = [base_message[0] + candidate_answer[0]]
-
-scoring = score_answer(all_message, candidate_answer)
-
-candidate_answer2 = [
-    (
-        {
-            "role": "assistant",
-            "content": "You are holding the water. You go to the potato seed. You are standing on the potato seed. You release the water. The potato seed grows into the potato. You grasp the object. You are holding the potato. You go to the baby sheep. You are standing on the baby sheep. You release the potato. The baby sheep grows into the sheep.",
-        },
-    )
+reconstructed_message = [
+    base_message[i] + candidate_answer[i] for i in range(len(candidate_answer))
 ]
-all_message = [base_message[0] + candidate_answer2[0]]
-
-scoring2 = score_answer(all_message, candidate_answer2)
+scoring = score_answer(reconstructed_message, candidate_answer)
+scoring2 = score_reuse_answer(base_message[0], candidate_answer)
 
 print("rules:", gen_rules)
-print("Score:", scoring, "Score 2: ", scoring2, "generated answer:", gen_logp)
+print("Score:", scoring, "Score2:", scoring2, "generated answer:", gen_logp)
