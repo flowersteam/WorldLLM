@@ -129,3 +129,6 @@ lab.py
 *.zip
 logs_ppo_sb3/
 .vscode/launch.json
+
+eval_results/
+logs_ppo_sb3*

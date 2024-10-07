@@ -1,10 +1,12 @@
 import argparse
+import random
 from functools import partial
 from itertools import product
 from typing import Any, Dict
 
 import gymnasium
 import numpy as np
+import torch
 from sb3_contrib import MaskablePPO
 
 # This is a drop-in replacement for EvalCallback
@@ -22,12 +24,14 @@ from worldllm_envs.base import BaseRuleEnv
 
 
 class TransitionCounterCallback(BaseCallback):
-    def __init__(self, verbose=0, n_envs=1):
+    def __init__(self, hyperparameters, verbose=0, n_envs=1):
         super(TransitionCounterCallback, self).__init__(verbose)
         self.transition_counts = {}
         self._lst_transitions_episodes = [dict() for _ in range(n_envs)]
         self.all_transitions_episodes = {}
         self.all_timestamps_sh = []
+        self.all_timestamps_p = []
+        self.hyperparameters = hyperparameters
 
     def _on_step(self) -> bool:
         # Access the current observation and info
@@ -51,8 +55,14 @@ class TransitionCounterCallback(BaseCallback):
             self._lst_transitions_episodes[incr][info["transition_type"]] = (
                 self._lst_transitions_episodes[incr].get(info["transition_type"], 0) + 1
             )
+            # We add only the first time the transition appears
             if info["transition_type"] == "transformSH":
                 self.all_timestamps_sh.append(info["step"])
+            if (
+                info["transition_type"] == "transformP"
+                and self._lst_transitions_episodes[incr][info["transition_type"]] == 1
+            ):
+                self.all_timestamps_p.append(info["step"])
             self.logger.record(f"rewards/{info['transition_type']}", reward)
 
         # Log the transition counts to TensorBoard
@@ -61,10 +71,17 @@ class TransitionCounterCallback(BaseCallback):
         self.logger.record(
             "timestamp/transformSH", np.mean(self.all_timestamps_sh[-5:])
         )
+        self.logger.record("timestamp/transformP", np.mean(self.all_timestamps_p[-5:]))
         for transi_type, value in self.all_transitions_episodes.items():
             self.logger.record(
                 f"transitions_episodes/{transi_type}",
                 np.mean(value[-100:]),
+            )
+
+        # Log config values
+        for hyperparam in self.hyperparameters:
+            self.logger.record(
+                "hyperparameters/" + hyperparam, self.hyperparameters[hyperparam]
             )
 
         return True
@@ -89,24 +106,23 @@ def make_env(countbased_dict: Dict[str, int]):
     return env
 
 
-# hyperparameters = {
-#     "gamma": [0.95, 0.99],
-#     "learning_rate": [1e-3, 5e-4, 1e-4],
-#     "vf_coef": [0.1, 0.25, 0.5],
-#     "n_steps": [128, 256, 512, 1024],
-#     "n_epochs": [2, 5, 10],
-# }
-
 if __name__ == "__main__":
     argsparser = argparse.ArgumentParser()
-    argsparser.add_argument("--gamma", type=float)
-    argsparser.add_argument("--lr", type=float)
-    argsparser.add_argument("--vf_coef", type=float)
-    argsparser.add_argument("--n_steps", type=int)
-    argsparser.add_argument("--n_epochs", type=int)
-    argsparser.add_argument("--gae", type=float)
+    argsparser.add_argument("--gamma", type=float, required=True)
+    argsparser.add_argument("--lr", type=float, required=True)
+    argsparser.add_argument("--vf_coef", type=float, required=True)
+    argsparser.add_argument("--n_steps", type=int, required=True)
+    argsparser.add_argument("--n_epochs", type=int, required=True)
+    argsparser.add_argument("--gae", type=float, required=True)
+    argsparser.add_argument("--seed", type=int, required=True)
+    argsparser.add_argument("--nn_size", type=int, required=True)
     config = vars(argsparser.parse_args())
 
+    # Set the seed
+    np.random.seed(config["seed"])
+    torch.manual_seed(config["nn_size"])
+    torch.cuda.manual_seed_all(config["nn_size"])
+    random.seed(config["seed"])
     n_envs = 9
 
     # Load first environment
@@ -123,6 +139,7 @@ if __name__ == "__main__":
         partial(make_env, countbased_dict=countbased),
         n_envs=n_envs,
     )
+    tensorboard_log_name = f"./PPO_{config['seed']}"
     # Train PPO
     model = MaskablePPO(
         "MlpPolicy",
@@ -136,12 +153,20 @@ if __name__ == "__main__":
         gae_lambda=config["gae"],
         device="cuda",
         verbose=1,
-        tensorboard_log="./logs_ppo_sb3",
+        tensorboard_log="./logs_ppo_sb3_cb",
+        policy_kwargs=dict(
+            net_arch=dict(
+                pi=[config["nn_size"], config["nn_size"]],
+                vf=[config["nn_size"], config["nn_size"]],
+            )
+        ),
+        seed=config["seed"],
     )
-    callback = TransitionCounterCallback(model.verbose, n_envs)
+    print(model.policy)
+    callback = TransitionCounterCallback(config, model.verbose, n_envs)
     model.learn(
-        50_000,
-        tb_log_name="PPO_Test_vecEnv",
+        1_000_000,
+        tb_log_name=tensorboard_log_name,
         progress_bar=True,
         log_interval=1,
         callback=callback,
