@@ -17,15 +17,6 @@ env: BaseRuleEnv = gymnasium.make(
     **{"max_steps": 30, "seed": seed, "playground_config": {"max_nb_objects": 8}},
 )
 
-rewards = {
-    "nothing": 1.8,
-    "standing": 1.4,
-    "holding1": 0.8,
-    "holding2": 5.5,
-    "transformP": 5.0,
-    "transformSH": 3.8,
-    "transformBH": 11.0,
-}
 count_transition_type = {}
 
 
