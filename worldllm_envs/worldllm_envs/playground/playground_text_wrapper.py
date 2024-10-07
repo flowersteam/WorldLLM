@@ -1216,6 +1216,16 @@ def generate_diverse_trajectories(
 
 
 class PlayGroundDiscrete(PlayGroundText):
+    TRANSITION_TYPE_TO_ID = {
+        "nothing": 0,
+        "standing": 1,
+        "holding1": 2,
+        "holding2": 3,
+        "transformP": 4,
+        "transformSH": 5,
+        "transformBH": 6,
+    }
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # 4 because 1 for what you see, 1 for what you stand on, 2 for what you hold
@@ -1260,19 +1270,6 @@ class PlayGroundDiscrete(PlayGroundText):
 
         # WE save last observation to compute the difference
         self._last_text_obs = None
-
-        # Keep count of the transitions:
-
-        # Keep count of the transtitions:
-        self.count_based = {
-            "nothing": 0,
-            "standing": 0,
-            "holding1": 0,
-            "holding2": 0,
-            "transformP": 0,
-            "transformSH": 0,
-            "transformBH": 0,
-        }
 
     def obj_to_index(self, incr: int, obj_name: str) -> Tuple[int, int, int, int]:
         """Return the index of the object in the observation"""
@@ -1419,7 +1416,7 @@ class PlayGroundDiscrete(PlayGroundText):
 
     def get_diff(
         self, last_observation: str, observation: str, action: str
-    ) -> Tuple[str, float, str]:
+    ) -> Tuple[str, str]:
         """Compute the difference between two observations and return reward"""
         # Split text description
         last_obs_obj, last_obs_stand, last_obs_hold = self._split_description(
@@ -1427,38 +1424,23 @@ class PlayGroundDiscrete(PlayGroundText):
         )
         obs_obj, obs_stand, obs_hold = self._split_description(observation)
         action_type, action_obj = self._split_action(action)
-        rewards = {
-            "nothing": 1.8,
-            "standing": 1.2,
-            "holding1": 0.5,
-            "holding2": 4.2,
-            "transformP": 5.0,
-            "transformSH": 3.8,
-            "transformBH": 11.0,
-        }
-        count_based_func = lambda x: rewards[x] / (self.count_based[x] ** 0.4)
         if (
             Counter(last_obs_obj) == Counter(obs_obj)
             and Counter(last_obs_stand) == Counter(obs_stand)
             and Counter(last_obs_hold) == Counter(obs_hold)
         ):
-            self.count_based["nothing"] += 1
             return (
                 "Nothing has changed.",
-                count_based_func("nothing"),
                 "nothing",
             )
         elif action_type == "go to":
-            self.count_based["standing"] += 1
             if action_obj == "nothing":
                 return (
                     "You are standing on nothing.",
-                    count_based_func("standing"),
                     "standing",
                 )
             return (
                 f"You are standing on the {action_obj}.",
-                count_based_func("standing"),
                 "standing",
             )
         elif action_type == "grasp":
@@ -1467,17 +1449,13 @@ class PlayGroundDiscrete(PlayGroundText):
                 len(counter_diff) == 1
             ), "There should be only one object grasped at a time"
             if last_obs_hold[0] == "empty":
-                self.count_based["holding1"] += 1
                 return (
                     f"You are holding the {list(counter_diff.keys())[0]}.",
-                    count_based_func("holding1"),
                     "holding1",
                 )
             if len(last_obs_hold) == 1:
-                self.count_based["holding2"] += 1
                 return (
                     f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}.",
-                    count_based_func("holding2"),
                     "holding2",
                 )
             raise ValueError("Inventory cannot contain more than 2 objects")
@@ -1488,16 +1466,10 @@ class PlayGroundDiscrete(PlayGroundText):
             new_object_type = list(new_obj.keys())[0]
             new_object_category = self.types_to_categories[new_object_type]
             if new_object_category == "plant":
-                self.count_based["transformP"] += 1
-                reward = count_based_func("transformP")
                 transition_type = "transformP"
             elif new_object_category == "small_herbivorous":
-                self.count_based["transformSH"] += 1
-                reward = count_based_func("transformSH")
                 transition_type = "transformSH"
             elif new_object_category == "big_herbivorous":
-                self.count_based["transformBH"] += 1
-                reward = count_based_func("transformBH")
                 transition_type = "transformBH"
             else:
                 raise ValueError(
@@ -1506,12 +1478,10 @@ class PlayGroundDiscrete(PlayGroundText):
             if action_obj == "all":
                 return (
                     f"The {last_obs_hold[0]}, {last_obs_hold[1]} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
-                    reward,
                     transition_type,
                 )
             return (
                 f"The {action_obj} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
-                reward,
                 transition_type,
             )
         raise ValueError(
@@ -1581,7 +1551,7 @@ class PlayGroundDiscrete(PlayGroundText):
         self._update_action_mask(obs)
         # Compute the str description
         obs_desc, info_description = self.generate_description()
-        text_obs, reward, transition_type = self.get_diff(
+        text_obs, transition_type = self.get_diff(
             self._last_text_obs, obs_desc, action_str
         )
         text_action = self.action_to_text(action_str)
@@ -1600,16 +1570,12 @@ class PlayGroundDiscrete(PlayGroundText):
         # Reset the size of obj help to find the obj grown in the current step
         self.playground.unwrapped.reset_size()
 
-        return obs.flatten(), reward, done, False, info
+        # For alp, the reward is the index on the transition type
+
+        return obs.flatten(), self.TRANSITION_TYPE_TO_ID[transition_type], done, False, info
 
     def render(self):
         raise NotImplementedError("Rendering is not supported for the environment")
 
     def get_action_mask(self) -> np.ndarray:
         return self.action_mask
-
-    def get_shared_countbased(self) -> Dict[str, int]:
-        return self.count_based
-
-    def set_shared_countbased(self, count_based: Dict[str, int]) -> None:
-        self.count_based = count_based
