@@ -441,7 +441,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 desc for desc in self.train_descriptions if desc.startswith("Grasp")
             ]
 
-    def generate_rule(self, custom_rule: Optional[List[str]] = None) -> str:
+    def generate_rule(self, custom_rule: Optional[List[str]] = None) -> List[str]:
         # print("WARNING: no other rule than the default one is available")
         if custom_rule is not None:
             return custom_rule
@@ -460,7 +460,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                         or lst_components[2] in {"living_thing", "animal"}
                     ):
                         lst_goal_possible.append(goal)
-                return random.choice(lst_goal_possible)
+                return [random.choice(lst_goal_possible)]
         else:
             raise NotImplementedError("Test mode not supported yet")
             # If we are in test mode, we want to test the model on unseen data
@@ -1270,6 +1270,7 @@ class PlayGroundDiscrete(PlayGroundText):
 
         # WE save last observation to compute the difference
         self._last_text_obs = None
+        self.trajectory_text = []
 
     def obj_to_index(self, incr: int, obj_name: str) -> Tuple[int, int, int, int]:
         """Return the index of the object in the observation"""
@@ -1403,11 +1404,13 @@ class PlayGroundDiscrete(PlayGroundText):
         obs_desc, info_description = self.generate_description()
         text_obs = self.observation_to_text(obs_desc)
         self._update_action_mask(obs)
+        self.trajectory_text = [text_obs]
         info = {
             "goal": self.goal_str,
             "action_mask": self.action_mask,
             "text_obs": text_obs,
             "step": self.current_step,
+            "trajectory_text": self.trajectory_text,
         }
         self._last_text_obs = obs_desc
         self.inventory = info_description["inventory"]
@@ -1555,6 +1558,8 @@ class PlayGroundDiscrete(PlayGroundText):
             self._last_text_obs, obs_desc, action_str
         )
         text_action = self.action_to_text(action_str)
+        self.trajectory_text.append(text_action)
+        self.trajectory_text.append(text_obs)
         info = {
             "goal": self.goal_str,
             "action_mask": self.action_mask,
@@ -1564,6 +1569,7 @@ class PlayGroundDiscrete(PlayGroundText):
             "transition_type": transition_type,
             "step": self.current_step,
             "success": r,
+            "trajectory_text": self.trajectory_text,
         }
         self._last_text_obs = obs_desc
         self.inventory = info_description["inventory"]
@@ -1572,7 +1578,13 @@ class PlayGroundDiscrete(PlayGroundText):
 
         # For alp, the reward is the index on the transition type
 
-        return obs.flatten(), self.TRANSITION_TYPE_TO_ID[transition_type], done, False, info
+        return (
+            obs.flatten(),
+            self.TRANSITION_TYPE_TO_ID[transition_type],
+            done,
+            False,
+            info,
+        )
 
     def render(self):
         raise NotImplementedError("Rendering is not supported for the environment")

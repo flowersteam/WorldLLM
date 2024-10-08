@@ -1,0 +1,13 @@
+type: SB3Agent
+
+n_envs: 15
+tb_folder: "./logs_ppo_sb3_pipeline"
+tb_name: test_pipeline
+hyperparameters:
+  gamma: 0.99
+  lr: 5e-4
+  vf_coef: 0.5
+  n_steps: 240
+  n_epochs: 20
+  gae: 0.95
+  nn_size: 64

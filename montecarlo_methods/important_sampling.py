@@ -6,6 +6,7 @@ from tqdm import tqdm
 from utils.utils_env import BaseAgent, generate_text_trajectories
 from utils.utils_llm import LlmModel, Statistician, compute_likelihood, generate_rules
 from utils.utils_save import RuleOutput
+from utils.utils_sb3 import SB3Agent
 from worldllm_envs.base import BaseRuleEnv
 from worldllm_envs.playground.playground_text_wrapper import (
     DiverseAgent,
@@ -66,6 +67,8 @@ def important_sampling(
                 generate_diverse_trajectories(env)
             )
             assert len(prompt_trajectories) == cfg["nb_trajectories"]
+        elif isinstance(agent, SB3Agent):
+            raise NotImplementedError("Not implemented yet.")
         else:
             prompt_trajectories, set_discovered_transitions = (
                 generate_text_trajectories(
