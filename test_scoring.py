@@ -171,6 +171,120 @@ def score_reuse_answer(base_message, lst_candidate):
     return aggregated_scores.cpu()
 
 
+def score_answer_prefix_caching_auto(lst_message, lst_candidate):
+    """Score and reuse the pas key and values"""
+    if len(lst_message) == 1:
+        # Do stuff
+        raise ValueError("Need at least 2 messages")
+    inputs_msg = tokenizer.apply_chat_template(
+        lst_message,
+        add_generation_prompt=False,
+        return_dict=True,
+    )
+    # Pad the candidate to the right
+    max_len_msg = max(len(c) for c in inputs_msg["input_ids"])
+    inputs_msg_ids = torch.stack(
+        [
+            torch.nn.functional.pad(
+                torch.tensor(input_ids),
+                (0, max_len_msg - len(input_ids)),
+                value=tokenizer.pad_token_id,
+            )
+            for input_ids in inputs_msg["input_ids"]
+        ]
+    ).to(model.device)
+    inputs_msg_mask = torch.stack(
+        [
+            torch.nn.functional.pad(
+                torch.tensor(attention_mask),
+                (0, max_len_msg - len(attention_mask)),
+                value=0,
+            )
+            for attention_mask in inputs_msg["attention_mask"]
+        ]
+    ).to(model.device)
+    # Get index where msg are firt different
+    min_msg_size = min([len(c) for c in inputs_msg["input_ids"]])
+    prefix_index = (
+        (inputs_msg_ids[:, :min_msg_size] != inputs_msg_ids[0, :min_msg_size])
+        .any(dim=0)
+        .nonzero()[0, 0]
+        .item()
+    )
+
+    # Get base message and the rest
+    inputs_base_ids = inputs_msg_ids[0, :prefix_index].unsqueeze(0)
+    inputs_base_att_mask = inputs_msg_mask[0, :prefix_index].unsqueeze(0)
+    # Get the suffix
+    inputs_suffix_ids = inputs_msg_ids[:, prefix_index:]
+    inputs_suffix_mask = inputs_msg_mask[:, prefix_index:]
+    with torch.no_grad():
+        results = model(
+            inputs_base_ids,
+            attention_mask=inputs_base_att_mask,
+            use_cache=True,
+        )
+        last_logits = results.logits[:1, :]
+        # Create full mask
+        full_mask = torch.cat(
+            [
+                inputs_base_att_mask.repeat(len(inputs_suffix_mask), 1),
+                inputs_suffix_mask,
+            ],
+            dim=1,
+        )
+        # Duplicate the past key and values
+        past_key_values = results.past_key_values
+        all_keys_values = []
+        for past_key_value in past_key_values:
+            all_keys_values.append(
+                (
+                    past_key_value[0].repeat(len(inputs_suffix_mask), 1, 1, 1),
+                    past_key_value[1].repeat(len(inputs_suffix_mask), 1, 1, 1),
+                )
+            )
+        past_key_values = tuple(all_keys_values)
+        results = model(
+            inputs_suffix_ids,
+            attention_mask=full_mask,
+            past_key_values=past_key_values,
+            use_cache=True,
+        )
+    logits = torch.cat(
+        (
+            last_logits.repeat(len(results.logits), 1, 1),
+            results.logits,
+        ),
+        dim=1,
+    )
+    # We need to pad to 0 the logits to ignore the right padding
+    # We first need to get the size of the window to analyse:
+    padding_size = torch.tensor([max_len_msg - len(c) for c in inputs_msg["input_ids"]])
+    # Then take into account the difference in the size of the candidates
+    candidate = tokenizer.apply_chat_template(
+        lst_candidate,
+        add_generation_prompt=False,
+    )
+    candidate_size = torch.tensor([len(c) - 1 for c in candidate])
+    # We get the size of the window to analyze as the maximum of the sum of the padding and the candidate size
+    window_size = torch.max(padding_size + candidate_size).item()
+
+    # We then need the masks
+    _index_mask = torch.arange(window_size)
+    padding_mask = _index_mask[None, :] <= window_size - padding_size[:, None]
+    gen_mask = (
+        _index_mask[None, :] >= window_size - (padding_size + candidate_size)[:, None]
+    )
+    mask = (padding_mask & gen_mask).to(model.device)
+
+    # We need to shift the logits to the right to match the candidate
+    logp = torch.nn.functional.log_softmax(logits[:, -window_size - 1 : -1], dim=-1)
+    logp = logp.masked_fill_(~mask[:, :, None], 0)
+    score = torch.gather(logp, 2, inputs_msg_ids[:, -window_size:, None]).squeeze(-1)
+    aggregated_scores = score.sum(-1)
+    return aggregated_scores.cpu()
+
+
 all_message = [
     (
         {
@@ -389,8 +503,18 @@ candidate_answer = [
 reconstructed_message = [
     base_message[i] + candidate_answer[i] for i in range(len(candidate_answer))
 ]
-scoring = score_answer(reconstructed_message, candidate_answer)
+scoring3 = score_answer_prefix_caching_auto(reconstructed_message, candidate_answer)
 scoring2 = score_reuse_answer(base_message[0], candidate_answer)
+scoring = score_answer(reconstructed_message, candidate_answer)
 
 print("rules:", gen_rules)
-print("Score:", scoring, "Score2:", scoring2, "generated answer:", gen_logp)
+print(
+    "Score:",
+    scoring,
+    "Score2:",
+    scoring2,
+    "Score3:",
+    scoring3,
+    "generated answer:",
+    gen_logp,
+)
