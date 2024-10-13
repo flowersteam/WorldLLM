@@ -335,13 +335,7 @@ class SB3Agent:
         ]
         return prompt_trajectories, set_discovered_transitions
 
-    def train_step(self, transition_scores: List[float]):
-        new_rewards = -(
-            np.array([score for sublist in transition_scores for score in sublist])
-            .reshape(self.model.n_envs, -1)
-            .T
-        )
-        # Reward is minus the loglikelihood
+    def train_step(self, new_rewards: np.ndarray):
         # Modify reward before training
         self.model.set_rewards(
             new_rewards,

@@ -61,6 +61,21 @@
                 "metropolis.yaml",
                 "algorithm.nb_iterations_mh=1",
                 "algorithm.nb_iterations=1",
+                "agent.hyperparameters.n_steps=30",
+            ]
+        },
+        {
+            "name": "Pipeline ALP",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-cn",
+                "metropolis_alp.yaml",
+                "algorithm.nb_iterations_mh=1",
+                "algorithm.nb_iterations=1",
+                "agent.hyperparameters.n_steps=30",
             ]
         }
     ]

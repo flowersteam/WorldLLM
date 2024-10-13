@@ -126,6 +126,7 @@ def metropolis_hastings(
     # 4. Get best rule
     best_rule_ind = np.argmax(prev_likelihoods)
     best_rule = prev_rules[best_rule_ind]
+    prev_best_rule = None
     # 5. Save the rules
     all_dict["rules"] = copy(prev_rules)
     all_dict["likelihoods"] = prev_likelihoods
@@ -252,9 +253,11 @@ def metropolis_hastings(
                     worst_trajectories,
                     prev_worst_trajectories,
                 )
-        # Get best rule
+        # Change best rule if different than the previous one
         best_rule_ind = np.argmax(prev_likelihoods)
-        best_rule = prev_rules[best_rule_ind]
+        if prev_rules[best_rule_ind] != best_rule or prev_best_rule is None:
+            prev_best_rule = best_rule
+            best_rule = prev_rules[best_rule_ind]
         all_dict["best_rule"].append(best_rule)
         all_dict["best_rule_ind"].append(best_rule_ind)
 
@@ -262,8 +265,32 @@ def metropolis_hastings(
         _, transition_scores = compute_likelihood(
             statistician, [best_rule], prompt_trajectories
         )
+
+        curr_rewards = -(
+            np.array([score for sublist in transition_scores[0] for score in sublist])
+            .reshape(agent.model.n_envs, -1)
+            .T
+        )
+        if cfg["use_alp"]:
+            # Score all trajectories with previous best rule
+            _, old_transition_scores = compute_likelihood(
+                statistician, [prev_best_rule], prompt_trajectories
+            )
+
+            # Compute the reward
+            old_rewards = -(
+                np.array(
+                    [score for sublist in old_transition_scores[0] for score in sublist]
+                )
+                .reshape(agent.model.n_envs, -1)
+                .T
+            )
+            new_rewards = np.abs(curr_rewards - old_rewards)
+        else:
+            new_rewards = curr_rewards
+        # Reward is minus the loglikelihood
         # Train the agent
-        agent.train_step(transition_scores[0])
+        agent.train_step(new_rewards)
 
     # endregion
     # Add all transtion to the statistician for scoring the test
