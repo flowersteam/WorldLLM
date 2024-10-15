@@ -4,7 +4,7 @@ from typing import Dict, List
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-quantization_config = None
+quantization_config = BitsAndBytesConfig(load_in_4bit=True)
 model_name = "microsoft/Phi-3-mini-4k-instruct"
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
@@ -20,6 +20,7 @@ tokenizer.chat_template = chat_template
 
 
 def generate_answer(msg: List[Dict[str, str]]):
+    start = time.perf_counter()
     inputs = tokenizer.apply_chat_template(
         msg,
         add_generation_prompt=True,
@@ -27,7 +28,7 @@ def generate_answer(msg: List[Dict[str, str]]):
         padding=True,
         return_dict=True,
     ).to(model.device)
-
+    print(f"Time to prepare inputs: {time.perf_counter() - start:.3f}s")
     generation_args = {
         "temperature": 1,
         "top_k": None,
@@ -37,19 +38,24 @@ def generate_answer(msg: List[Dict[str, str]]):
         "output_scores": True,
         "return_dict_in_generate": True,
     }
-
+    start = time.perf_counter()
     outputs = model.generate(
         inputs["input_ids"], attention_mask=inputs["attention_mask"], **generation_args
     )
+    print("Time to generate: {:.3f}s".format(time.perf_counter() - start))
+    start = time.perf_counter()
     generated_sequences = outputs.sequences[:, inputs["input_ids"].shape[-1] :]
     generated_rules = tokenizer.batch_decode(
         generated_sequences, skip_special_tokens=True
     )
+    print("Time to decode: {:.3f}s".format(time.perf_counter() - start))
+    start = time.perf_counter()
     logp = torch.nn.functional.log_softmax(torch.stack(outputs.scores, dim=1), dim=-1)
     # Put the score of the padding token to 0 to ignore(not done by every model)
     logp[:, :, tokenizer.pad_token_id] = 0
     scores = torch.gather(logp, 2, generated_sequences[:, :, None]).squeeze(-1)
     aggregated_scores = scores.sum(-1)
+    print("Time to compute scores: {:.3f}s".format(time.perf_counter() - start))
     return generated_rules, aggregated_scores.cpu()
 
 
@@ -490,7 +496,6 @@ true_answer = [
     ({"role": "assistant", "content": "Go to beet seed"},),
 ]
 gen_rules, gen_logp = generate_answer(base_message)
-
 candidate_answer = [
     (
         {
@@ -503,9 +508,15 @@ candidate_answer = [
 reconstructed_message = [
     base_message[i] + candidate_answer[i] for i in range(len(candidate_answer))
 ]
+start = time.perf_counter()
 scoring3 = score_answer_prefix_caching_auto(reconstructed_message, candidate_answer)
+print("Time to reconstruct with prefix caching:", time.perf_counter() - start)
+start = time.perf_counter()
 scoring2 = score_reuse_answer(base_message[0], candidate_answer)
+print("Time to reconstruct with prefix caching:", time.perf_counter() - start)
+start = time.perf_counter()
 scoring = score_answer(reconstructed_message, candidate_answer)
+print("Time to reconstruct with prefix caching:", time.perf_counter() - start)
 
 print("rules:", gen_rules)
 print(
