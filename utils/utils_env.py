@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import gymnasium as gym
 import numpy as np
@@ -70,7 +70,7 @@ class Trajectory:
         return " ".join(self.text)
 
 
-def build_env(cfg: DictConfig):
+def build_env(cfg: DictConfig, rule: Optional[str] = None) -> BaseRuleEnv:
     """Build the environment."""
     # Add seed to kwargs
     kwargs = OmegaConf.to_container(cfg.environment.kwargs, resolve=True)
@@ -78,6 +78,8 @@ def build_env(cfg: DictConfig):
     env = gym.make(cfg.environment.id, **kwargs)
     if not isinstance(env.unwrapped, BaseRuleEnv):
         raise ValueError("The environment must be rule based.")
+    if rule is not None:
+        env.reset(options={"rule": rule})
     return env
 
 

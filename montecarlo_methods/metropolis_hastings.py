@@ -1,7 +1,8 @@
 from copy import copy
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
+import torch
 from tqdm import tqdm
 
 from utils.utils_env import BaseAgent, Trajectory, generate_text_trajectories
@@ -14,6 +15,7 @@ from utils.utils_llm import (
     score_rules,
 )
 from utils.utils_save import RuleOutput
+from utils.utils_sb3 import SB3Agent
 from worldllm_envs.base import BaseRuleEnv
 from worldllm_envs.playground.playground_text_wrapper import (
     DiverseAgent,
@@ -32,6 +34,34 @@ def get_worst_trajectories(
     ]
 
 
+def generate_trajectories(
+    agent: Union[BaseAgent, SB3Agent],
+    env: BaseRuleEnv,
+    rule_to_test: str,
+    nb_trajectories: Optional[int],
+    n_steps: Optional[int],
+) -> Tuple[List[Trajectory], Set[str]]:
+    """Generate trajectories using the environment and the agent
+    Returns:
+        Tuple[List[Trajectory], Set[str]]: Return the text trajectories and the set of discovered transitions
+    """
+    if isinstance(agent, DiverseAgent):
+        prompt_trajectories, set_discovered_transitions = generate_diverse_trajectories(
+            env
+        )
+    elif isinstance(agent, SB3Agent):
+        assert n_steps is not None, "n_steps must be provided for SB3Agent"
+        prompt_trajectories, set_discovered_transitions = agent.generate_trajectories(
+            n_steps,
+        )
+    else:
+        assert nb_trajectories is not None, "nb_trajectories must be provided"
+        prompt_trajectories, set_discovered_transitions = generate_text_trajectories(
+            env, agent, rule_to_test, nb_trajectories
+        )
+    return prompt_trajectories, set_discovered_transitions
+
+
 def metropolis_hastings(
     env: BaseRuleEnv,
     agent: BaseAgent,
@@ -48,44 +78,54 @@ def metropolis_hastings(
     all_dict: Dict[str, Any] = {
         "rules": [],
         "current_true_rule": [],
+        "best_rule": [],
+        "best_rule_ind": [],
         "weights": [],
         "importance_probs": [],
         "likelihoods": [],
-        "test_likelihoods": [],
-        "test_transition_scores": [],
     }
-
-    # Generate trajectories
+    if not isinstance(agent, SB3Agent):
+        raise NotImplementedError(
+            "The agent must be a SB3Agent. Not tested and probably not supported otherwise."
+        )
+    # region Initialize and first loop of the algorithm
+    # 1. Generate trajectories
     rule_to_test = curriculum_rules[0]
-    if isinstance(agent, DiverseAgent):
-        prompt_trajectories, set_discovered_transitions = generate_diverse_trajectories(
-            env
-        )
-        assert len(prompt_trajectories) == cfg["nb_trajectories"]
-    else:
-        prompt_trajectories, set_discovered_transitions = generate_text_trajectories(
-            env, agent, rule_to_test, cfg["nb_trajectories"]
-        )
+    prompt_trajectories, set_discovered_transitions = generate_trajectories(
+        agent,
+        env,
+        rule_to_test,
+        cfg["nb_trajectories"],
+        agent.model.n_steps * agent.model.n_envs,
+    )
     # Update seen transitions for the statistician
     statistician.prompt_info.discovered_transitions.update(set_discovered_transitions)
-    # Sample rules
+    # Take smaller subset to generate the first rules
+    subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]
+    # 2. Sample rules and 3. Score rules
     if cfg["first_rules"] is not None:
         prev_rules = cfg["first_rules"]
         assert len(prev_rules) == cfg["nb_rules"]
     else:
-        prev_rules, _ = generate_rules(theorist, prompt_trajectories, cfg["nb_rules"])
+        prev_rules, _ = generate_rules(theorist, subset_trajectories, cfg["nb_rules"])
     if cfg["num_worst_trajectories"] and cfg["num_worst_trajectories"] > 0:
         (prev_likelihoods, all_logp), _ = compute_likelihood(
-            statistician, prev_rules, prompt_trajectories, return_all_logp=True
+            statistician, prev_rules, subset_trajectories, return_all_logp=True
         )
         prev_worst_trajectories = get_worst_trajectories(
-            all_logp, prompt_trajectories, cfg["num_worst_trajectories"]
+            all_logp, subset_trajectories, cfg["num_worst_trajectories"]
         )
         all_worst_trajectories = copy(prev_worst_trajectories)
     else:
         prev_likelihoods, _ = compute_likelihood(
-            statistician, prev_rules, prompt_trajectories
+            statistician, prev_rules, subset_trajectories
         )
+
+    # 4. Get best rule
+    best_rule_ind = np.argmax(prev_likelihoods)
+    best_rule = prev_rules[best_rule_ind]
+    prev_best_rule = None
+    # 5. Save the rules
     all_dict["rules"] = copy(prev_rules)
     all_dict["likelihoods"] = prev_likelihoods
     all_dict["importance_probs"] = [0] * cfg["nb_rules"]
@@ -95,14 +135,41 @@ def metropolis_hastings(
         curriculum_rules[0] for _ in range(cfg["nb_rules"])
     ]
     all_dict["nb_rules"] = cfg["nb_rules"]
+    all_dict["best_rule"] = [best_rule]
+    all_dict["best_rule_ind"] = [best_rule_ind]
     prev_rules_ind = np.zeros((cfg["nb_rules"],), dtype=int)
-    for incr_collecting in tqdm(
-        range(cfg["nb_collecting"]), desc="Collecting iterations"
+    # endregion
+
+    # region Main loop of the algorithm
+    for i in tqdm(
+        range(cfg["nb_iterations"]),
+        desc="Loop iterations",
     ):
-        for i in tqdm(
-            range(cfg["nb_iterations"]),
-            desc="Metropolis-Hastings iterations",
-            leave=False,
+        # 1. Regenerate trajectories
+        rule_to_test = curriculum_rules[0]
+        prompt_trajectories, set_discovered_transitions = generate_trajectories(
+            agent,
+            env,
+            rule_to_test,
+            cfg["nb_trajectories"],
+            agent.model.n_steps * agent.model.n_envs,
+        )
+        # Take smaller subset to generate the rules
+        subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]
+        # Update seen transitions for the statistician
+        statistician.prompt_info.discovered_transitions.update(
+            set_discovered_transitions
+        )
+        # Recompute the likelihoods for the new trajectories
+        (prev_likelihoods, all_logp), _ = compute_likelihood(
+            statistician, prev_rules, subset_trajectories, return_all_logp=True
+        )
+        prev_worst_trajectories = get_worst_trajectories(
+            all_logp, subset_trajectories, cfg["num_worst_trajectories"]
+        )
+        # Do Multiple Metropolis Hastings steps
+        for incr_mh in tqdm(
+            range(cfg["nb_iterations_mh"]), desc="Metropolis-Hastings", leave=False
         ):
             if (
                 cfg["num_worst_trajectories"] is not None
@@ -111,22 +178,22 @@ def metropolis_hastings(
                 # Sample a new rule
                 rules, importance_probs = evolve_rules(
                     theorist,
-                    prompt_trajectories,
+                    subset_trajectories,
                     prev_rules,
                     worst_trajectories=prev_worst_trajectories,
                 )
                 # Compute likelihoods of new data using the rules
                 (likelihoods, all_logp), _ = compute_likelihood(
-                    statistician, rules, prompt_trajectories, return_all_logp=True
+                    statistician, rules, subset_trajectories, return_all_logp=True
                 )
                 worst_trajectories = get_worst_trajectories(
-                    all_logp, prompt_trajectories, cfg["num_worst_trajectories"]
+                    all_logp, subset_trajectories, cfg["num_worst_trajectories"]
                 )
                 if cfg["use_hasting_correction"]:
                     # Compute reverse kernel
                     rev_importance_probs = score_rules(
                         theorist,
-                        prompt_trajectories,
+                        subset_trajectories,
                         prev_rules,
                         rules,
                         worst_trajectories=worst_trajectories,
@@ -134,16 +201,16 @@ def metropolis_hastings(
             else:
                 # Sample a new rule
                 rules, importance_probs = evolve_rules(
-                    theorist, prompt_trajectories, prev_rules
+                    theorist, subset_trajectories, prev_rules
                 )
                 # Compute likelihoods of new data using the rules
                 likelihoods, _ = compute_likelihood(
-                    statistician, rules, prompt_trajectories
+                    statistician, rules, subset_trajectories
                 )
                 if cfg["use_hasting_correction"]:
                     # Compute reverse kernel
                     rev_importance_probs = score_rules(
-                        theorist, prompt_trajectories, prev_rules, rules
+                        theorist, subset_trajectories, prev_rules, rules
                     )
 
             if cfg["use_hasting_correction"]:
@@ -168,7 +235,9 @@ def metropolis_hastings(
             # Accept or reject
             mask = np.where(np.log(np.random.rand()) < weights, 1, 0)
             prev_rules_ind = np.where(
-                mask, (incr_collecting * cfg["nb_iterations"]) + i + 1, prev_rules_ind
+                mask,
+                (i * cfg["nb_iterations_mh"]) + incr_mh + 1,
+                prev_rules_ind,
             )
             prev_rules = np.where(mask, rules, prev_rules)
             prev_likelihoods = np.where(mask, likelihoods, prev_likelihoods)
@@ -182,34 +251,46 @@ def metropolis_hastings(
                     worst_trajectories,
                     prev_worst_trajectories,
                 )
-        # Regenerate trajectories if not last iteration
-        if incr_collecting + 1 < cfg["nb_collecting"]:
-            # Regenerate trajectories
-            rule_to_test = curriculum_rules[
-                ((incr_collecting + 1) * len(curriculum_rules)) // cfg["nb_collecting"]
-            ]
-            if isinstance(agent, DiverseAgent):
-                prompt_trajectories, set_discovered_transitions = (
-                    generate_diverse_trajectories(env)
+        # Change best rule if different than the previous one
+        best_rule_ind = np.argmax(prev_likelihoods)
+        if prev_rules[best_rule_ind] != best_rule or prev_best_rule is None:
+            prev_best_rule = best_rule
+            best_rule = prev_rules[best_rule_ind]
+        all_dict["best_rule"].append(best_rule)
+        all_dict["best_rule_ind"].append(best_rule_ind)
+
+        # Score all the trajectories with the best rule
+        _, transition_scores = compute_likelihood(
+            statistician, [best_rule], prompt_trajectories
+        )
+
+        curr_rewards = -(
+            np.array([score for sublist in transition_scores[0] for score in sublist])
+            .reshape(agent.model.n_envs, -1)
+            .T
+        )
+        if cfg["use_alp"]:
+            # Score all trajectories with previous best rule
+            _, old_transition_scores = compute_likelihood(
+                statistician, [prev_best_rule], prompt_trajectories
+            )
+
+            # Compute the reward
+            old_rewards = -(
+                np.array(
+                    [score for sublist in old_transition_scores[0] for score in sublist]
                 )
-                assert len(prompt_trajectories) == cfg["nb_trajectories"]
-            else:
-                prompt_trajectories, set_discovered_transitions = (
-                    generate_text_trajectories(
-                        env, agent, rule_to_test, cfg["nb_trajectories"]
-                    )
-                )
-            # Update seen transitions for the statistician
-            statistician.prompt_info.discovered_transitions.update(
-                set_discovered_transitions
+                .reshape(agent.model.n_envs, -1)
+                .T
             )
-            # Recompute the likelihoods for the new trajectories
-            (prev_likelihoods, all_logp), _ = compute_likelihood(
-                statistician, prev_rules, prompt_trajectories, return_all_logp=True
-            )
-            prev_worst_trajectories = get_worst_trajectories(
-                all_logp, prompt_trajectories, cfg["num_worst_trajectories"]
-            )
+            new_rewards = np.abs(curr_rewards - old_rewards)
+        else:
+            new_rewards = curr_rewards
+        # Reward is minus the loglikelihood
+        # Train the agent
+        agent.train_step(new_rewards)
+
+    # endregion
     # Add all transtion to the statistician for scoring the test
     statistician.prompt_info.discovered_transitions = {
         "standing",
@@ -221,14 +302,10 @@ def metropolis_hastings(
         "nothing",
     }
     # Compute likelihoods of test data for the rules
-    all_dict["test_likelihoods"], all_dict["test_transition_scores"] = (
-        compute_likelihood(statistician, all_dict["rules"], test_trajectories)
+    all_dict["test_likelihoods_best"], all_dict["test_transition_scores_best"] = (
+        compute_likelihood(statistician, all_dict["best_rule"], test_trajectories)
     )
-    indices = np.argsort(-np.array(all_dict["test_likelihoods"]))
-    for ind in indices:
-        print(
-            f"-----true_rule-----: {all_dict['current_true_rule'][ind]}, rule:  {ind%all_dict['nb_rules']}-{ind//all_dict['nb_rules']}({all_dict['prev_rules_ind'][ind]}):   {repr(all_dict['rules'][ind])}\nlikelihood: {all_dict['likelihoods'][ind]:2f}, weight: {all_dict['weights'][ind]:2f}, test_likelihood: {all_dict['test_likelihoods'][ind]:2f}"
-        )
+    print("Metropolis Hastings done")
     return RuleOutput(
         curriculum_rules,
         all_dict["rules"],
