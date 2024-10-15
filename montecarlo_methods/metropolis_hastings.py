@@ -83,8 +83,6 @@ def metropolis_hastings(
         "weights": [],
         "importance_probs": [],
         "likelihoods": [],
-        "test_likelihoods": [],
-        "test_transition_scores": [],
     }
     if not isinstance(agent, SB3Agent):
         raise NotImplementedError(
@@ -304,14 +302,10 @@ def metropolis_hastings(
         "nothing",
     }
     # Compute likelihoods of test data for the rules
-    all_dict["test_likelihoods"], all_dict["test_transition_scores"] = (
-        compute_likelihood(statistician, all_dict["rules"], test_trajectories)
+    all_dict["test_likelihoods_best"], all_dict["test_transition_scores_best"] = (
+        compute_likelihood(statistician, all_dict["best_rule"], test_trajectories)
     )
-    indices = np.argsort(-np.array(all_dict["test_likelihoods"]))
-    for ind in indices:
-        print(
-            f"-----true_rule-----: {all_dict['current_true_rule'][ind]}, rule:  {ind%all_dict['nb_rules']}-{ind//all_dict['nb_rules']}({all_dict['prev_rules_ind'][ind]}):   {repr(all_dict['rules'][ind])}\nlikelihood: {all_dict['likelihoods'][ind]:2f}, weight: {all_dict['weights'][ind]:2f}, test_likelihood: {all_dict['test_likelihoods'][ind]:2f}"
-        )
+    print("Metropolis Hastings done")
     return RuleOutput(
         curriculum_rules,
         all_dict["rules"],
