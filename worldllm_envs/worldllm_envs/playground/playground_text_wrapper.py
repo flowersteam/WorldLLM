@@ -297,7 +297,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 "holding2": "You are holding y and z. ",
                 "transformP": "x and y transform into z. ",
                 "transformBH": "x, y and z transform into w. ",
-                "nothing": "Nothing has changed. You see x, y and z. ",
+                "nothing": "Nothing has changed. ",
             }
 
             user_prompt = (
