@@ -319,58 +319,43 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 "transformBH": "x, y and z transform into w. ",
                 "nothing": "Nothing has changed. ",
             }
-
-            user_prompt = (
+            base_user_prompt = (
                 "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
             )
             if rule is not None:
-                user_prompt += f"You know that: \n{rule}\n"
-            user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form, with x,y, z and w 4 objects and action an action:"
+                base_user_prompt += f"You know that: \n{rule}\n"
+            base_user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form, with x,y, z and w 4 objects and action an action:"
 
             # Give abstract trajectory
-            user_prompt += "\n\n In the current space:\nYou see x, y, and z. You are standing on y. Your are holding nothing. "
+            base_user_prompt += "\n\n In the current space:\nYou see x, y, and z. You are standing on y. Your are holding nothing. "
             for transition_type, transition_text in transition_to_abstract_traj.items():
                 if transition_type in discovered_transition:
-                    user_prompt += "\na: action. \no: " + transition_text
+                    base_user_prompt += "\na: action. \no: " + transition_text
             # give real trajectory
-            user_prompt += "\n\nNow please complete the sequence:\n\n"
-            user_prompt += "In the current space:\n"
-            # Add initialisation observation and first action
-            user_prompt += trajectory.text[0] + " "
-            user_prompt += f"\na: {trajectory.text[1]} "
-            user_prompt += "\no:"
-            # Compute the prompt for the assistant
-            assistant_prompt = trajectory.text[2]
-            for i in range(3, len(trajectory.text)):
-                if i % 2 == 1:
-                    # It is an action
-                    assistant_prompt += f" \na: {trajectory.text[i]}"
-                else:
-                    # It is an observation
-                    assistant_prompt += f" \no: {trajectory.text[i]}"
-            # Compute the list of tokens for the assistant
-            assitant_token_lst = [trajectory.text[2]]
-            for i in range(3, len(trajectory.text)):
-                if i % 2 == 1:
-                    # It is an action
-                    assitant_token_lst.append("\na:")
-                    assitant_token_lst.append(trajectory.text[i])
-                else:
-                    assitant_token_lst.append("\no:")
-                    assitant_token_lst.append(trajectory.text[i])
-            return user_prompt, assistant_prompt, assitant_token_lst
+            base_user_prompt += "\n\nNow please complete the sequence:\n\n"
+            base_user_prompt += "In the current space:\n"
+
+            all_user_prompts = []
+            all_assistant_prompts = []
+            for incr in range(len(trajectory.lst_obs) - 1):
+                user_prompt = base_user_prompt
+                # Add initialisation observation and first action
+                user_prompt += trajectory.lst_obs[incr] + " "
+                user_prompt += f"\na: {trajectory.lst_act[incr]} "
+                user_prompt += "\no:"
+                # Compute the prompt for the assistant
+                assistant_prompt = trajectory.lst_diff[incr]
+                all_user_prompts.append(user_prompt)
+                all_assistant_prompts.append(assistant_prompt)
+            return all_user_prompts, all_assistant_prompts
 
         def _format_trajectory_for_theorist(trajectory: Trajectory) -> str:
             """Format trjaectory for theorist"""
-            msg = f"In the current space: {trajectory.text[0]} The sequence of actions and observations is: "
-            for i in range(1, len(trajectory.text)):
-                if i % 2 == 1:
-                    # It is an action
-                    msg += f" a: {trajectory.text[i]}"
-                else:
-                    # It is an observation
-                    msg += f" o: {trajectory.text[i]}"
+            msg = f"In the current space: {trajectory.lst_obs[0]}. \nThe sequence of actions and observations is: "
+            for i in range(len(trajectory.lst_diff)):
+                msg += f" a: {trajectory.lst_act[i]}"
+                msg += f" o: {trajectory.lst_diff[i]}"
             msg += "\n"
             return msg
 

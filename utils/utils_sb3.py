@@ -128,7 +128,13 @@ class CustomMaskablePPO(MaskablePPO):
             # see GitHub issue #633
             for idx, done in enumerate(dones):
                 if done:
-                    trajectories[idx].append(Trajectory(infos[idx]["trajectory_text"]))
+                    trajectories[idx].append(
+                        Trajectory(
+                            infos[idx]["trajectory_obs_text"],
+                            infos[idx]["trajectory_act_text"],
+                            infos[idx]["trajectory_diff_text"],
+                        )
+                    )
                 if (
                     done
                     and infos[idx].get("terminal_observation") is not None
@@ -165,7 +171,13 @@ class CustomMaskablePPO(MaskablePPO):
         # Add trajectories that are partially filled
         for idx, done in enumerate(dones):
             if not done:  # We don't want to appen twice the same trajectory
-                trajectories[idx].append(Trajectory(infos[idx]["trajectory_text"]))
+                trajectories[idx].append(
+                    Trajectory(
+                        infos[idx]["trajectory_text"],
+                        infos[idx]["trajectory_act_text"],
+                        infos[idx]["trajectory_diff_text"],
+                    )
+                )
         # Return the trajectories done and last information
         return trajectories, set_discovered_transitions, values, dones
 
