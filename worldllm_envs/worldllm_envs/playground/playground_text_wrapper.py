@@ -1432,15 +1432,8 @@ class PlayGroundDiscrete(PlayGroundText):
             and Counter(last_obs_stand) == Counter(obs_stand)
             and Counter(last_obs_hold) == Counter(obs_hold)
         ):
-            text_return = "Nothing has changed, you see "
-            for obj in obs_obj[-2:]:
-                text_return += "the " + obj + ", "
-            if len(obs_obj) > 1:
-                text_return += "the " + obs_obj[-2] + " and the " + obs_obj[-1] + "."
-            else:
-                text_return += "the " + obs_obj[-1] + "."
             return (
-                text_return,
+                "Nothing has changed.",
                 "nothing",
             )
         elif action_type == "go to":
