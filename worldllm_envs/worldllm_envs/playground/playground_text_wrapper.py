@@ -1367,7 +1367,9 @@ class PlayGroundDiscrete(PlayGroundText):
 
         # WE save last observation to compute the difference
         self._last_text_obs = None
-        self.trajectory_text = []
+        self.trajectory_obs_text = []
+        self.trajectory_act_text = []
+        self.trajectory_diff_text = []
 
     def obj_to_index(self, incr: int, obj_name: str) -> Tuple[int, int, int, int]:
         """Return the index of the object in the observation"""
@@ -1501,13 +1503,17 @@ class PlayGroundDiscrete(PlayGroundText):
         obs_desc, info_description = self.generate_description()
         text_obs = self.observation_to_text(obs_desc)
         self._update_action_mask(obs)
-        self.trajectory_text = [text_obs]
+        self.trajectory_obs_text = [obs_desc]
+        self.trajectory_diff_text = []
+        self.trajectory_act_text = []
         info = {
             "goal": self.goal_str,
             "action_mask": self.action_mask,
             "text_obs": text_obs,
             "step": self.current_step,
-            "trajectory_text": self.trajectory_text,
+            "trajectory_obs_text": self.trajectory_obs_text,
+            "trajectory_act_text": self.trajectory_act_text,
+            "trajectory_diff_text": self.trajectory_diff_text,
         }
         self._last_text_obs = obs_desc
         self.inventory = info_description["inventory"]
@@ -1581,8 +1587,9 @@ class PlayGroundDiscrete(PlayGroundText):
             self._last_text_obs, obs_desc, action_str
         )
         text_action = self.action_to_text(action_str)
-        self.trajectory_text.append(text_action)
-        self.trajectory_text.append(text_obs)
+        self.trajectory_act_text.append(text_action)
+        self.trajectory_diff_text.append(text_obs)
+        self.trajectory_obs_text.append(obs_desc)
         info = {
             "goal": self.goal_str,
             "action_mask": self.action_mask,
@@ -1592,7 +1599,9 @@ class PlayGroundDiscrete(PlayGroundText):
             "transition_type": transition_type,
             "step": self.current_step,
             "success": r,
-            "trajectory_text": self.trajectory_text,
+            "trajectory_obs_text": self.trajectory_obs_text,
+            "trajectory_act_text": self.trajectory_act_text,
+            "trajectory_diff_text": self.trajectory_diff_text,
         }
         self._last_text_obs = obs_desc
         self.inventory = info_description["inventory"]
