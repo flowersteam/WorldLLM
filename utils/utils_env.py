@@ -61,13 +61,12 @@ class AllAgent(BaseAgent):
 class Trajectory:
     """Save information on some rollout for the llms."""
 
-    text: List[str]
+    lst_obs: List[str]
+    lst_act: List[str]
+    lst_diff: List[str]
 
     def __len__(self):
-        return len(self.text)
-
-    def get_full_text(self) -> str:
-        return " ".join(self.text)
+        return len(self.lst_diff)
 
 
 def build_env(cfg: DictConfig, rule: Optional[str] = None) -> BaseRuleEnv:
