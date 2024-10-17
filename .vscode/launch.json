@@ -90,6 +90,19 @@
                 "algorithm.nb_iterations_mh=1",
                 "algorithm.nb_iterations=1",
             ]
+        },
+        {
+            "name": "Pipeline RB",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-cn",
+                "metropolis_rb.yaml",
+                "algorithm.nb_iterations_mh=1",
+                "algorithm.nb_iterations=1",
+            ]
         }
     ]
 }
