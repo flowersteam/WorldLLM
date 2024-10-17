@@ -17,7 +17,7 @@ class BaseAgent(abc.ABC):
         self.action_space = action_space
 
     @abc.abstractmethod
-    def __call__(self, obs, **kwargs):
+    def __call__(self, obs, **kwargs) -> Tuple[str, bool]:
         """Generate action"""
 
     def reset(self, info: Dict[str, Any]):
@@ -32,7 +32,7 @@ class RandomAgent(BaseAgent):
         if "action_mask" in kwargs:
             action_mask = kwargs["action_mask"]
             possible_actions = np.arange(len(action_mask))[action_mask]
-        return possible_actions[np.random.randint(len(possible_actions))]
+        return possible_actions[np.random.randint(len(possible_actions))], False
 
 
 class AllAgent(BaseAgent):
@@ -84,7 +84,11 @@ def build_env(cfg: DictConfig, rule: Optional[str] = None) -> BaseRuleEnv:
 
 
 def generate_text_trajectories(
-    env: BaseRuleEnv, agent: BaseAgent, rule: BaseRule, nb_trajectories: int
+    env: BaseRuleEnv,
+    agent: BaseAgent,
+    rule: BaseRule,
+    nb_trajectories: int,
+    progression: float,
 ) -> Tuple[List[Trajectory], Set[str]]:
     """Generate random trajectories for the environment."""
     # Set rule
@@ -97,12 +101,15 @@ def generate_text_trajectories(
         leave=False,
     ):
         obs, info = env.reset()
+        info["pipeline_progression"] = (
+            progression  # Add progression to info for curriculum learning
+        )
         agent.reset(info)
         done = False
         while not done:
-            action = agent(obs, **info)
+            action, agent_done = agent(obs, **info)
             obs, _, terminated, truncated, info = env.step(action)
             set_discovered_transitions.add(info["transition_type"])
-            done = terminated or truncated
+            done = terminated or truncated or agent_done
         lst_trajectory.append(Trajectory(info["text_trajectory"]))
     return lst_trajectory, set_discovered_transitions

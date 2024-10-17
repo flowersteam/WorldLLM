@@ -40,6 +40,7 @@ def generate_trajectories(
     rule_to_test: str,
     nb_trajectories: Optional[int],
     n_steps: Optional[int],
+    progression: float,
 ) -> Tuple[List[Trajectory], Set[str]]:
     """Generate trajectories using the environment and the agent
     Returns:
@@ -47,7 +48,7 @@ def generate_trajectories(
     """
     if isinstance(agent, DiverseAgent):
         prompt_trajectories, set_discovered_transitions = generate_diverse_trajectories(
-            env
+            env, nb_trajectories
         )
     elif isinstance(agent, SB3Agent):
         assert n_steps is not None, "n_steps must be provided for SB3Agent"
@@ -57,7 +58,7 @@ def generate_trajectories(
     else:
         assert nb_trajectories is not None, "nb_trajectories must be provided"
         prompt_trajectories, set_discovered_transitions = generate_text_trajectories(
-            env, agent, rule_to_test, nb_trajectories
+            env, agent, rule_to_test, nb_trajectories, progression
         )
     return prompt_trajectories, set_discovered_transitions
 
@@ -84,10 +85,6 @@ def metropolis_hastings(
         "importance_probs": [],
         "likelihoods": [],
     }
-    if not isinstance(agent, SB3Agent):
-        raise NotImplementedError(
-            "The agent must be a SB3Agent. Not tested and probably not supported otherwise."
-        )
     # region Initialize and first loop of the algorithm
     # 1. Generate trajectories
     rule_to_test = curriculum_rules[0]
@@ -96,7 +93,12 @@ def metropolis_hastings(
         env,
         rule_to_test,
         cfg["nb_trajectories"],
-        agent.model.n_steps * agent.model.n_envs,
+        (
+            agent.model.n_steps * agent.model.n_envs
+            if isinstance(agent, SB3Agent)
+            else None
+        ),
+        0.0,
     )
     # Update seen transitions for the statistician
     statistician.prompt_info.discovered_transitions.update(set_discovered_transitions)
@@ -152,7 +154,12 @@ def metropolis_hastings(
             env,
             rule_to_test,
             cfg["nb_trajectories"],
-            agent.model.n_steps * agent.model.n_envs,
+            (
+                agent.model.n_steps * agent.model.n_envs
+                if isinstance(agent, SB3Agent)
+                else None
+            ),
+            i / cfg["nb_iterations"],
         )
         # Take smaller subset to generate the rules
         subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]
@@ -259,36 +266,44 @@ def metropolis_hastings(
         all_dict["best_rule"].append(best_rule)
         all_dict["best_rule_ind"].append(best_rule_ind)
 
-        # Score all the trajectories with the best rule
-        _, transition_scores = compute_likelihood(
-            statistician, [best_rule], prompt_trajectories
-        )
-
-        curr_rewards = -(
-            np.array([score for sublist in transition_scores[0] for score in sublist])
-            .reshape(agent.model.n_envs, -1)
-            .T
-        )
-        if cfg["use_alp"]:
-            # Score all trajectories with previous best rule
-            _, old_transition_scores = compute_likelihood(
-                statistician, [prev_best_rule], prompt_trajectories
+        if isinstance(agent, SB3Agent):
+            # Prepare the rewards and score the agent
+            # Score all the trajectories with the best rule
+            _, transition_scores = compute_likelihood(
+                statistician, [best_rule], prompt_trajectories
             )
 
-            # Compute the reward
-            old_rewards = -(
+            curr_rewards = -(
                 np.array(
-                    [score for sublist in old_transition_scores[0] for score in sublist]
+                    [score for sublist in transition_scores[0] for score in sublist]
                 )
                 .reshape(agent.model.n_envs, -1)
                 .T
             )
-            new_rewards = np.abs(curr_rewards - old_rewards)
-        else:
-            new_rewards = curr_rewards
-        # Reward is minus the loglikelihood
-        # Train the agent
-        agent.train_step(new_rewards)
+            if cfg["use_alp"]:
+                # Score all trajectories with previous best rule
+                _, old_transition_scores = compute_likelihood(
+                    statistician, [prev_best_rule], prompt_trajectories
+                )
+
+                # Compute the reward
+                old_rewards = -(
+                    np.array(
+                        [
+                            score
+                            for sublist in old_transition_scores[0]
+                            for score in sublist
+                        ]
+                    )
+                    .reshape(agent.model.n_envs, -1)
+                    .T
+                )
+                new_rewards = np.abs(curr_rewards - old_rewards)
+            else:
+                new_rewards = curr_rewards
+            # Reward is minus the loglikelihood
+            # Train the agent
+            agent.train_step(new_rewards)
 
     # endregion
     # Add all transtion to the statistician for scoring the test

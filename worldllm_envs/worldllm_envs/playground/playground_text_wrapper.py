@@ -24,22 +24,24 @@ def rm_trailing_number(input_str):
 class DiverseAgent(BaseAgent):
     """Generate diverse trajectories. Just used as a flag"""
 
-    def __call__(self, obs: str, **kwargs) -> str:
+    def __call__(self, obs: str, **kwargs):
         raise NotImplementedError("DiverseAgent does not generate actions")
 
 
 class RandomAgent(BaseAgent):
     """Random agent for the Playground environment"""
 
-    def __call__(self, obs: str, **kwargs) -> str:
+    def __call__(self, obs: str, **kwargs) -> Tuple[str, bool]:
         """Take action according to plan"""
-        return random.choice(kwargs["possible_actions"])
+        return random.choice(kwargs["possible_actions"]), False
 
 
 class PerfectAgent(BaseAgent):
     """Heuristic agent for the Playground environment"""
 
-    def __init__(self, action_space: gym.Space):
+    def __init__(
+        self, action_space: gym.Space, curriculum_goals: Optional[List[str]] = None
+    ):
         super().__init__(action_space)
         self.obj_dict: Dict[str, Any]
         self.goal: str
@@ -47,19 +49,28 @@ class PerfectAgent(BaseAgent):
         self.lst_actions: List[str]
         self.index: int
         self.is_done: bool
+        self.curriculum_goals = curriculum_goals
 
-    def split_goal(self, goal: str) -> Tuple[str, str]:
+    def split_goal(self, goal: str) -> Tuple[List[str], List[str]]:
         """Split the goal into objects"""
+        lst_goal_type = []
+        lst_goal_obj = []
         lst_goal = goal.split(" ")
-        assert len(lst_goal) == 3
-        if lst_goal[0] == "Grow":
-            goal_type = "grow"
+        if lst_goal[0].lower() == "grow":
+            lst_goal_type.append("grow")
+            lst_goal_obj.append(lst_goal[2])
         else:
             raise ValueError(f"Unrecognized {lst_goal[0]} as a goal")
-        goal_obj = lst_goal[2]
-        return goal_type, goal_obj
+        if len(lst_goal) >= 7 and lst_goal[3] == "then":
+            if lst_goal[4].lower() == "grow":
+                lst_goal_type.append("grow")
+                lst_goal_obj.append(lst_goal[6])
+            else:
+                raise ValueError(f"Unrecognized {lst_goal[4]} as a goal")
 
-    def __call__(self, obs: str, **kwargs) -> str:
+        return lst_goal_type, lst_goal_obj
+
+    def __call__(self, obs: str, **kwargs) -> Tuple[str, bool]:
         """Take action according to plan"""
         if getattr(self, "is_done", False) or not hasattr(self, "obj_dict"):
             raise ValueError("You need to call reset first")
@@ -67,18 +78,27 @@ class PerfectAgent(BaseAgent):
         self.index += 1
         if self.index == len(self.lst_actions):
             self.is_done = True
-        return action
+        return action, self.is_done
 
     def reset(self, info: Dict[str, Any]):
         if not getattr(self, "is_done", False) and hasattr(self, "obj_dict"):
             raise ValueError("You need to finish the plan before resetting")
         self.obj_dict = info["obj_dict"]
-        self.goal = info["goal"]
+        if self.curriculum_goals is None:
+            self.goal = info["goal"]  # Solve everything
+        else:
+            self.goal = self.curriculum_goals[
+                int(
+                    info["pipeline_progression"] * (len(self.curriculum_goals) + 1)
+                    - 1e-4
+                )
+            ]
+
         # Split goal
-        goal_type, goal_obj = self.split_goal(self.goal)
+        lst_goal_type, lst_goal_obj = self.split_goal(self.goal)
 
         # Define plan
-        self.dtree = PlaygroundDecisionTree(self.obj_dict, goal_type, goal_obj)
+        self.dtree = PlaygroundDecisionTree(self.obj_dict, lst_goal_type, lst_goal_obj)
         self.lst_actions = self.dtree.get_plan()
         self.index = 0
         self.is_done = False
@@ -90,12 +110,12 @@ class PlaygroundDecisionTree:
     def __init__(
         self,
         obj_dict: Dict[str, Dict[str, Any]],
-        goal_type: str,
-        goal_obj: str,
+        lst_goal_type: List[str],
+        lst_goal_obj: List[str],
     ) -> None:
         self.obj_dict = obj_dict
-        self.goal_type = goal_type
-        self.goal_obj = goal_obj
+        self.lst_goal_type = lst_goal_type
+        self.lst_goal_obj = lst_goal_obj
         self.lst_action: List[str] = []
 
         # Clean obj_dict
@@ -106,39 +126,42 @@ class PlaygroundDecisionTree:
             else:
                 self.category[v["category"]][k] = ""
         self.obj_cat = {k: v["category"] for k, v in self.obj_dict.items()}
-        # Compute plan
-        if goal_type == "grow":
-            if goal_obj not in {
-                "small_herbivorous",
-                "big_herbivorous",
-                "small_carnivorous",
-                "big_carnivorous",
-                "plant",
-            }:
-                for obj in self.obj_dict.keys():
-                    if goal_obj in obj:
-                        goal_obj = obj
-                        break
-                goal_cat = self.obj_cat[goal_obj]
+        for goal_type, goal_obj in zip(self.lst_goal_type, self.lst_goal_obj):
+            # Compute plan
+            if goal_type == "grow":
+                if goal_obj not in {
+                    "small_herbivorous",
+                    "big_herbivorous",
+                    "small_carnivorous",
+                    "big_carnivorous",
+                    "plant",
+                }:
+                    for obj in self.obj_dict.keys():
+                        if goal_obj in obj:
+                            goal_obj = obj
+                            break
+                    goal_cat = self.obj_cat[goal_obj]
+                else:
+                    goal_cat = goal_obj
+                    goal_obj = None
+                if goal_cat == "plant":
+                    _, success = self._grow_plant(goal_obj)
+                elif goal_cat == "small_herbivorous":
+                    _, success = self._grow_herbivore(goal_obj)
+                elif goal_cat == "big_herbivorous":
+                    _, success = self._grow_herbivore(goal_obj, big=True)
+                elif goal_cat == "small_carnivorous":
+                    _, success = self._grow_carnivore(goal_obj)
+                elif goal_cat == "big_carnivorous":
+                    _, success = self._grow_carnivore(goal_obj, big=True)
+                else:
+                    raise ValueError(f"Unrecognized goal category {goal_cat}")
+                if not success:
+                    raise ValueError(
+                        f"Could not find a plan for {goal_cat} and {goal_obj}"
+                    )
             else:
-                goal_cat = goal_obj
-                goal_obj = None
-            if goal_cat == "plant":
-                _, success = self._grow_plant(goal_obj)
-            elif goal_cat == "small_herbivorous":
-                _, success = self._grow_herbivore(goal_obj)
-            elif goal_cat == "big_herbivorous":
-                _, success = self._grow_herbivore(goal_obj, big=True)
-            elif goal_cat == "small_carnivorous":
-                _, success = self._grow_carnivore(goal_obj)
-            elif goal_cat == "big_carnivorous":
-                _, success = self._grow_carnivore(goal_obj, big=True)
-            else:
-                raise ValueError(f"Unrecognized goal category {goal_cat}")
-            if not success:
-                raise ValueError(f"Could not find a plan for {goal_cat} and {goal_obj}")
-        else:
-            raise ValueError(f"Unrecognized goal type {goal_type}")
+                raise ValueError(f"Unrecognized goal type {goal_type}")
 
     def get_plan(self) -> List[str]:
         """Return list of actions to take"""
@@ -440,6 +463,13 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             self.train_descriptions = [
                 desc for desc in self.train_descriptions if desc.startswith("Grasp")
             ]
+        self.types_to_categories = {}
+        sorted_categories = sorted(self.env_params["categories"].keys())
+        for cat in sorted_categories:
+            if cat == "living_thing":
+                continue  # Skip living things there are just to make all work
+            for k in self.env_params["categories"][cat]:
+                self.types_to_categories[k] = cat
 
     def generate_rule(self, custom_rule: Optional[List[str]] = None) -> List[str]:
         # print("WARNING: no other rule than the default one is available")
@@ -512,66 +542,75 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 output += f"You are holding {obs_hold[0]}."
         return output
 
-    def get_diff_description(
+    def get_diff(
         self, last_observation: str, observation: str, action: str
-    ) -> Tuple[str, Dict[str, Any]]:
-        """Compute the difference between two observations"""
+    ) -> Tuple[str, str]:
+        """Compute the difference between two observations and return reward"""
         # Split text description
         last_obs_obj, last_obs_stand, last_obs_hold = self._split_description(
             last_observation
         )
         obs_obj, obs_stand, obs_hold = self._split_description(observation)
         action_type, action_obj = self._split_action(action)
-        info = {}
         if (
             Counter(last_obs_obj) == Counter(obs_obj)
             and Counter(last_obs_stand) == Counter(obs_stand)
             and Counter(last_obs_hold) == Counter(obs_hold)
         ):
-            info["transition_type"] = "nothing"
-            return "Nothing has changed.", info
+            return (
+                "Nothing has changed.",
+                "nothing",
+            )
         elif action_type == "go to":
-            info["transition_type"] = "standing"
             if action_obj == "nothing":
-                return "You are standing on nothing.", info
-            return f"You are standing on the {action_obj}.", info
+                return (
+                    "You are standing on nothing.",
+                    "standing",
+                )
+            return (
+                f"You are standing on the {action_obj}.",
+                "standing",
+            )
         elif action_type == "grasp":
             counter_diff = Counter(obs_hold) - Counter(last_obs_hold)
             assert (
                 len(counter_diff) == 1
             ), "There should be only one object grasped at a time"
             if last_obs_hold[0] == "empty":
-                info["transition_type"] = "holding1"
-                return f"You are holding the {list(counter_diff.keys())[0]}.", info
+                return (
+                    f"You are holding the {list(counter_diff.keys())[0]}.",
+                    "holding1",
+                )
             if len(last_obs_hold) == 1:
-                info["transition_type"] = "holding2"
                 return (
                     f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}.",
-                    info,
+                    "holding2",
                 )
             raise ValueError("Inventory cannot contain more than 2 objects")
         elif action_type == "release":
             new_obj = Counter(obs_obj) - Counter(last_obs_obj)
             assert len(new_obj) == 1, "There should be only one new object emerging"
             old_obj = Counter(last_obs_obj) - Counter(obs_obj)
-            if list(new_obj)[0] in self.env_params["categories"]["plant"]:
-                info["transition_type"] = "transformP"
-            elif list(new_obj)[0] in self.env_params["categories"]["small_herbivorous"]:
-                info["transition_type"] = "transformSH"
-            elif list(new_obj)[0] in self.env_params["categories"]["big_herbivorous"]:
-                info["transition_type"] = "transformBH"
+            new_object_type = list(new_obj.keys())[0]
+            new_object_category = self.types_to_categories[new_object_type]
+            if new_object_category == "plant":
+                transition_type = "transformP"
+            elif new_object_category == "small_herbivorous":
+                transition_type = "transformSH"
+            elif new_object_category == "big_herbivorous":
+                transition_type = "transformBH"
             else:
                 raise ValueError(
-                    f"The new object {list(new_obj)[0]} is not recognized."
+                    "The category " + new_object_category + " is not supported"
                 )
             if action_obj == "all":
                 return (
                     f"The {last_obs_hold[0]}, {last_obs_hold[1]} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
-                    info,
+                    transition_type,
                 )
             return (
                 f"The {action_obj} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
-                info,
+                transition_type,
             )
         raise ValueError(
             f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
@@ -1191,24 +1230,43 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
 def generate_diverse_trajectories(
     env: PlayGroundText,
+    n_traj: int,
 ) -> Tuple[List[Trajectory], Set[str]]:
-    """Generate 2 Small Herbivores, 2 Big Herbivores and 2 Random trajectories"""
+    """Generate (n_traj-1)//3 Small Herbivores, (n_traj)//3 Big Herbivores and (n_tra+1)j//3 Random trajectories"""
     trajectories = []
     set_discovered_transition = set()
-    perfect_agent = PerfectAgent(env.action_space)
+    perfect_agent = PerfectAgent(
+        env.action_space, curriculum_goals=["Grow any small_herbivorous"]
+    )
     new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env, perfect_agent, "Grow any small_herbivorous", 2
+        env,
+        perfect_agent,
+        "Grow any small_herbivorous then grow any big_herbivorous",
+        (n_traj) // 3,
+        0,
     )
     trajectories.extend(new_trajectories)
     set_discovered_transition.update(new_discovered_transitions)
+    perfect_agent = PerfectAgent(
+        env.action_space,
+        curriculum_goals=["Grow any small_herbivorous then grow any big_herbivorous"],
+    )
     new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env, perfect_agent, "Grow any big_herbivorous", 2
+        env,
+        perfect_agent,
+        "Grow any small_herbivorous then grow any big_herbivorous",
+        (n_traj + 1) // 3,
+        0,
     )
     trajectories.extend(new_trajectories)
     set_discovered_transition.update(new_discovered_transitions)
     random_agent = RandomAgent(env.action_space)
     new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env, random_agent, "Grow any big_herbivorous", 2
+        env,
+        random_agent,
+        "Grow any small_herbivorous then grow any big_herbivorous",
+        (n_traj + 2) // 3,
+        0,
     )
     trajectories.extend(new_trajectories)
     set_discovered_transition.update(new_discovered_transitions)
@@ -1416,80 +1474,6 @@ class PlayGroundDiscrete(PlayGroundText):
         self.inventory = info_description["inventory"]
 
         return obs.flatten(), info
-
-    def get_diff(
-        self, last_observation: str, observation: str, action: str
-    ) -> Tuple[str, str]:
-        """Compute the difference between two observations and return reward"""
-        # Split text description
-        last_obs_obj, last_obs_stand, last_obs_hold = self._split_description(
-            last_observation
-        )
-        obs_obj, obs_stand, obs_hold = self._split_description(observation)
-        action_type, action_obj = self._split_action(action)
-        if (
-            Counter(last_obs_obj) == Counter(obs_obj)
-            and Counter(last_obs_stand) == Counter(obs_stand)
-            and Counter(last_obs_hold) == Counter(obs_hold)
-        ):
-            return (
-                "Nothing has changed.",
-                "nothing",
-            )
-        elif action_type == "go to":
-            if action_obj == "nothing":
-                return (
-                    "You are standing on nothing.",
-                    "standing",
-                )
-            return (
-                f"You are standing on the {action_obj}.",
-                "standing",
-            )
-        elif action_type == "grasp":
-            counter_diff = Counter(obs_hold) - Counter(last_obs_hold)
-            assert (
-                len(counter_diff) == 1
-            ), "There should be only one object grasped at a time"
-            if last_obs_hold[0] == "empty":
-                return (
-                    f"You are holding the {list(counter_diff.keys())[0]}.",
-                    "holding1",
-                )
-            if len(last_obs_hold) == 1:
-                return (
-                    f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}.",
-                    "holding2",
-                )
-            raise ValueError("Inventory cannot contain more than 2 objects")
-        elif action_type == "release":
-            new_obj = Counter(obs_obj) - Counter(last_obs_obj)
-            assert len(new_obj) == 1, "There should be only one new object emerging"
-            old_obj = Counter(last_obs_obj) - Counter(obs_obj)
-            new_object_type = list(new_obj.keys())[0]
-            new_object_category = self.types_to_categories[new_object_type]
-            if new_object_category == "plant":
-                transition_type = "transformP"
-            elif new_object_category == "small_herbivorous":
-                transition_type = "transformSH"
-            elif new_object_category == "big_herbivorous":
-                transition_type = "transformBH"
-            else:
-                raise ValueError(
-                    "The category " + new_object_category + " is not supported"
-                )
-            if action_obj == "all":
-                return (
-                    f"The {last_obs_hold[0]}, {last_obs_hold[1]} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
-                    transition_type,
-                )
-            return (
-                f"The {action_obj} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
-                transition_type,
-            )
-        raise ValueError(
-            f"The difference between the two observations: \n{last_observation} \n and: \n{observation} \nis not recognized"
-        )
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         action_str = self.discrete_action_to_text(action)

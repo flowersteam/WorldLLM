@@ -4,4 +4,4 @@ id: "worldllm_envs/PlaygroundText-v1"
 kwargs:
   max_steps: 30
 
-rule: "Grow any big_herbivorous"
+rule: "Grow any small_herbivorous then grow any big_herbivorous"

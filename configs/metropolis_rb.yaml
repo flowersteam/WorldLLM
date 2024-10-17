@@ -3,8 +3,8 @@ defaults:
   - algorithm: metropolis_hastings
   - llm@theorist: Phi-3-mini-4k-instruct
   - llm@statistician: Phi-3-mini-4k-instruct
-  - environment: playground_rl
-  - agent: sb3agent
+  - environment: playground
+  - agent: randomplayground
 
 exp_name: test_pipeline
 
@@ -14,10 +14,6 @@ algorithm:
   nb_rules: 1
   nb_iterations: 400
   nb_iterations_mh: 5
-  use_alp: True
   use_hasting_correction: False
   stat_batch_size: 5
   th_batch_size: 1
-agent:
-  tb_name: ${exp_name}
-  tb_folder: logs_ppo_sb3_test

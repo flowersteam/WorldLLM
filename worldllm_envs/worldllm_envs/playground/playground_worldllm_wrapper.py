@@ -21,11 +21,11 @@ class PlaygroundWrapper(TextWrapper):
             text_obs = self.env.unwrapped.observation_to_text(observation)
             self.last_obs = observation
             return text_obs, {}
-        text_obs, add_info = self.env.unwrapped.get_diff_description(
+        text_obs, transition_type = self.env.unwrapped.get_diff(
             self.last_obs, observation, self.last_action
         )
         self.last_obs = observation
-        return text_obs, add_info
+        return text_obs, {"transition_type": transition_type}
 
     def step(self, action):
         act_text = self.action_to_text(action)

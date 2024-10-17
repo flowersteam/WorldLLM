@@ -1,0 +1,7 @@
+defaults:
+  - base_agent
+_target_: worldllm_envs.playground.playground_text_wrapper.PerfectAgent
+curriculum_goals:
+  - "Grow any plant"
+  - "Grow any small_herbivorous"
+  - "Grow any small_herbivorous then grow any big_herbivorous"

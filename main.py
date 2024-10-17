@@ -29,7 +29,9 @@ def main(cfg: DictConfig) -> None:
     env: BaseRuleEnv = build_env(cfg)
     # Set Agent
     if cfg.agent.type == "BaseAgent":
-        agent = hydra.utils.instantiate(cfg.agent, action_space=env.action_space)
+        agent_config = OmegaConf.to_object(cfg.agent)
+        del (agent_config["type"],)  # Remove type key to avoid error on instantiation
+        agent = hydra.utils.instantiate(agent_config, action_space=env.action_space)
         # Set rule
         if cfg.environment.rule is not None:
             rules = OmegaConf.to_object(cfg.environment)["rule"]
