@@ -605,11 +605,11 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 )
             if action_obj == "all":
                 return (
-                    f"The {last_obs_hold[0]}, {last_obs_hold[1]} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
+                    f"The {last_obs_hold[0]}, the {last_obs_hold[1]} and the {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
                     transition_type,
                 )
             return (
-                f"The {action_obj} and {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
+                f"The {action_obj} and the {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
                 transition_type,
             )
         raise ValueError(
@@ -937,13 +937,13 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "You go to the berry seed.",
                     "You are standing on the berry seed.",
                     "You give the water.",
-                    "The water and berry seed transform into the berry.",
+                    "The water and the berry seed transform into the berry.",
                     "You pick up the object.",
                     "You are holding the berry.",
                     "You go to the baby cow.",
                     "You are standing on the baby cow.",
                     "You give the berry.",
-                    "The berry and baby cow transform into the cow.",
+                    "The berry and the baby cow transform into the cow.",
                 ]
             )
         ]
@@ -958,13 +958,13 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "You go to the pea seed.",
                     "You are standing on the pea seed.",
                     "You give the water.",
-                    "The water and pea seed transform into the pea.",
+                    "The water and the pea seed transform into the pea.",
                     "You pick up the object.",
                     "You are holding the pea.",
                     "You go to the baby pig.",
                     "You are standing on the baby pig.",
                     "You give the pea.",
-                    "The pea and baby pig transform into the pig.",
+                    "The pea and the baby pig transform into the pig.",
                 ]
             )
         )
@@ -979,52 +979,80 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "You go to the berry seed.",
                     "You are standing on the berry seed.",
                     "You give the water.",
-                    "The water and berry seed transform into the berry.",
+                    "The water and the berry seed transform into the berry.",
                     "You pick up the object.",
                     "You are holding the berry.",
                     "You go to the baby sheep.",
                     "You are standing on the baby sheep.",
                     "You give the berry.",
-                    "The berry and baby sheep transform into the sheep.",
+                    "The berry and the baby sheep transform into the sheep.",
                 ]
             )
         )
-        # Big Herbivores
+        # Small Herbivores than Big Herbivores
         trajectories.append(
             Trajectory(
                 [
-                    "You see the baby giraffe, the water, the carrot seed, the water and the beet seed. You are standing on nothing. Your are holding nothing.",
+                    "You see the baby cow, the water, the berry seed, the baby rhinoceros, the water, the potato seed, the water and the berry seed. You are standing on nothing. Your are holding nothing.",
                     "You go to the water.",
                     "You are standing on the water.",
                     "You pick up the object.",
                     "You are holding the water.",
-                    "You go to the beet seed.",
-                    "You are standing on the beet seed.",
+                    "You go to the berry seed.",
+                    "You are standing on the berry seed.",
                     "You give the water.",
-                    "The water and beet seed transform into the beet.",
+                    "The water and the berry seed transform into the berry.",
                     "You pick up the object.",
-                    "You are holding the beet.",
+                    "You are holding the berry.",
+                    "You go to the baby cow.",
+                    "You are standing on the baby cow.",
+                    "You give the berry.",
+                    "The berry and the baby cow transform into the cow.",
                     "You go to the water.",
                     "You are standing on the water.",
                     "You pick up the object.",
-                    "You are holding the beet and the water.",
-                    "You go to the carrot seed.",
-                    "You are standing on the carrot seed.",
+                    "You are holding the water.",
+                    "You go to the potato seed.",
+                    "You are standing on the potato seed.",
                     "You give the water.",
-                    "The water and carrot seed transform into the carrot.",
+                    "The water and the potato seed transform into the potato.",
                     "You pick up the object.",
-                    "You are holding the beet and the carrot.",
-                    "You go to the baby giraffe.",
-                    "You are standing on the baby giraffe.",
+                    "You are holding the potato.",
+                    "You go to the water.",
+                    "You are standing on the water.",
+                    "You pick up the object.",
+                    "You are holding the potato and the water.",
+                    "You go to the berry seed.",
+                    "You are standing on the berry seed.",
+                    "You give the water.",
+                    "The water and the berry seed transform into the berry.",
+                    "You pick up the object.",
+                    "You are holding the potato and the berry.",
+                    "You go to the baby rhinoceros.",
+                    "You are standing on the baby rhinoceros.",
                     "You give all the objects you hold.",
-                    "The carrot, beet and baby giraffe transform into the giraffe.",
+                    "The potato, the berry and the baby rhinoceros transform into the rhinoceros.",
                 ]
             )
         )
         trajectories.append(
             Trajectory(
                 [
-                    "You see the baby rhinoceros, the water, the potato seed, the water and the berry seed. You are standing on nothing. Your are holding nothing.",
+                    "You see the baby pig, the water, the beet seed, the baby elephant, the water, the berry seed, the water and the potato seed. You are standing on nothing. Your are holding nothing.",
+                    "You go to the water.",
+                    "You are standing on the water.",
+                    "You pick up the object.",
+                    "You are holding the water.",
+                    "You go to the potato seed.",
+                    "You are standing on the potato seed.",
+                    "You give the water.",
+                    "The water and the potato seed transform into the potato.",
+                    "You pick up the object.",
+                    "You are holding the potato.",
+                    "You go to the baby pig.",
+                    "You are standing on the baby pig.",
+                    "You give the potato.",
+                    "The potato and the baby pig transform into the pig.",
                     "You go to the water.",
                     "You are standing on the water.",
                     "You pick up the object.",
@@ -1117,7 +1145,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "You pick up the object.",
                     "Nothing has changed.",
                     "You give the water.",
-                    "The water and berry seed transform into the berry.",
+                    "The water and the berry seed transform into the berry.",
                     "You go to the berry.",
                     "Nothing has changed.",
                     "You go to the berry.",
@@ -1166,7 +1194,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "You go to the water.",
                     "You are standing on the water.",
                     "You give the beet seed.",
-                    "The beet seed and water transform into the beet.",
+                    "The beet seed and the water transform into the beet.",
                     "You pick up the object.",
                     "You are holding the water and the beet.",
                     "You go to the baby rhinoceros.",
@@ -1203,7 +1231,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "You pick up the object.",
                     "Nothing has changed.",
                     "You give the water.",
-                    "The water and pea seed transform into the pea.",
+                    "The water and the pea seed transform into the pea.",
                     "You go to the pea seed.",
                     "You are standing on the pea seed.",
                     "You go to the baby elephant.",
@@ -1219,7 +1247,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     "You go to the pea seed.",
                     "You are standing on the pea seed.",
                     "You give the water.",
-                    "The water and pea seed transform into the pea.",
+                    "The water and the pea seed transform into the pea.",
                     "You go to the pea.",
                     "Nothing has changed.",
                 ]
