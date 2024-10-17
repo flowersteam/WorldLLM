@@ -40,6 +40,7 @@ def generate_trajectories(
     rule_to_test: str,
     nb_trajectories: Optional[int],
     n_steps: Optional[int],
+    progression: float,
 ) -> Tuple[List[Trajectory], Set[str]]:
     """Generate trajectories using the environment and the agent
     Returns:
@@ -57,7 +58,7 @@ def generate_trajectories(
     else:
         assert nb_trajectories is not None, "nb_trajectories must be provided"
         prompt_trajectories, set_discovered_transitions = generate_text_trajectories(
-            env, agent, rule_to_test, nb_trajectories
+            env, agent, rule_to_test, nb_trajectories, progression
         )
     return prompt_trajectories, set_discovered_transitions
 
@@ -97,6 +98,7 @@ def metropolis_hastings(
             if isinstance(agent, SB3Agent)
             else None
         ),
+        0.0,
     )
     # Update seen transitions for the statistician
     statistician.prompt_info.discovered_transitions.update(set_discovered_transitions)
@@ -157,6 +159,7 @@ def metropolis_hastings(
                 if isinstance(agent, SB3Agent)
                 else None
             ),
+            i / cfg["nb_iterations"],
         )
         # Take smaller subset to generate the rules
         subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]

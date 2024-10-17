@@ -58,7 +58,7 @@
             "console": "integratedTerminal",
             "args": [
                 "-cn",
-                "metropolis.yaml",
+                "metropolis_ll.yaml",
                 "algorithm.nb_iterations_mh=1",
                 "algorithm.nb_iterations=1",
                 "agent.hyperparameters.n_steps=30",
@@ -115,6 +115,19 @@
                 "metropolis_rb.yaml",
                 "algorithm.nb_iterations_mh=1",
                 "algorithm.nb_iterations=1",
+            ]
+        },
+        {
+            "name": "Pipeline CP",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-cn",
+                "metropolis_cp.yaml",
+                "algorithm.nb_iterations_mh=1",
+                "algorithm.nb_iterations=4",
             ]
         }
     ]

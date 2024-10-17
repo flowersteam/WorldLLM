@@ -24,22 +24,24 @@ def rm_trailing_number(input_str):
 class DiverseAgent(BaseAgent):
     """Generate diverse trajectories. Just used as a flag"""
 
-    def __call__(self, obs: str, **kwargs) -> str:
+    def __call__(self, obs: str, **kwargs):
         raise NotImplementedError("DiverseAgent does not generate actions")
 
 
 class RandomAgent(BaseAgent):
     """Random agent for the Playground environment"""
 
-    def __call__(self, obs: str, **kwargs) -> str:
+    def __call__(self, obs: str, **kwargs) -> Tuple[str, bool]:
         """Take action according to plan"""
-        return random.choice(kwargs["possible_actions"])
+        return random.choice(kwargs["possible_actions"]), False
 
 
 class PerfectAgent(BaseAgent):
     """Heuristic agent for the Playground environment"""
 
-    def __init__(self, action_space: gym.Space):
+    def __init__(
+        self, action_space: gym.Space, curriculum_goals: Optional[List[str]] = None
+    ):
         super().__init__(action_space)
         self.obj_dict: Dict[str, Any]
         self.goal: str
@@ -47,6 +49,7 @@ class PerfectAgent(BaseAgent):
         self.lst_actions: List[str]
         self.index: int
         self.is_done: bool
+        self.curriculum_goals = curriculum_goals
 
     def split_goal(self, goal: str) -> Tuple[List[str], List[str]]:
         """Split the goal into objects"""
@@ -58,7 +61,7 @@ class PerfectAgent(BaseAgent):
             lst_goal_obj.append(lst_goal[2])
         else:
             raise ValueError(f"Unrecognized {lst_goal[0]} as a goal")
-        if lst_goal[3] == "then":
+        if len(lst_goal) >= 7 and lst_goal[3] == "then":
             if lst_goal[4].lower() == "grow":
                 lst_goal_type.append("grow")
                 lst_goal_obj.append(lst_goal[6])
@@ -67,7 +70,7 @@ class PerfectAgent(BaseAgent):
 
         return lst_goal_type, lst_goal_obj
 
-    def __call__(self, obs: str, **kwargs) -> str:
+    def __call__(self, obs: str, **kwargs) -> Tuple[str, bool]:
         """Take action according to plan"""
         if getattr(self, "is_done", False) or not hasattr(self, "obj_dict"):
             raise ValueError("You need to call reset first")
@@ -75,13 +78,22 @@ class PerfectAgent(BaseAgent):
         self.index += 1
         if self.index == len(self.lst_actions):
             self.is_done = True
-        return action
+        return action, self.is_done
 
     def reset(self, info: Dict[str, Any]):
         if not getattr(self, "is_done", False) and hasattr(self, "obj_dict"):
             raise ValueError("You need to finish the plan before resetting")
         self.obj_dict = info["obj_dict"]
-        self.goal = info["goal"]
+        if self.curriculum_goals is None:
+            self.goal = info["goal"]  # Solve everything
+        else:
+            self.goal = self.curriculum_goals[
+                int(
+                    info["pipeline_progression"] * (len(self.curriculum_goals) + 1)
+                    - 1e-4
+                )
+            ]
+
         # Split goal
         lst_goal_type, lst_goal_obj = self.split_goal(self.goal)
 
@@ -1223,20 +1235,38 @@ def generate_diverse_trajectories(
     """Generate (n_traj-1)//3 Small Herbivores, (n_traj)//3 Big Herbivores and (n_tra+1)j//3 Random trajectories"""
     trajectories = []
     set_discovered_transition = set()
-    perfect_agent = PerfectAgent(env.action_space)
+    perfect_agent = PerfectAgent(
+        env.action_space, curriculum_goals=["Grow any small_herbivorous"]
+    )
     new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env, perfect_agent, "Grow any small_herbivorous", (n_traj) // 3
+        env,
+        perfect_agent,
+        "Grow any small_herbivorous then grow any big_herbivorous",
+        (n_traj) // 3,
+        0,
     )
     trajectories.extend(new_trajectories)
     set_discovered_transition.update(new_discovered_transitions)
+    perfect_agent = PerfectAgent(
+        env.action_space,
+        curriculum_goals=["Grow any small_herbivorous then grow any big_herbivorous"],
+    )
     new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env, perfect_agent, "Grow any big_herbivorous", (n_traj + 1) // 3
+        env,
+        perfect_agent,
+        "Grow any small_herbivorous then grow any big_herbivorous",
+        (n_traj + 1) // 3,
+        0,
     )
     trajectories.extend(new_trajectories)
     set_discovered_transition.update(new_discovered_transitions)
     random_agent = RandomAgent(env.action_space)
     new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env, random_agent, "Grow any big_herbivorous", (n_traj + 2) // 3
+        env,
+        random_agent,
+        "Grow any small_herbivorous then grow any big_herbivorous",
+        (n_traj + 2) // 3,
+        0,
     )
     trajectories.extend(new_trajectories)
     set_discovered_transition.update(new_discovered_transitions)
