@@ -1,0 +1,19 @@
+defaults:
+  - base_config
+  - algorithm: metropolis_hastings
+  - llm@theorist: Phi-3-mini-4k-instruct
+  - llm@statistician: Phi-3-mini-4k-instruct
+  - environment: playground
+  - agent: perfectplayground
+
+exp_name: test_pipeline
+
+statistician: null
+seed: 60
+algorithm:
+  nb_rules: 1
+  nb_iterations: 400
+  nb_iterations_mh: 5
+  use_hasting_correction: False
+  stat_batch_size: 5
+  th_batch_size: 1

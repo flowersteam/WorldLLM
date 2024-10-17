@@ -48,16 +48,24 @@ class PerfectAgent(BaseAgent):
         self.index: int
         self.is_done: bool
 
-    def split_goal(self, goal: str) -> Tuple[str, str]:
+    def split_goal(self, goal: str) -> Tuple[List[str], List[str]]:
         """Split the goal into objects"""
+        lst_goal_type = []
+        lst_goal_obj = []
         lst_goal = goal.split(" ")
-        assert len(lst_goal) == 3
-        if lst_goal[0] == "Grow":
-            goal_type = "grow"
+        if lst_goal[0].lower() == "grow":
+            lst_goal_type.append("grow")
+            lst_goal_obj.append(lst_goal[2])
         else:
             raise ValueError(f"Unrecognized {lst_goal[0]} as a goal")
-        goal_obj = lst_goal[2]
-        return goal_type, goal_obj
+        if lst_goal[3] == "then":
+            if lst_goal[4].lower() == "grow":
+                lst_goal_type.append("grow")
+                lst_goal_obj.append(lst_goal[6])
+            else:
+                raise ValueError(f"Unrecognized {lst_goal[4]} as a goal")
+
+        return lst_goal_type, lst_goal_obj
 
     def __call__(self, obs: str, **kwargs) -> str:
         """Take action according to plan"""
@@ -75,10 +83,10 @@ class PerfectAgent(BaseAgent):
         self.obj_dict = info["obj_dict"]
         self.goal = info["goal"]
         # Split goal
-        goal_type, goal_obj = self.split_goal(self.goal)
+        lst_goal_type, lst_goal_obj = self.split_goal(self.goal)
 
         # Define plan
-        self.dtree = PlaygroundDecisionTree(self.obj_dict, goal_type, goal_obj)
+        self.dtree = PlaygroundDecisionTree(self.obj_dict, lst_goal_type, lst_goal_obj)
         self.lst_actions = self.dtree.get_plan()
         self.index = 0
         self.is_done = False
@@ -90,12 +98,12 @@ class PlaygroundDecisionTree:
     def __init__(
         self,
         obj_dict: Dict[str, Dict[str, Any]],
-        goal_type: str,
-        goal_obj: str,
+        lst_goal_type: List[str],
+        lst_goal_obj: List[str],
     ) -> None:
         self.obj_dict = obj_dict
-        self.goal_type = goal_type
-        self.goal_obj = goal_obj
+        self.lst_goal_type = lst_goal_type
+        self.lst_goal_obj = lst_goal_obj
         self.lst_action: List[str] = []
 
         # Clean obj_dict
@@ -106,39 +114,42 @@ class PlaygroundDecisionTree:
             else:
                 self.category[v["category"]][k] = ""
         self.obj_cat = {k: v["category"] for k, v in self.obj_dict.items()}
-        # Compute plan
-        if goal_type == "grow":
-            if goal_obj not in {
-                "small_herbivorous",
-                "big_herbivorous",
-                "small_carnivorous",
-                "big_carnivorous",
-                "plant",
-            }:
-                for obj in self.obj_dict.keys():
-                    if goal_obj in obj:
-                        goal_obj = obj
-                        break
-                goal_cat = self.obj_cat[goal_obj]
+        for goal_type, goal_obj in zip(self.lst_goal_type, self.lst_goal_obj):
+            # Compute plan
+            if goal_type == "grow":
+                if goal_obj not in {
+                    "small_herbivorous",
+                    "big_herbivorous",
+                    "small_carnivorous",
+                    "big_carnivorous",
+                    "plant",
+                }:
+                    for obj in self.obj_dict.keys():
+                        if goal_obj in obj:
+                            goal_obj = obj
+                            break
+                    goal_cat = self.obj_cat[goal_obj]
+                else:
+                    goal_cat = goal_obj
+                    goal_obj = None
+                if goal_cat == "plant":
+                    _, success = self._grow_plant(goal_obj)
+                elif goal_cat == "small_herbivorous":
+                    _, success = self._grow_herbivore(goal_obj)
+                elif goal_cat == "big_herbivorous":
+                    _, success = self._grow_herbivore(goal_obj, big=True)
+                elif goal_cat == "small_carnivorous":
+                    _, success = self._grow_carnivore(goal_obj)
+                elif goal_cat == "big_carnivorous":
+                    _, success = self._grow_carnivore(goal_obj, big=True)
+                else:
+                    raise ValueError(f"Unrecognized goal category {goal_cat}")
+                if not success:
+                    raise ValueError(
+                        f"Could not find a plan for {goal_cat} and {goal_obj}"
+                    )
             else:
-                goal_cat = goal_obj
-                goal_obj = None
-            if goal_cat == "plant":
-                _, success = self._grow_plant(goal_obj)
-            elif goal_cat == "small_herbivorous":
-                _, success = self._grow_herbivore(goal_obj)
-            elif goal_cat == "big_herbivorous":
-                _, success = self._grow_herbivore(goal_obj, big=True)
-            elif goal_cat == "small_carnivorous":
-                _, success = self._grow_carnivore(goal_obj)
-            elif goal_cat == "big_carnivorous":
-                _, success = self._grow_carnivore(goal_obj, big=True)
-            else:
-                raise ValueError(f"Unrecognized goal category {goal_cat}")
-            if not success:
-                raise ValueError(f"Could not find a plan for {goal_cat} and {goal_obj}")
-        else:
-            raise ValueError(f"Unrecognized goal type {goal_type}")
+                raise ValueError(f"Unrecognized goal type {goal_type}")
 
     def get_plan(self) -> List[str]:
         """Return list of actions to take"""
