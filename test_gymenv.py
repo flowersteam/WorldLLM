@@ -37,8 +37,9 @@ for _ in tqdm(range(n_episodes)):
     while not done:
         # Record inputs from keyboard
         # Print possible actions
-        action = agent(obs, **info)
-        obs, reward, done, _, info = env.step(action)
+        action, agent_done = agent(obs, **info)
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated or agent_done
         n_steps += 1
         sum_reward += reward
 
