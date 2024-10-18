@@ -88,10 +88,7 @@ class PerfectAgent(BaseAgent):
             self.goal = info["goal"]  # Solve everything
         else:
             self.goal = self.curriculum_goals[
-                int(
-                    info["pipeline_progression"] * (len(self.curriculum_goals) + 1)
-                    - 1e-4
-                )
+                int(info["pipeline_progression"] * len(self.curriculum_goals) - 1e-4)
             ]
 
         # Split goal
