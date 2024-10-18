@@ -277,7 +277,7 @@ def score_answer_prefix_caching_auto(lst_message, lst_candidate):
 
     # We then need the masks
     _index_mask = torch.arange(window_size)
-    padding_mask = _index_mask[None, :] <= window_size - padding_size[:, None]
+    padding_mask = _index_mask[None, :] < window_size - padding_size[:, None]
     gen_mask = (
         _index_mask[None, :] >= window_size - (padding_size + candidate_size)[:, None]
     )
@@ -480,7 +480,7 @@ base_message = [
         },
         {
             "role": "user",
-            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action.",
+            "content": "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. Your objective is to take the best action given the past actions and observations. The possible action are: \nGrasp \nGo to baby rhinoceros \nGo to water \nGo to pea seed \nGo to water \nGo to potato seed \nGo to baby rhinoceros \nGo to potato seed \nGo to beet seed \n\nThe current sequence of experience is: \n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \n\nWhat is the best action to take? Answer with just the action. \n\n",
         },
     ),
 ]
