@@ -537,21 +537,31 @@ def compute_likelihood(
             lst_messages[incr : incr + batch_size],
             lst_candidates[incr : incr + batch_size],
         )
-        all_transitions_scores.extend(logp_transitions)
+        all_transitions_scores.extend(logp_transitions.tolist())
     # Build transition_scores
-    transition_scores = []
+    transition_scores = [[] for _ in range(len(rules))]
     logp = torch.zeros((len(rules), len(trajectories)), device=logp_transitions.device)
     index = 0
-    index_bloc = 0
+    index_traj = 0
+    index_rule = 0
     while index < len(all_transitions_scores):
-        transition_scores.append(
-            all_transitions_scores[index : index + len_trajectories[index_bloc]]
+        transition_scores[index_rule].append(
+            all_transitions_scores[
+                index : index
+                + len_trajectories[index_rule * len(trajectories) + index_traj]
+            ]
         )
-        logp[index_bloc // len(trajectories), index_bloc % len(trajectories)] = sum(
-            all_transitions_scores[index : index + len_trajectories[index_bloc]]
+        logp[index_rule, index_traj] = sum(
+            all_transitions_scores[
+                index : index
+                + len_trajectories[index_rule * len(trajectories) + index_traj]
+            ]
         )
-        index += len_trajectories[index_bloc]
-        index_bloc += 1
+        index += len_trajectories[index_rule * len(trajectories) + index_traj]
+        index_traj += 1
+        if index_traj == len(trajectories):
+            index_traj = 0
+            index_rule += 1
 
     log_probability = logp.sum(dim=1)
 
