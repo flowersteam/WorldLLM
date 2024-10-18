@@ -80,6 +80,9 @@ def main(cfg: DictConfig) -> None:
     else:
         raise NotImplementedError(f"Algorithm {cfg.algorithm} not implemented.")
     output.to_json(os.path.join(cfg.output_dir, "all.json"))
+    # Save agent if sb3
+    if cfg.agent.type == "SB3Agent":
+        agent.model.save(os.path.join(cfg.output_dir, "agent"))
 
 
 if __name__ == "__main__":
