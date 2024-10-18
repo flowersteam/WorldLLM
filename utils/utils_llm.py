@@ -365,70 +365,119 @@ def evolve_rules(
 def _score_trajectory(
     llm: LlmModel,
     lst_message: List[Tuple[Dict[str, str], Dict[str, str]]],
-    lst_trajectory: List[List[str]],
+    lst_candidate: List[Tuple[Dict[str, str]]],
 ) -> Tuple[torch.Tensor, List[List[float]]]:
-    """Scoring the rule or trajectory given message and candidates."""
-    # Encode each trajectory observation and action
-    lst_reconstructed_tokens = []
-    len_reconstruct_trajectory = []
-    for trajectory_end in lst_trajectory:
-        reconstructed_tokens = llm.tokenizer(trajectory_end).data["input_ids"]
-        lst_reconstructed_tokens.append(reconstructed_tokens)
-        # We need to add the bos_token and eos_token to keep same format as if we applied the chat template
-        len_reconstructed_tokens = 0
-        for i, lst_reconstructed_token in enumerate(reconstructed_tokens):
-            if i == 0 or i == len(reconstructed_tokens) - 1:
-                len_reconstructed_tokens += (
-                    len(lst_reconstructed_token) + 1
-                )  # For the bos or eos token
-            else:
-                len_reconstructed_tokens += len(lst_reconstructed_token)
-        len_reconstruct_trajectory.append(len_reconstructed_tokens)
-    # We need to create a mask to know which tokens are the observations
-    len_candidate = torch.tensor([c - 1 for c in len_reconstruct_trajectory])
-    max_len_candidate = torch.max(len_candidate).item()
+    """Score and reuse the pas key and values"""
+    if len(lst_message) == 1:
+        # Do stuff
+        raise ValueError("Need at least 2 messages")
+    inputs_msg = llm.tokenizer.apply_chat_template(
+        lst_message,
+        add_generation_prompt=False,
+        return_dict=True,
+    )
+    # Pad the candidate to the right
+    max_len_msg = max(len(c) for c in inputs_msg["input_ids"])
+    inputs_msg_ids = torch.stack(
+        [
+            torch.nn.functional.pad(
+                torch.tensor(input_ids),
+                (0, max_len_msg - len(input_ids)),
+                value=llm.tokenizer.pad_token_id,
+            )
+            for input_ids in inputs_msg["input_ids"]
+        ]
+    ).to(llm.model.device)
+    inputs_msg_mask = torch.stack(
+        [
+            torch.nn.functional.pad(
+                torch.tensor(attention_mask),
+                (0, max_len_msg - len(attention_mask)),
+                value=0,
+            )
+            for attention_mask in inputs_msg["attention_mask"]
+        ]
+    ).to(llm.model.device)
+    # Get index where msg are firt different
+    min_msg_size = min([len(c) for c in inputs_msg["input_ids"]])
+    prefix_index = (
+        (inputs_msg_ids[:, :min_msg_size] != inputs_msg_ids[0, :min_msg_size])
+        .any(dim=0)
+        .nonzero()[0, 0]
+        .item()
+    )
 
-    all_indices_obs = []
-    for incr_traj, reconstructed_tokens in enumerate(lst_reconstructed_tokens):
-        indices: List[List[int]] = []
-        pad_left = max_len_candidate - len_candidate[incr_traj]
-        for i, traj_elem_tokens in enumerate(reconstructed_tokens):
-            # In the trajectory the observation and action alternates with tokens to specify the next one(o: obs, a: act)
-            if i % 4 == 0:
-                indices.append(list(range(pad_left, pad_left + len(traj_elem_tokens))))
-            pad_left += len(traj_elem_tokens)
-        all_indices_obs.append(indices)
-
+    # Get base message and the rest
+    inputs_base_ids = inputs_msg_ids[0, :prefix_index].unsqueeze(0)
+    inputs_base_att_mask = inputs_msg_mask[0, :prefix_index].unsqueeze(0)
+    # Get the suffix
+    inputs_suffix_ids = inputs_msg_ids[:, prefix_index:]
+    inputs_suffix_mask = inputs_msg_mask[:, prefix_index:]
     with torch.no_grad():
-        inputs = llm.tokenizer.apply_chat_template(
-            lst_message,
-            add_generation_prompt=False,
-            return_tensors="pt",
-            padding=True,
-            return_dict=True,
-        )
         results = llm.model(
-            inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
+            inputs_base_ids,
+            attention_mask=inputs_base_att_mask,
+            use_cache=True,
         )
-    # We need to shift the logits to the right to match the candidate
-    logits = results.logits[:, -max_len_candidate - 1 : -1]
-    logp = torch.nn.functional.log_softmax(logits, dim=-1)
-    traj_scoring = torch.zeros(logp.shape[0])
-    all_transition_scoring = []
-    for incr_traj, traj_obs_ind in enumerate(all_indices_obs):
-        transition_scoring = []
-        for incr_transi, obs_ind in enumerate(traj_obs_ind):
-            values = logp[
-                incr_traj,
-                obs_ind,
-                inputs["input_ids"][incr_traj, -max_len_candidate:][obs_ind],
-            ]
-            transition_scoring.append(values.sum(-1).item())
+        last_logits = results.logits[:1, :]
+        # Create full mask
+        full_mask = torch.cat(
+            [
+                inputs_base_att_mask.repeat(len(inputs_suffix_mask), 1),
+                inputs_suffix_mask,
+            ],
+            dim=1,
+        )
+        # Duplicate the past key and values
+        past_key_values = results.past_key_values
+        all_keys_values = []
+        for past_key_value in past_key_values:
+            all_keys_values.append(
+                (
+                    past_key_value[0].repeat(len(inputs_suffix_mask), 1, 1, 1),
+                    past_key_value[1].repeat(len(inputs_suffix_mask), 1, 1, 1),
+                )
+            )
+        past_key_values = tuple(all_keys_values)
+        results = llm.model(
+            inputs_suffix_ids,
+            attention_mask=full_mask,
+            past_key_values=past_key_values,
+            use_cache=True,
+        )
+    logits = torch.cat(
+        (
+            last_logits.repeat(len(results.logits), 1, 1),
+            results.logits,
+        ),
+        dim=1,
+    )
+    # We need to pad to 0 the logits to ignore the right padding
+    # We first need to get the size of the window to analyse:
+    padding_size = torch.tensor([max_len_msg - len(c) for c in inputs_msg["input_ids"]])
+    # Then take into account the difference in the size of the candidates
+    candidate = llm.tokenizer.apply_chat_template(
+        lst_candidate,
+        add_generation_prompt=False,
+    )
+    candidate_size = torch.tensor([len(c) - 1 for c in candidate])
+    # We get the size of the window to analyze as the maximum of the sum of the padding and the candidate size
+    window_size = torch.max(padding_size + candidate_size).item()
 
-        all_transition_scoring.append(transition_scoring)
-        traj_scoring[incr_traj] = sum(transition_scoring)
-    return traj_scoring, all_transition_scoring
+    # We then need the masks
+    _index_mask = torch.arange(window_size)
+    padding_mask = _index_mask[None, :] < window_size - padding_size[:, None]
+    gen_mask = (
+        _index_mask[None, :] >= window_size - (padding_size + candidate_size)[:, None]
+    )
+    mask = (padding_mask & gen_mask).to(llm.model.device)
+
+    # We need to shift the logits to the right to match the candidate
+    logp = torch.nn.functional.log_softmax(logits[:, -window_size - 1 : -1], dim=-1)
+    logp = logp.masked_fill_(~mask[:, :, None], 0)
+    score = torch.gather(logp, 2, inputs_msg_ids[:, -window_size:, None]).squeeze(-1)
+    aggregated_scores = score.sum(-1)
+    return aggregated_scores.cpu()
 
 
 def compute_likelihood(
@@ -439,56 +488,70 @@ def compute_likelihood(
 ) -> Tuple[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]], List[List[float]]]:
     """Compute the likelihood of the new data given the rules."""
     lst_messages = []
-    lst_trajectory_end = []
+    lst_candidates = []
+    len_trajectories = []
     # Generate messages
     for rule in rules:
         for trajectory in trajectories:
-            user_prompt, assistant_prompt, candidate_tokens = (
+            all_user_prompts, all_assistant_prompts = (
                 statistician.prompt_info.message_template(
                     trajectory, statistician.prompt_info.discovered_transitions, rule
                 )
             )
-            message = (
-                {
-                    "role": "system",
-                    "content": statistician.prompt_info.system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": user_prompt,
-                },
-                {
-                    "role": "assistant",
-                    "content": assistant_prompt,
-                },
-            )
-            lst_messages.append(message)
-            lst_trajectory_end.append(candidate_tokens)
+            for user_prompt, assistant_prompt in zip(
+                all_user_prompts, all_assistant_prompts
+            ):
+                message = (
+                    {
+                        "role": "system",
+                        "content": statistician.prompt_info.system_prompt,
+                    },
+                    {
+                        "role": "user",
+                        "content": user_prompt,
+                    },
+                    {
+                        "role": "assistant",
+                        "content": assistant_prompt,
+                    },
+                )
+                candidate = (
+                    {
+                        "role": "assistant",
+                        "content": assistant_prompt,
+                    },
+                )
+                lst_candidates.append(candidate)
+                lst_messages.append(message)
+            len_trajectories.append(len(all_user_prompts))
     batch_size = statistician.prompt_info.batch_size
 
     all_transitions_scores = []
-    all_logp = []
     for incr in tqdm(
-        range(0, len(rules) * len(trajectories), batch_size),
+        range(0, len(lst_messages), batch_size),
         desc="Computing likelihood",
         leave=False,
     ):
-        logp_trajectory, transition_scores = _score_trajectory(
+        logp_transitions = _score_trajectory(
             statistician,
             lst_messages[incr : incr + batch_size],
-            lst_trajectory_end[incr : incr + batch_size],
+            lst_candidates[incr : incr + batch_size],
         )
-        all_logp.append(logp_trajectory)
-        all_transitions_scores.extend(transition_scores)
-    transition_scores = [
-        [
-            all_transitions_scores[j]
-            for j in range(i * len(trajectories), (i + 1) * len(trajectories))
-        ]
-        for i in range(len(rules))
-    ]
-    logp = torch.cat(all_logp, dim=0)
-    logp = torch.stack(torch.split(logp, len(trajectories)))
+        all_transitions_scores.extend(logp_transitions)
+    # Build transition_scores
+    transition_scores = []
+    logp = torch.zeros((len(rules), len(trajectories)), device=logp_transitions.device)
+    index = 0
+    index_bloc = 0
+    while index < len(all_transitions_scores):
+        transition_scores.append(
+            all_transitions_scores[index : index + len_trajectories[index_bloc]]
+        )
+        logp[index_bloc // len(trajectories), index_bloc % len(trajectories)] = sum(
+            all_transitions_scores[index : index + len_trajectories[index_bloc]]
+        )
+        index += len_trajectories[index_bloc]
+        index_bloc += 1
 
     log_probability = logp.sum(dim=1)
 
