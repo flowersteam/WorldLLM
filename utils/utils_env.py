@@ -110,5 +110,11 @@ def generate_text_trajectories(
             obs, _, terminated, truncated, info = env.step(action)
             set_discovered_transitions.add(info["transition_type"])
             done = terminated or truncated or agent_done
-        lst_trajectory.append(Trajectory(info["text_trajectory"]))
+        lst_trajectory.append(
+            Trajectory(
+                info["trajectory_obs_text"],
+                info["trajectory_act_text"],
+                info["trajectory_diff_text"],
+            )
+        )
     return lst_trajectory, set_discovered_transitions
