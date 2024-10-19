@@ -403,9 +403,12 @@ def _score_trajectory(
     prefix_index = (
         (inputs_msg_ids[:, :min_msg_size] != inputs_msg_ids[0, :min_msg_size])
         .any(dim=0)
-        .nonzero()[0, 0]
-        .item()
+        .nonzero()
     )
+    if len(prefix_index) == 0:
+        prefix_index = min_msg_size - 2
+    else:
+        prefix_index = prefix_index[0, 0].item()
 
     # Get base message and the rest
     inputs_base_ids = inputs_msg_ids[0, :prefix_index].unsqueeze(0)
