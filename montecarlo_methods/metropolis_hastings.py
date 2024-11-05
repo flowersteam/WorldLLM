@@ -301,7 +301,7 @@ def metropolis_hastings(
                 new_rewards = np.abs(curr_rewards - old_rewards)
             elif cfg["reward_type"] == "ll":
                 new_rewards = curr_rewards
-            elif cfg["reward_type"] == "alp_ll":
+            elif cfg["reward_type"] == "alpll":
                 # Score all trajectories with previous best rule
                 _, old_transition_scores = compute_likelihood(
                     statistician, [prev_best_rule], prompt_trajectories
