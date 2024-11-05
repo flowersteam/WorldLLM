@@ -14,7 +14,7 @@ algorithm:
   nb_rules: 1
   nb_iterations: 400
   nb_iterations_mh: 5
-  use_alp: True
+  reward_type: alp
   use_hasting_correction: False
   stat_batch_size: 5
   th_batch_size: 1

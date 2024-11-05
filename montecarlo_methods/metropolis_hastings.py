@@ -280,7 +280,7 @@ def metropolis_hastings(
                 .reshape(agent.model.n_envs, -1)
                 .T
             )
-            if cfg["use_alp"]:
+            if cfg["reward_type"] == "alp":
                 # Score all trajectories with previous best rule
                 _, old_transition_scores = compute_likelihood(
                     statistician, [prev_best_rule], prompt_trajectories
@@ -299,8 +299,29 @@ def metropolis_hastings(
                     .T
                 )
                 new_rewards = np.abs(curr_rewards - old_rewards)
-            else:
+            elif cfg["reward_type"] == "ll":
                 new_rewards = curr_rewards
+            elif cfg["reward_type"] == "alp_ll":
+                # Score all trajectories with previous best rule
+                _, old_transition_scores = compute_likelihood(
+                    statistician, [prev_best_rule], prompt_trajectories
+                )
+
+                # Compute the reward
+                old_rewards = -(
+                    np.array(
+                        [
+                            score
+                            for sublist in old_transition_scores[0]
+                            for score in sublist
+                        ]
+                    )
+                    .reshape(agent.model.n_envs, -1)
+                    .T
+                )
+                new_rewards = curr_rewards * np.abs(curr_rewards - old_rewards)
+            else:
+                raise ValueError(f"Unknown reward type {cfg['reward_type']}")
             # Reward is minus the loglikelihood
             # Train the agent
             agent.train_step(new_rewards)
