@@ -1,7 +1,6 @@
 import os
 import random
 from functools import partial
-from typing import List
 
 import hydra
 import numpy as np
@@ -16,25 +15,29 @@ from utils.utils_sb3 import SB3Agent, create_agent
 from worldllm_envs.base import BaseRuleEnv
 
 
-def load_agent(cfg: DictConfig, env: BaseRuleEnv) -> BaseAgent:
-    """Load the agent used to collect data"""
-    if cfg.agent.type == "BaseAgent":
-        agent_config = OmegaConf.to_object(cfg.agent)
-        del (agent_config["type"],)  # Remove type key to avoid error on instantiation
-        agent = hydra.utils.instantiate(agent_config, action_space=env.action_space)
+def load_experimenter(cfg: DictConfig, env: BaseRuleEnv) -> BaseAgent:
+    """Load the experimenter used to collect data"""
+    if cfg.experimenter.type == "BaseAgent":
+        experimenter_config = OmegaConf.to_object(cfg.experimenter)
+        del (
+            experimenter_config["type"],
+        )  # Remove type key to avoid error on instantiation
+        experimenter = hydra.utils.instantiate(
+            experimenter_config, action_space=env.action_space
+        )
 
-    elif cfg.agent.type == "SB3Agent":
-        agent = create_agent(
-            cfg.agent,
+    elif cfg.experimenter.type == "SB3Agent":
+        experimenter = create_agent(
+            cfg.experimenter,
             partial(build_env, cfg, rule=env.unwrapped.get_rule()),
             seed=cfg.seed,
         )
-        # SB3 include the environment in the agent
+        # SB3 include the environment in the experimenter
     else:
         raise NotImplementedError(
-            f"Agent {cfg.agent.type} not implemented. Choose between BaseAgent and SB3Agent."
+            f"Agent {cfg.experimenter.type} not implemented. Choose between BaseAgent and SB3Agent."
         )
-    return agent
+    return experimenter
 
 
 # To change the config file: -cn config_name.yaml, to modify the config file: key=value and to add a value: +key=value
@@ -57,7 +60,7 @@ def main(cfg: DictConfig) -> None:
         env_rule = env.generate_rule()
     env.reset(options={"rule": env_rule})
     # Set Agent
-    agent = load_agent(cfg, env)
+    experimenter = load_experimenter(cfg, env)
     # Load LLMs
     statistician, theorist = build_llms(cfg, env.unwrapped.get_message_info())
     # Print gpu ram usage
@@ -66,7 +69,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.algorithm.name == "importance_sampling":
         output = important_sampling(
             env,
-            agent,
+            experimenter,
             theorist,
             statistician,
             OmegaConf.to_object(cfg.algorithm),
@@ -74,7 +77,7 @@ def main(cfg: DictConfig) -> None:
     elif cfg.algorithm.name == "metropolis_hastings":
         output = metropolis_hastings(
             env,
-            agent,
+            experimenter,
             theorist,
             statistician,
             OmegaConf.to_object(cfg.algorithm),
@@ -83,9 +86,9 @@ def main(cfg: DictConfig) -> None:
         raise NotImplementedError(f"Algorithm {cfg.algorithm} not implemented.")
     # Save output
     output.to_json(os.path.join(cfg.output_dir, "all.json"))
-    # Save agent if sb3
-    if isinstance(agent, SB3Agent):
-        agent.model.save(os.path.join(cfg.output_dir, "agent"))
+    # Save experimenter if sb3
+    if isinstance(experimenter, SB3Agent):
+        experimenter.model.save(os.path.join(cfg.output_dir, "experimenter"))
 
 
 if __name__ == "__main__":

@@ -47,7 +47,7 @@
                 "algorithm.nb_rules=2",
                 "algorithm.nb_iterations=2",
                 "algorithm.nb_collecting=2",
-                "agent=randomplayground.yaml"
+                "experimenter=randomplayground.yaml"
             ]
         },
         {
@@ -61,7 +61,7 @@
                 "metropolis_ll.yaml",
                 "algorithm.nb_iterations_mh=1",
                 "algorithm.nb_iterations=1",
-                "agent.hyperparameters.n_steps=30",
+                "experimenter.hyperparameters.n_steps=30",
                 "algorithm.num_worst_trajectories=1",
             ]
         },
@@ -76,7 +76,7 @@
                 "metropolis_alp.yaml",
                 "algorithm.nb_iterations_mh=1",
                 "algorithm.nb_iterations=1",
-                "agent.hyperparameters.n_steps=30",
+                "experimenter.hyperparameters.n_steps=30",
             ]
         },
         {

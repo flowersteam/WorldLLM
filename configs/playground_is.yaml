@@ -3,8 +3,8 @@ defaults:
   - algorithm: importance_sampling
   - llm@theorist: Phi-3-mini-4k-instruct
   - llm@statistician: Phi-3-mini-4k-instruct
+  - experimenter: perfectplayground
   - environment: playground
-  - agent: perfectplayground
 
 exp_name: test_playground
 
