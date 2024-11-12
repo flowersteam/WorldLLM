@@ -85,13 +85,11 @@ def build_env(cfg: DictConfig, rule: Optional[str] = None) -> BaseRuleEnv:
 def generate_text_trajectories(
     env: BaseRuleEnv,
     agent: BaseAgent,
-    rule: BaseRule,
     nb_trajectories: int,
     progression: float,
 ) -> Tuple[List[Trajectory], Set[str]]:
     """Generate random trajectories for the environment."""
     # Set rule
-    obs, info = env.reset(options={"rule": rule})
     lst_trajectory = []
     set_discovered_transitions = set()
     for _ in tqdm(

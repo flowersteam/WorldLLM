@@ -37,7 +37,6 @@ def get_worst_trajectories(
 def generate_trajectories(
     agent: Union[BaseAgent, SB3Agent],
     env: BaseRuleEnv,
-    rule_to_test: str,
     nb_trajectories: Optional[int],
     n_steps: Optional[int],
     progression: float,
@@ -58,7 +57,7 @@ def generate_trajectories(
     else:
         assert nb_trajectories is not None, "nb_trajectories must be provided"
         prompt_trajectories, set_discovered_transitions = generate_text_trajectories(
-            env, agent, rule_to_test, nb_trajectories, progression
+            env, agent, nb_trajectories, progression
         )
     return prompt_trajectories, set_discovered_transitions
 
@@ -69,7 +68,6 @@ def metropolis_hastings(
     theorist: LlmModel,
     statistician: Statistician,
     cfg: Dict[str, Any],
-    curriculum_rules: List[str],
 ) -> RuleOutput:
     """Metropolis-Hasting algorithm"""
 
@@ -87,11 +85,9 @@ def metropolis_hastings(
     }
     # region Initialize and first loop of the algorithm
     # 1. Generate trajectories
-    rule_to_test = curriculum_rules[0]
     prompt_trajectories, set_discovered_transitions = generate_trajectories(
         agent,
         env,
-        rule_to_test,
         cfg["nb_trajectories"],
         (
             agent.model.n_steps * agent.model.n_envs
@@ -133,9 +129,7 @@ def metropolis_hastings(
     all_dict["importance_probs"] = [0] * cfg["nb_rules"]
     all_dict["prev_rules_ind"] = [-1] * cfg["nb_rules"]
     all_dict["weights"] = [0] * cfg["nb_rules"]
-    all_dict["current_true_rule"] = [
-        curriculum_rules[0] for _ in range(cfg["nb_rules"])
-    ]
+    all_dict["current_true_rule"] = [env.get_rule() for _ in range(cfg["nb_rules"])]
     all_dict["nb_rules"] = cfg["nb_rules"]
     all_dict["best_rule"] = [best_rule]
     all_dict["best_rule_ind"] = [best_rule_ind]
@@ -148,11 +142,9 @@ def metropolis_hastings(
         desc="Loop iterations",
     ):
         # 1. Regenerate trajectories
-        rule_to_test = curriculum_rules[0]
         prompt_trajectories, set_discovered_transitions = generate_trajectories(
             agent,
             env,
-            rule_to_test,
             cfg["nb_trajectories"],
             (
                 agent.model.n_steps * agent.model.n_envs
@@ -237,7 +229,7 @@ def metropolis_hastings(
             all_dict["likelihoods"] = np.append(all_dict["likelihoods"], likelihoods)
             all_dict["prev_rules_ind"].extend(prev_rules_ind)
             all_dict["current_true_rule"].extend(
-                [rule_to_test for _ in range(len(rules))]
+                [env.get_rule() for _ in range(len(rules))]
             )
             # Accept or reject
             mask = np.where(np.log(np.random.rand()) < weights, 1, 0)
@@ -343,7 +335,6 @@ def metropolis_hastings(
     )
     print("Metropolis Hastings done")
     return RuleOutput(
-        curriculum_rules,
         all_dict["rules"],
         all_dict["likelihoods"],
         all_dict,

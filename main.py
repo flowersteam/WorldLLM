@@ -12,23 +12,23 @@ from montecarlo_methods.important_sampling import important_sampling
 from montecarlo_methods.metropolis_hastings import metropolis_hastings
 from utils.utils_env import BaseAgent, build_env
 from utils.utils_llm import build_llms
-from utils.utils_sb3 import create_agent
+from utils.utils_sb3 import SB3Agent, create_agent
 from worldllm_envs.base import BaseRuleEnv
 
 
-def load_agent(cfg: DictConfig, env: BaseRuleEnv, env_rules: List[str]) -> BaseAgent:
+def load_agent(cfg: DictConfig, env: BaseRuleEnv, env_rule: str) -> BaseAgent:
     """Load the agent used to collect data"""
     if cfg.agent.type == "BaseAgent":
         agent_config = OmegaConf.to_object(cfg.agent)
         del (agent_config["type"],)  # Remove type key to avoid error on instantiation
         agent = hydra.utils.instantiate(agent_config, action_space=env.action_space)
+        env.reset(options={"rule": env_rule})
 
     elif cfg.agent.type == "SB3Agent":
-        if len(env_rules) > 1:
-            raise Warning("SB3Agent only supports one rule(No Curriculum learning)")
         agent = create_agent(
-            cfg.agent, partial(build_env, cfg, rule=env_rules[0]), seed=cfg.seed
+            cfg.agent, partial(build_env, cfg, rule=env_rule), seed=cfg.seed
         )
+        # SB3 include the environment in the agent
     else:
         raise NotImplementedError(
             f"Agent {cfg.agent.type} not implemented. Choose between BaseAgent and SB3Agent."
@@ -50,12 +50,12 @@ def main(cfg: DictConfig) -> None:
     env: BaseRuleEnv = build_env(cfg)
     # Load env rules
     if cfg.environment.rule is not None:
-        lst_rule_info = OmegaConf.to_object(cfg.environment)["rule"]
-        env_rules = [env.generate_rule(rule_info) for rule_info in lst_rule_info]
+        env_rule_info = OmegaConf.to_object(cfg.environment)["rule"]
+        env_rule = env.generate_rule(env_rule_info)
     else:
-        env_rules = [env.generate_rule()]
+        env_rule = env.generate_rule()
     # Set Agent
-    agent = load_agent(cfg, env, env_rules)
+    agent = load_agent(cfg, env, env_rule)
     # Load LLMs
     statistician, theorist = build_llms(cfg, env.unwrapped.get_message_info())
     # Print gpu ram usage
@@ -68,7 +68,6 @@ def main(cfg: DictConfig) -> None:
             theorist,
             statistician,
             OmegaConf.to_object(cfg.algorithm),
-            curriculum_rules=env_rules,
         )
     elif cfg.algorithm.name == "metropolis_hastings":
         output = metropolis_hastings(
@@ -77,14 +76,13 @@ def main(cfg: DictConfig) -> None:
             theorist,
             statistician,
             OmegaConf.to_object(cfg.algorithm),
-            curriculum_rules=env_rules,
         )
     else:
         raise NotImplementedError(f"Algorithm {cfg.algorithm} not implemented.")
     # Save output
     output.to_json(os.path.join(cfg.output_dir, "all.json"))
     # Save agent if sb3
-    if cfg.agent.type == "SB3Agent":
+    if isinstance(agent, SB3Agent):
         agent.model.save(os.path.join(cfg.output_dir, "agent"))
 
 
