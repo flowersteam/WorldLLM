@@ -305,20 +305,22 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     """
 
     def __init__(self, **kwargs) -> None:
+        # Define all_transitions
+        self.all_transition_to_prompt = {
+            "standing": "You are standing on x. ",
+            "holding1": "You are holding y. ",
+            "holding2": "You are holding y and z. ",
+            "transformP": "x and y transform into z. ",
+            "transformBH": "x, y and z transform into w. ",
+            "nothing": "Nothing has changed. ",
+        }
+
         def statisitician_template(
             trajectory: Trajectory,
             discovered_transition: Set[str],
             rule: Optional[str] = None,
         ):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
-            transition_to_abstract_traj = {
-                "standing": "You are standing on x. ",
-                "holding1": "You are holding y. ",
-                "holding2": "You are holding y and z. ",
-                "transformP": "x and y transform into z. ",
-                "transformBH": "x, y and z transform into w. ",
-                "nothing": "Nothing has changed. ",
-            }
             base_user_prompt = (
                 "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
@@ -329,7 +331,10 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
             # Give abstract trajectory
             base_user_prompt += "\n\n In the current space:\nYou see x, y, and z. You are standing on y. Your are holding nothing. "
-            for transition_type, transition_text in transition_to_abstract_traj.items():
+            for (
+                transition_type,
+                transition_text,
+            ) in self.all_transition_to_prompt.items():
                 if transition_type in discovered_transition:
                     base_user_prompt += "\na: action. \no: " + transition_text
             # give real trajectory

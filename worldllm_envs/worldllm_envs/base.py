@@ -1,7 +1,7 @@
 import abc
 import random
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import gymnasium as gym
 import numpy as np
@@ -40,6 +40,7 @@ class BaseRuleEnv(gym.Env, abc.ABC):
             if hasattr(self, attr):
                 setattr(self, attr, value)
         self.rule: BaseRule
+        self.all_transition_to_prompt: Dict[str, str]
         # Set the seed
         self.set_seed(kwargs.get("seed", None))
 
@@ -67,6 +68,9 @@ class BaseRuleEnv(gym.Env, abc.ABC):
     def change_rule(self, rule: BaseRule) -> None:
         """Change the rule of the environment."""
         self.rule = rule
+
+    def get_all_transition_to_prompt(self) -> Set[str]:
+        return set(self.all_transition_to_prompt.keys())
 
     @abc.abstractmethod
     def action_to_text(self, action) -> str:

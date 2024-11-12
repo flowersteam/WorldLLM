@@ -16,17 +16,18 @@ from utils.utils_sb3 import SB3Agent, create_agent
 from worldllm_envs.base import BaseRuleEnv
 
 
-def load_agent(cfg: DictConfig, env: BaseRuleEnv, env_rule: str) -> BaseAgent:
+def load_agent(cfg: DictConfig, env: BaseRuleEnv) -> BaseAgent:
     """Load the agent used to collect data"""
     if cfg.agent.type == "BaseAgent":
         agent_config = OmegaConf.to_object(cfg.agent)
         del (agent_config["type"],)  # Remove type key to avoid error on instantiation
         agent = hydra.utils.instantiate(agent_config, action_space=env.action_space)
-        env.reset(options={"rule": env_rule})
 
     elif cfg.agent.type == "SB3Agent":
         agent = create_agent(
-            cfg.agent, partial(build_env, cfg, rule=env_rule), seed=cfg.seed
+            cfg.agent,
+            partial(build_env, cfg, rule=env.unwrapped.get_rule()),
+            seed=cfg.seed,
         )
         # SB3 include the environment in the agent
     else:
@@ -54,8 +55,9 @@ def main(cfg: DictConfig) -> None:
         env_rule = env.generate_rule(env_rule_info)
     else:
         env_rule = env.generate_rule()
+    env.reset(options={"rule": env_rule})
     # Set Agent
-    agent = load_agent(cfg, env, env_rule)
+    agent = load_agent(cfg, env)
     # Load LLMs
     statistician, theorist = build_llms(cfg, env.unwrapped.get_message_info())
     # Print gpu ram usage

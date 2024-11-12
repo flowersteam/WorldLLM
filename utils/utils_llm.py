@@ -488,7 +488,7 @@ def compute_likelihood(
     rules: List[Optional[str]],
     trajectories: List[Trajectory],
     return_all_logp: bool = False,
-) -> Tuple[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]], List[List[float]]]:
+) -> Tuple[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]], List[List[List[float]]]]:
     """Compute the likelihood of the new data given the rules."""
     lst_messages = []
     lst_candidates = []
