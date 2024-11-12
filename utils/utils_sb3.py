@@ -173,7 +173,7 @@ class CustomMaskablePPO(MaskablePPO):
             if not done:  # We don't want to appen twice the same trajectory
                 trajectories[idx].append(
                     Trajectory(
-                        infos[idx]["trajectory_text"],
+                        infos[idx]["trajectory_obs_text"],
                         infos[idx]["trajectory_act_text"],
                         infos[idx]["trajectory_diff_text"],
                     )
