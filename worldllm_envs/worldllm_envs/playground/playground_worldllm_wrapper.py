@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 from worldllm_envs.base import BaseRuleEnv, TextWrapper
 
@@ -10,6 +10,9 @@ class PlaygroundWrapper(TextWrapper):
         super().__init__(env)
         self.last_obs = None
         self.last_action = None
+
+        self.act_trajectory: List[str]
+        self.diff_trajectory: List[str]
 
     def action_to_text(self, action):
         act_text = self.env.unwrapped.action_to_text(action)
@@ -30,15 +33,17 @@ class PlaygroundWrapper(TextWrapper):
     def step(self, action):
         act_text = self.action_to_text(action)
         observation, reward, terminated, truncated, info = self.env.step(action)
-        obs_text, add_info = self.observation_to_text(observation)
+        obs_diff, add_info = self.observation_to_text(observation)
         info.update(add_info)
-        self.text_trajectory.extend([act_text, obs_text])
-        self.obs_trajectory.append(observation)
         info["action_text"] = act_text
-        info["text_trajectory"] = self.text_trajectory
-        info["obs_trajectory"] = self.obs_trajectory
+        self.obs_trajectory.append(observation)
+        self.act_trajectory.append(act_text)
+        self.diff_trajectory.append(obs_diff)
+        info["trajectory_obs_text"] = self.obs_trajectory
+        info["trajectory_act_text"] = self.act_trajectory
+        info["trajectory_diff_text"] = self.diff_trajectory
         return (
-            obs_text,
+            obs_diff,
             reward,
             terminated,
             truncated,
@@ -51,8 +56,10 @@ class PlaygroundWrapper(TextWrapper):
         observation, info = self.env.reset(seed=seed, options=options)
         text_obs, add_info = self.observation_to_text(observation)
         info.update(add_info)
-        self.text_trajectory = [text_obs]
         self.obs_trajectory = [observation]
-        info["text_trajectory"] = self.text_trajectory
-        info["obs_trajectory"] = self.obs_trajectory
+        self.act_trajectory = []
+        self.diff_trajectory = []
+        info["trajectory_obs_text"] = self.obs_trajectory
+        info["trajectory_act_text"] = self.act_trajectory
+        info["trajectory_diff_text"] = self.diff_trajectory
         return text_obs, info

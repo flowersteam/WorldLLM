@@ -6,7 +6,7 @@ defaults:
   - environment: playground
   - agent: perfectplayground
 
-exp_name: no_rule
+exp_name: no_rule_ne
 
 statistician: null
 seed: 60
