@@ -154,6 +154,7 @@ def metropolis_hastings(
         "importance_probs": [],
         "likelihoods": [],
     }
+    add_worst_trajectories = cfg["num_worst_trajectories"] > 0
     # region Initialize and first loop of the algorithm
     # 1. Generate trajectories
     prompt_trajectories, set_discovered_transitions = generate_trajectories(
@@ -245,7 +246,7 @@ def metropolis_hastings(
             range(cfg["nb_iterations_mh"]), desc="Metropolis-Hastings", leave=False
         ):
             # Metropolis-Hastings step
-            if cfg["num_worst_trajectories"] > 0:
+            if add_worst_trajectories:
                 # Sample a new rule
                 rules, importance_probs = evolve_rules(
                     theorist,
@@ -277,9 +278,7 @@ def metropolis_hastings(
                     prev_rules,
                     rules,
                     worst_trajectories=(
-                        worst_trajectories
-                        if cfg["num_worst_trajectories"] > 0
-                        else None
+                        worst_trajectories if add_worst_trajectories else None
                     ),
                 )
                 # Compute weights
@@ -309,10 +308,7 @@ def metropolis_hastings(
             )
             prev_rules = np.where(mask, rules, prev_rules)
             prev_likelihoods = np.where(mask, likelihoods, prev_likelihoods)
-            if (
-                cfg["num_worst_trajectories"] is not None
-                and cfg["num_worst_trajectories"] > 0
-            ):
+            if add_worst_trajectories:
                 all_worst_trajectories.extend(worst_trajectories)
                 prev_worst_trajectories = np.where(
                     np.tile(mask, (len(worst_trajectories[0]), 1)).T,
