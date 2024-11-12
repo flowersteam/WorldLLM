@@ -1,8 +1,9 @@
+"""Main file for the Metropolis-Hastings algorithm"""
+
 from copy import copy
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
-import torch
 from tqdm import tqdm
 
 from utils.utils_env import BaseAgent, Trajectory, generate_text_trajectories
@@ -25,8 +26,17 @@ from worldllm_envs.playground.playground_text_wrapper import (
 
 def get_worst_trajectories(
     logp: np.ndarray, trajectories: List[Trajectory], num_worst_trajectories: int
-):
-    """Return the worst trajectories according to the log probabilities"""
+) -> List[List[Trajectory]]:
+    """Return the worst trajectories according to the log probabilities
+
+    Args:
+        logp (np.ndarray): Log probabilities of all the  trajectories.
+        trajectories (List[Trajectory]): List of trajectories.
+        num_worst_trajectories (int): Number of the worst trajectories to return.
+
+    Returns:
+        List[List[Trajectory]]: List of lists containing the worst trajectories.
+    """
     arr_worst_ind = np.argsort(logp, axis=1)[:, :num_worst_trajectories]
     return [
         [trajectories[incr_worst_ind] for incr_worst_ind in worst_ind]
@@ -140,7 +150,7 @@ def metropolis_hastings(
     statistician: Statistician,
     cfg: Dict[str, Any],
 ) -> RuleOutput:
-    """Metropolis-Hasting algorithm"""
+    """Metropolis-Hasting algorithm, return logs to save"""
 
     # Load test dataset:
     test_trajectories = env.unwrapped.get_test_dataset()
