@@ -10,6 +10,31 @@ from tqdm import tqdm
 from worldllm_envs.base import BaseRule, BaseRuleEnv
 
 
+@dataclass
+class Trajectory:
+    """Save information on some rollout for the llms."""
+
+    lst_obs: List[str]
+    lst_act: List[str]
+    lst_diff: List[str]
+
+    def __len__(self):
+        return len(self.lst_diff)
+
+
+def build_env(cfg: DictConfig, rule: Optional[str] = None) -> BaseRuleEnv:
+    """Build the environment."""
+    # Add seed to kwargs
+    kwargs = OmegaConf.to_container(cfg.environment.kwargs, resolve=True)
+    kwargs["seed"] = cfg.seed
+    env = gym.make(cfg.environment.id, **kwargs)
+    if not isinstance(env.unwrapped, BaseRuleEnv):
+        raise ValueError("The environment must be rule based.")
+    if rule is not None:
+        env.reset(options={"rule": rule})
+    return env
+
+
 class BaseAgent(abc.ABC):
     """Base class for the agents."""
 
@@ -22,7 +47,51 @@ class BaseAgent(abc.ABC):
 
     def reset(self, info: Dict[str, Any]):
         """Reset the agent."""
-        pass
+
+    def generate_trajectories(
+        self,
+        env: BaseRuleEnv,
+        nb_trajectories: int,
+        progression: float,
+        n_steps: Optional[int] = None,
+    ) -> Tuple[List[Trajectory], Set[str]]:
+        """
+        Generate text-based trajectories from the given environment.
+        Args:
+            env (BaseRuleEnv): The environment to generate trajectories from.
+            nb_trajectories (int): The number of trajectories to generate.
+            progression (float): The progression value to be added to the info for curriculum learning.
+            n_steps (Optional[int], optional): Gather a number of steps instead of trajectories. Used in derived class
+        Returns:
+            Tuple[List[Trajectory], Set[str]]: A tuple containing a list of generated trajectories and a set of discovered transition types.
+        """
+        # Set rule
+        lst_trajectory = []
+        set_discovered_transitions = set()
+        for _ in tqdm(
+            range(nb_trajectories),
+            desc="Generating trajectories",
+            leave=False,
+        ):
+            obs, info = env.reset()
+            info["pipeline_progression"] = (
+                progression  # Add progression to info for curriculum learning
+            )
+            self.reset(info)
+            done = False
+            while not done:
+                action, agent_done = self(obs, **info)
+                obs, _, terminated, truncated, info = env.step(action)
+                set_discovered_transitions.add(info["transition_type"])
+                done = terminated or truncated or agent_done
+            lst_trajectory.append(
+                Trajectory(
+                    info["trajectory_obs_text"],
+                    info["trajectory_act_text"],
+                    info["trajectory_diff_text"],
+                )
+            )
+        return lst_trajectory, set_discovered_transitions
 
 
 class RandomAgent(BaseAgent):
@@ -56,64 +125,3 @@ class AllAgent(BaseAgent):
         action = np.unravel_index(self.flat_index, self._arr_actions.shape[:-1])
         self.flat_index += 1
         return action, self.flat_index >= np.prod(self._arr_actions.shape[:-1])
-
-
-@dataclass
-class Trajectory:
-    """Save information on some rollout for the llms."""
-
-    lst_obs: List[str]
-    lst_act: List[str]
-    lst_diff: List[str]
-
-    def __len__(self):
-        return len(self.lst_diff)
-
-
-def build_env(cfg: DictConfig, rule: Optional[str] = None) -> BaseRuleEnv:
-    """Build the environment."""
-    # Add seed to kwargs
-    kwargs = OmegaConf.to_container(cfg.environment.kwargs, resolve=True)
-    kwargs["seed"] = cfg.seed
-    env = gym.make(cfg.environment.id, **kwargs)
-    if not isinstance(env.unwrapped, BaseRuleEnv):
-        raise ValueError("The environment must be rule based.")
-    if rule is not None:
-        env.reset(options={"rule": rule})
-    return env
-
-
-def generate_text_trajectories(
-    env: BaseRuleEnv,
-    agent: BaseAgent,
-    nb_trajectories: int,
-    progression: float,
-) -> Tuple[List[Trajectory], Set[str]]:
-    """Generate random trajectories for the environment."""
-    # Set rule
-    lst_trajectory = []
-    set_discovered_transitions = set()
-    for _ in tqdm(
-        range(nb_trajectories),
-        desc="Generating trajectories",
-        leave=False,
-    ):
-        obs, info = env.reset()
-        info["pipeline_progression"] = (
-            progression  # Add progression to info for curriculum learning
-        )
-        agent.reset(info)
-        done = False
-        while not done:
-            action, agent_done = agent(obs, **info)
-            obs, _, terminated, truncated, info = env.step(action)
-            set_discovered_transitions.add(info["transition_type"])
-            done = terminated or truncated or agent_done
-        lst_trajectory.append(
-            Trajectory(
-                info["trajectory_obs_text"],
-                info["trajectory_act_text"],
-                info["trajectory_diff_text"],
-            )
-        )
-    return lst_trajectory, set_discovered_transitions

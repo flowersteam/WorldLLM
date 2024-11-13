@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import numpy as np
 from tqdm import tqdm
 
-from utils.utils_env import BaseAgent, Trajectory, generate_text_trajectories
+from utils.utils_env import BaseAgent, Trajectory
 from utils.utils_llm import (
     LlmModel,
     Statistician,
@@ -18,10 +18,6 @@ from utils.utils_llm import (
 from utils.utils_save import RuleOutput
 from utils.utils_sb3 import SB3Agent
 from worldllm_envs.base import BaseRuleEnv
-from worldllm_envs.playground.playground_text_wrapper import (
-    DiverseAgent,
-    generate_diverse_trajectories,
-)
 
 
 def get_worst_trajectories(
@@ -42,36 +38,6 @@ def get_worst_trajectories(
         [trajectories[incr_worst_ind] for incr_worst_ind in worst_ind]
         for worst_ind in arr_worst_ind
     ]
-
-
-def generate_trajectories(
-    experimenter: Union[BaseAgent, SB3Agent],
-    env: BaseRuleEnv,
-    nb_trajectories: Optional[int],
-    n_steps: Optional[int],
-    progression: float,
-) -> Tuple[List[Trajectory], Set[str]]:
-    """Generate trajectories using the environment and the experimenter
-    Returns:
-        Tuple[List[Trajectory], Set[str]]: Return the text trajectories and the set of discovered transitions
-    """
-    if isinstance(experimenter, DiverseAgent):
-        prompt_trajectories, set_discovered_transitions = generate_diverse_trajectories(
-            env, nb_trajectories
-        )
-    elif isinstance(experimenter, SB3Agent):
-        assert n_steps is not None, "n_steps must be provided for SB3Agent"
-        prompt_trajectories, set_discovered_transitions = (
-            experimenter.generate_trajectories(
-                n_steps,
-            )
-        )
-    else:
-        assert nb_trajectories is not None, "nb_trajectories must be provided"
-        prompt_trajectories, set_discovered_transitions = generate_text_trajectories(
-            env, experimenter, nb_trajectories, progression
-        )
-    return prompt_trajectories, set_discovered_transitions
 
 
 def compute_reward(
@@ -169,16 +135,17 @@ def metropolis_hastings(
     add_worst_trajectories = cfg["num_worst_trajectories"] > 0
     # region Initialize and first loop of the algorithm
     # 1. Generate trajectories
-    prompt_trajectories, set_discovered_transitions = generate_trajectories(
-        experimenter,
-        env,
-        cfg["nb_trajectories"],
-        (
-            experimenter.model.n_steps * experimenter.model.n_envs
-            if isinstance(experimenter, SB3Agent)
-            else None
-        ),
-        0.0,
+    prompt_trajectories, set_discovered_transitions = (
+        experimenter.generate_trajectories(
+            env,
+            cfg["nb_trajectories"],
+            0.0,
+            (
+                experimenter.model.n_steps * experimenter.model.n_envs
+                if isinstance(experimenter, SB3Agent)
+                else None
+            ),
+        )
     )
     # Update seen transitions for the statistician
     statistician.prompt_info.discovered_transitions.update(set_discovered_transitions)
@@ -229,16 +196,18 @@ def metropolis_hastings(
         desc="Loop iterations",
     ):
         # 1. Regenerate trajectories
-        prompt_trajectories, set_discovered_transitions = generate_trajectories(
-            experimenter,
-            env,
-            cfg["nb_trajectories"],
-            (
-                experimenter.model.n_steps * experimenter.model.n_envs
-                if isinstance(experimenter, SB3Agent)
-                else None
-            ),
-            i / cfg["nb_iterations"],
+
+        prompt_trajectories, set_discovered_transitions = (
+            experimenter.generate_trajectories(
+                env,
+                cfg["nb_trajectories"],
+                i / cfg["nb_iterations"],
+                (
+                    experimenter.model.n_steps * experimenter.model.n_envs
+                    if isinstance(experimenter, SB3Agent)
+                    else None
+                ),
+            )
         )
         # Take smaller subset to generate the rules
         subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]

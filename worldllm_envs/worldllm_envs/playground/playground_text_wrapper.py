@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import gymnasium as gym
 import numpy as np
 
-from utils.utils_env import BaseAgent, Trajectory, generate_text_trajectories
+from utils.utils_env import BaseAgent, Trajectory
 from worldllm_envs.base import BaseRuleEnv
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
@@ -24,8 +24,50 @@ def rm_trailing_number(input_str):
 class DiverseAgent(BaseAgent):
     """Generate diverse trajectories. Just used as a flag"""
 
+    def __init__(self, action_space: gym.Space):
+        super().__init__(action_space)
+        self.perfect_agent_sh = PerfectAgent(
+            action_space, curriculum_goals=["Grow any small_herbivorous"]
+        )
+        self.perfect_agent_shbh = PerfectAgent(
+            action_space,
+            curriculum_goals=[
+                "Grow any small_herbivorous then grow any big_herbivorous"
+            ],
+        )
+        self.random_agent = RandomAgent(action_space)
+
     def __call__(self, obs: str, **kwargs):
-        raise NotImplementedError("DiverseAgent does not generate actions")
+        """Act as random agent"""
+        return self.random_agent(obs, **kwargs), False
+
+    def reset(self, info: Dict[str, Any]):
+        self.perfect_agent_sh.reset(info)
+        self.perfect_agent_shbh.reset(info)
+        self.random_agent.reset(info)
+
+    def generate_trajectories(
+        self,
+        env: BaseRuleEnv,
+        nb_trajectories: int,
+        progression: float,
+        n_steps: Optional[int] = None,
+    ) -> Tuple[List[Trajectory], Set[str]]:
+        """Generate (n_traj-1)//3 Small Herbivores, (n_traj)//3 Big Herbivores and (n_tra+1)j//3 Random trajectories"""
+        trajectories = []
+        set_discovered_transition = set()
+        for incr, agent in enumerate(
+            [self.perfect_agent_sh, self.perfect_agent_shbh, self.random_agent]
+        ):
+            new_trajectories, new_discovered_transitions = agent.generate_trajectories(
+                env,
+                (nb_trajectories + incr) // 3,
+                0,
+                0,
+            )
+            trajectories.extend(new_trajectories)
+            set_discovered_transition.update(new_discovered_transitions)
+        return trajectories, set_discovered_transition
 
 
 class RandomAgent(BaseAgent):
@@ -1456,51 +1498,6 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             )
         )
         return trajectories
-
-
-def generate_diverse_trajectories(
-    env: PlayGroundText,
-    n_traj: int,
-) -> Tuple[List[Trajectory], Set[str]]:
-    """Generate (n_traj-1)//3 Small Herbivores, (n_traj)//3 Big Herbivores and (n_tra+1)j//3 Random trajectories"""
-    trajectories = []
-    set_discovered_transition = set()
-    perfect_agent = PerfectAgent(
-        env.action_space, curriculum_goals=["Grow any small_herbivorous"]
-    )
-    new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env,
-        perfect_agent,
-        "Grow any small_herbivorous then grow any big_herbivorous",
-        (n_traj) // 3,
-        0,
-    )
-    trajectories.extend(new_trajectories)
-    set_discovered_transition.update(new_discovered_transitions)
-    perfect_agent = PerfectAgent(
-        env.action_space,
-        curriculum_goals=["Grow any small_herbivorous then grow any big_herbivorous"],
-    )
-    new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env,
-        perfect_agent,
-        "Grow any small_herbivorous then grow any big_herbivorous",
-        (n_traj + 1) // 3,
-        0,
-    )
-    trajectories.extend(new_trajectories)
-    set_discovered_transition.update(new_discovered_transitions)
-    random_agent = RandomAgent(env.action_space)
-    new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env,
-        random_agent,
-        "Grow any small_herbivorous then grow any big_herbivorous",
-        (n_traj + 2) // 3,
-        0,
-    )
-    trajectories.extend(new_trajectories)
-    set_discovered_transition.update(new_discovered_transitions)
-    return trajectories, set_discovered_transition
 
 
 class PlayGroundDiscrete(PlayGroundText):

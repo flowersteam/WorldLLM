@@ -3,15 +3,11 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 from tqdm import tqdm
 
-from utils.utils_env import BaseAgent, generate_text_trajectories
+from utils.utils_env import BaseAgent
 from utils.utils_llm import LlmModel, Statistician, compute_likelihood, generate_rules
 from utils.utils_save import RuleOutput
 from utils.utils_sb3 import SB3Agent
 from worldllm_envs.base import BaseRuleEnv
-from worldllm_envs.playground.playground_text_wrapper import (
-    DiverseAgent,
-    generate_diverse_trajectories,
-)
 
 
 def get_unique_rules(

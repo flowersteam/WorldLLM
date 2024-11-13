@@ -15,6 +15,7 @@ from stable_baselines3.common.vec_env import VecEnv
 from tqdm import tqdm
 
 from utils.utils_env import BaseAgent, Trajectory
+from worldllm_envs.base import BaseRuleEnv
 
 
 class CustomMaskableRolloutBuffer(MaskableRolloutBuffer):
@@ -383,12 +384,21 @@ class SB3Agent(BaseAgent):
     def __call__(self, obs, **info):
         return self.model.predict(obs, action_mask=info["action_mask"]), False
 
-    def generate_trajectories(self, n_steps: int) -> Tuple[List[Trajectory], Set[str]]:
+    def generate_trajectories(
+        self,
+        env: BaseRuleEnv,
+        nb_trajectories: int,
+        progression: float,
+        n_steps: Optional[int] = None,
+    ):
         """Generate trajectories using the agent
 
         Args:
             n_steps (int): The number of steps per env to generate.
         """
+        assert (
+            n_steps is not None
+        ), "n_steps must be defined. It replaces nb_trajectories"
         (
             trajectories_text,
             set_discovered_transitions,
