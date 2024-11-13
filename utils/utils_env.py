@@ -18,7 +18,7 @@ class BaseAgent(abc.ABC):
 
     @abc.abstractmethod
     def __call__(self, obs, **kwargs) -> Tuple[str, bool]:
-        """Generate action"""
+        """Generate action and return if the agent is done."""
 
     def reset(self, info: Dict[str, Any]):
         """Reset the agent."""
@@ -32,7 +32,8 @@ class RandomAgent(BaseAgent):
         if "action_mask" in kwargs:
             action_mask = kwargs["action_mask"]
             possible_actions = np.arange(len(action_mask))[action_mask]
-        return possible_actions[np.random.randint(len(possible_actions))], False
+            return possible_actions[np.random.randint(len(possible_actions))], False
+        return self.action_space.sample(), False
 
 
 class AllAgent(BaseAgent):
@@ -54,7 +55,7 @@ class AllAgent(BaseAgent):
             )
         action = np.unravel_index(self.flat_index, self._arr_actions.shape[:-1])
         self.flat_index += 1
-        return action
+        return action, self.flat_index >= np.prod(self._arr_actions.shape[:-1])
 
 
 @dataclass

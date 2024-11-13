@@ -381,7 +381,7 @@ class SB3Agent(BaseAgent):
         return agent
 
     def __call__(self, obs, **info):
-        return self.model.predict(obs, action_mask=info["action_mask"])
+        return self.model.predict(obs, action_mask=info["action_mask"]), False
 
     def generate_trajectories(self, n_steps: int) -> Tuple[List[Trajectory], Set[str]]:
         """Generate trajectories using the agent
