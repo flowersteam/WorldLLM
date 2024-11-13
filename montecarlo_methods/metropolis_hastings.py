@@ -196,7 +196,6 @@ def metropolis_hastings(
         desc="Loop iterations",
     ):
         # 1. Regenerate trajectories
-
         prompt_trajectories, set_discovered_transitions = (
             experimenter.generate_trajectories(
                 env,

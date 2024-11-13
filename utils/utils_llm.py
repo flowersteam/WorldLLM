@@ -367,10 +367,7 @@ def _score_trajectory(
     lst_message: List[Tuple[Dict[str, str], Dict[str, str]]],
     lst_candidate: List[Tuple[Dict[str, str]]],
 ) -> Tuple[torch.Tensor, List[List[float]]]:
-    """Score and reuse the pas key and values"""
-    if len(lst_message) == 1:
-        # Do stuff
-        raise ValueError("Need at least 2 messages")
+    """Score and reuse the past key and values"""
     inputs_msg = llm.tokenizer.apply_chat_template(
         lst_message,
         add_generation_prompt=False,
