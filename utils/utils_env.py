@@ -47,7 +47,7 @@ class AllAgent(BaseAgent):
         self._arr_actions = np.stack(_arr_actions, axis=-1)
         self.flat_index = 0
 
-    def __call__(self, obs):
+    def __call__(self, obs, **kwargs):
         if self.flat_index >= np.prod(self._arr_actions.shape[:-1]):
             raise ValueError(
                 f"All actions have been sampled, lower the number of trajectories to {np.prod(self._arr_actions.shape[:-1])}."

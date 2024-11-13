@@ -1,18 +1,13 @@
 import random
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
-import gymnasium
 import numpy as np
 import torch
 from gymnasium import spaces
 from sb3_contrib import MaskablePPO
-from sb3_contrib.common.maskable.buffers import (
-    MaskableRolloutBuffer,
-    MaskableRolloutBufferSamples,
-)
+from sb3_contrib.common.maskable.buffers import MaskableRolloutBuffer
 from sb3_contrib.common.maskable.utils import get_action_masks, is_masking_supported
 from sb3_contrib.common.wrappers import ActionMasker
-from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.utils import obs_as_tensor
@@ -311,14 +306,79 @@ class TransitionCounterCallback(BaseCallback):
         return True
 
 
-class SB3Agent:
-    def __init__(self, model: CustomMaskablePPO, callback: TransitionCounterCallback):
-        self.model = model
-        self.callback = callback
+class SB3Agent(BaseAgent):
+    """Agent encapsulating the SB3 model"""
+
+    def __init__(
+        self,
+        action_space: spaces.Space,
+    ):
+        super().__init__(action_space)
+        self.model: CustomMaskablePPO
+        self.callback: TransitionCounterCallback
         self.iteration = 0
 
         self._last_values: torch.Tensor
         self._last_dones: np.ndarray
+
+    def set_model(self, model: CustomMaskablePPO, callback: TransitionCounterCallback):
+        self.model = model
+        self.callback = callback
+
+    @staticmethod
+    def create_agent(
+        config: Dict[str, Any], build_env: Callable, seed: int
+    ) -> "SB3Agent":
+        """Create SB3 agent and setup for learning"""
+        # Set seed
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        random.seed(seed)
+
+        # Define actions for masking
+        def mask_fn(env):
+            return env.unwrapped.action_mask
+
+        def make_env():
+            env = ActionMasker(build_env(), mask_fn)
+            return env
+
+        envs = make_vec_env(make_env, n_envs=config["n_envs"], seed=seed)
+        hyperparameters = config["hyperparameters"]
+        model = CustomMaskablePPO(
+            "MlpPolicy",
+            envs,
+            rollout_buffer_class=CustomMaskableRolloutBuffer,
+            gamma=hyperparameters["gamma"],
+            learning_rate=hyperparameters["lr"],
+            ent_coef=0.01,
+            vf_coef=hyperparameters["vf_coef"],
+            n_steps=hyperparameters["n_steps"],
+            n_epochs=hyperparameters["n_epochs"],
+            gae_lambda=hyperparameters["gae"],
+            device="cuda",
+            verbose=1,
+            tensorboard_log=config["tb_folder"],
+            policy_kwargs=dict(
+                net_arch=dict(
+                    pi=[hyperparameters["nn_size"], hyperparameters["nn_size"]],
+                    vf=[hyperparameters["nn_size"], hyperparameters["nn_size"]],
+                )
+            ),
+            seed=seed,
+        )
+        # Prepare learning before the pipeline
+        _, callback = model.setup_learn(
+            total_timesteps=10_000_000,  # Shouldn't be important
+            tb_log_name=config["tb_name"],
+            callback=TransitionCounterCallback(
+                hyperparameters, model.verbose, config["n_envs"]
+            ),
+        )
+        agent = SB3Agent(make_env().action_space)
+        agent.set_model(model, callback)
+        return agent
 
     def __call__(self, obs, **info):
         return self.model.predict(obs, action_mask=info["action_mask"])
@@ -360,54 +420,3 @@ class SB3Agent:
         self.iteration += 1
         self.model.dump_logs(self.iteration)
         self.model.train()
-
-
-def create_agent(config: Dict[str, Any], build_env: Callable, seed: int) -> SB3Agent:
-    """Create SB3 agent and setup for learning"""
-    # Set seed
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    random.seed(seed)
-
-    # Define actions for masking
-    def mask_fn(env):
-        return env.unwrapped.action_mask
-
-    def make_env():
-        env = ActionMasker(build_env(), mask_fn)
-        return env
-
-    envs = make_vec_env(make_env, n_envs=config["n_envs"], seed=seed)
-    hyperparameters = config["hyperparameters"]
-    model = CustomMaskablePPO(
-        "MlpPolicy",
-        envs,
-        rollout_buffer_class=CustomMaskableRolloutBuffer,
-        gamma=hyperparameters["gamma"],
-        learning_rate=hyperparameters["lr"],
-        ent_coef=0.01,
-        vf_coef=hyperparameters["vf_coef"],
-        n_steps=hyperparameters["n_steps"],
-        n_epochs=hyperparameters["n_epochs"],
-        gae_lambda=hyperparameters["gae"],
-        device="cuda",
-        verbose=1,
-        tensorboard_log=config["tb_folder"],
-        policy_kwargs=dict(
-            net_arch=dict(
-                pi=[hyperparameters["nn_size"], hyperparameters["nn_size"]],
-                vf=[hyperparameters["nn_size"], hyperparameters["nn_size"]],
-            )
-        ),
-        seed=seed,
-    )
-    # Prepare learning before the pipeline
-    _, callback = model.setup_learn(
-        total_timesteps=10_000_000,  # Shouldn't be important
-        tb_log_name=config["tb_name"],
-        callback=TransitionCounterCallback(
-            hyperparameters, model.verbose, config["n_envs"]
-        ),
-    )
-    return SB3Agent(model, callback)

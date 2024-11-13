@@ -11,7 +11,7 @@ from montecarlo_methods.important_sampling import important_sampling
 from montecarlo_methods.metropolis_hastings import metropolis_hastings
 from utils.utils_env import BaseAgent, build_env
 from utils.utils_llm import build_llms
-from utils.utils_sb3 import SB3Agent, create_agent
+from utils.utils_sb3 import SB3Agent
 from worldllm_envs.base import BaseRuleEnv
 
 
@@ -22,12 +22,12 @@ def load_experimenter(cfg: DictConfig, env: BaseRuleEnv) -> BaseAgent:
         del (
             experimenter_config["type"],
         )  # Remove type key to avoid error on instantiation
-        experimenter = hydra.utils.instantiate(
+        experimenter: BaseAgent = hydra.utils.instantiate(
             experimenter_config, action_space=env.action_space
         )
 
     elif cfg.experimenter.type == "SB3Agent":
-        experimenter = create_agent(
+        experimenter = SB3Agent.create_agent(
             cfg.experimenter,
             partial(build_env, cfg, rule=env.unwrapped.get_rule()),
             seed=cfg.seed,
