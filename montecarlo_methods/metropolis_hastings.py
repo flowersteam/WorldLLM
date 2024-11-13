@@ -158,7 +158,7 @@ def metropolis_hastings(
     else:
         prev_rules, _ = generate_rules(theorist, subset_trajectories, cfg["nb_rules"])
     # 3. Score rules
-    if cfg["num_worst_trajectories"] and cfg["num_worst_trajectories"] > 0:
+    if add_worst_trajectories:
         (prev_likelihoods, all_logp), _ = compute_likelihood(
             statistician, prev_rules, subset_trajectories, return_all_logp=True
         )
