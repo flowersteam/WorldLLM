@@ -11,4 +11,4 @@ nb_iterations_mh: 10
 reward_type: alp
 use_hasting_correction: False
 first_rules:
-num_worst_trajectories:
+num_worst_trajectories: 0

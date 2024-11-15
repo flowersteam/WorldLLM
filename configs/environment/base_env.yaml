@@ -1,3 +1,4 @@
-id: ???
-kwargs: {}
+kwargs:
+  test_dataset_path: null
 rule: null
+id: ???

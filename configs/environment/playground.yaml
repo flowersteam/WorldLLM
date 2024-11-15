@@ -2,6 +2,7 @@ defaults:
   - base_env
 id: "worldllm_envs/PlaygroundText-v1"
 kwargs:
+  test_dataset_path: "./worldllm_envs/worldllm_envs/playground/data/test_dataset.json"
   max_steps: 30
 
 rule: "Grow any small_herbivorous then grow any big_herbivorous"

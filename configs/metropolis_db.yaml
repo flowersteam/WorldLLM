@@ -3,8 +3,8 @@ defaults:
   - algorithm: metropolis_hastings
   - llm@theorist: Phi-3-mini-4k-instruct
   - llm@statistician: Phi-3-mini-4k-instruct
+  - experimenter: diverseplayground
   - environment: playground
-  - agent: diverseplayground
 
 exp_name: test_pipeline
 

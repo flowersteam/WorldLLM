@@ -3,15 +3,10 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 from tqdm import tqdm
 
-from utils.utils_env import BaseAgent, generate_text_trajectories
 from utils.utils_llm import LlmModel, Statistician, compute_likelihood, generate_rules
 from utils.utils_save import RuleOutput
 from utils.utils_sb3 import SB3Agent
-from worldllm_envs.base import BaseRuleEnv
-from worldllm_envs.playground.playground_text_wrapper import (
-    DiverseAgent,
-    generate_diverse_trajectories,
-)
+from worldllm_envs.base import BaseAgent, BaseRuleEnv
 
 
 def get_unique_rules(
@@ -43,7 +38,7 @@ def important_sampling(
 ) -> RuleOutput:
 
     # Load test dataset:
-    test_trajectories = env.unwrapped.get_test_dataset()
+    test_trajectories = env.unwrapped.test_dataset
 
     all_dict: Dict[str, Any] = {
         "rules": [],

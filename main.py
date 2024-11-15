@@ -9,10 +9,34 @@ from omegaconf import DictConfig, OmegaConf
 
 from montecarlo_methods.important_sampling import important_sampling
 from montecarlo_methods.metropolis_hastings import metropolis_hastings
-from utils.utils_env import BaseAgent, build_env
 from utils.utils_llm import build_llms
-from utils.utils_sb3 import create_agent
-from worldllm_envs.base import BaseRuleEnv
+from utils.utils_sb3 import SB3Agent
+from worldllm_envs.base import BaseAgent, BaseRuleEnv, build_env
+
+
+def load_experimenter(cfg: DictConfig, env: BaseRuleEnv) -> BaseAgent:
+    """Load the experimenter used to collect data"""
+    if cfg.experimenter.type == "BaseAgent":
+        experimenter_config = OmegaConf.to_object(cfg.experimenter)
+        del (
+            experimenter_config["type"],
+        )  # Remove type key to avoid error on instantiation
+        experimenter: BaseAgent = hydra.utils.instantiate(
+            experimenter_config, action_space=env.action_space
+        )
+
+    elif cfg.experimenter.type == "SB3Agent":
+        experimenter = SB3Agent.create_agent(
+            cfg.experimenter,
+            partial(build_env, cfg, rule=env.unwrapped.get_rule()),
+            seed=cfg.seed,
+        )
+        # SB3 include the environment in the experimenter
+    else:
+        raise NotImplementedError(
+            f"Agent {cfg.experimenter.type} not implemented. Choose between BaseAgent and SB3Agent."
+        )
+    return experimenter
 
 
 # To change the config file: -cn config_name.yaml, to modify the config file: key=value and to add a value: +key=value
@@ -27,33 +51,15 @@ def main(cfg: DictConfig) -> None:
         torch.cuda.manual_seed_all(cfg.seed)
     # Instantiate the environment
     env: BaseRuleEnv = build_env(cfg)
-    # Set Agent
-    if cfg.agent.type == "BaseAgent":
-        agent_config = OmegaConf.to_object(cfg.agent)
-        del (agent_config["type"],)  # Remove type key to avoid error on instantiation
-        agent = hydra.utils.instantiate(agent_config, action_space=env.action_space)
-        # Set rule
-        if cfg.environment.rule is not None:
-            rules = OmegaConf.to_object(cfg.environment)["rule"]
-            if not isinstance(rules, list):
-                env_rules = [env.generate_rule(rules)]
-            else:
-                env_rules = [env.generate_rule(rule) for rule in rules]
-        else:
-            env_rules = [env.generate_rule()]
-
-    elif cfg.agent.type == "SB3Agent":
-        assert isinstance(
-            cfg.environment.rule, str
-        ), "The rule must be defined for SB3Agent and be unique."
-        env_rules = [cfg.environment.rule]
-        agent = create_agent(
-            cfg.agent, partial(build_env, cfg, rule=env_rules[0]), seed=cfg.seed
-        )
+    # Load env rules
+    if cfg.environment.rule is not None:
+        env_rule_info = OmegaConf.to_object(cfg.environment)["rule"]
+        env_rule = env.generate_rule(env_rule_info)
     else:
-        raise NotImplementedError(
-            f"Agent {cfg.agent.type} not implemented. Choose between BaseAgent and SB3Agent."
-        )
+        env_rule = env.generate_rule()
+    env.reset(options={"rule": env_rule})
+    # Set Agent
+    experimenter = load_experimenter(cfg, env)
     # Load LLMs
     statistician, theorist = build_llms(cfg, env.unwrapped.get_message_info())
     # Print gpu ram usage
@@ -62,27 +68,27 @@ def main(cfg: DictConfig) -> None:
     if cfg.algorithm.name == "importance_sampling":
         output = important_sampling(
             env,
-            agent,
+            experimenter,
             theorist,
             statistician,
             OmegaConf.to_object(cfg.algorithm),
-            curriculum_rules=env_rules,
         )
     elif cfg.algorithm.name == "metropolis_hastings":
         output = metropolis_hastings(
             env,
-            agent,
+            experimenter,
             theorist,
             statistician,
             OmegaConf.to_object(cfg.algorithm),
-            curriculum_rules=env_rules,
+            cfg.output_dir,
         )
     else:
         raise NotImplementedError(f"Algorithm {cfg.algorithm} not implemented.")
+    # Save output
     output.to_json(os.path.join(cfg.output_dir, "all.json"))
-    # Save agent if sb3
-    if cfg.agent.type == "SB3Agent":
-        agent.model.save(os.path.join(cfg.output_dir, "agent"))
+    # Save experimenter if sb3
+    if isinstance(experimenter, SB3Agent):
+        experimenter.model.save(os.path.join(cfg.output_dir, "experimenter"))
 
 
 if __name__ == "__main__":

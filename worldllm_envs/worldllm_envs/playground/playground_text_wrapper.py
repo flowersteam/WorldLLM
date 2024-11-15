@@ -1,3 +1,8 @@
+"""Main file for the Playground environment. Can be launched to generate a dataset"""
+
+import argparse
+import json
+import os
 import random
 import re
 from collections import Counter, OrderedDict
@@ -6,8 +11,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import gymnasium as gym
 import numpy as np
 
-from utils.utils_env import BaseAgent, Trajectory, generate_text_trajectories
-from worldllm_envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseAgent, BaseRuleEnv, Trajectory
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
 from worldllm_envs.playground.playgroundnavv1 import PlayGroundNavigationV1
@@ -24,8 +28,50 @@ def rm_trailing_number(input_str):
 class DiverseAgent(BaseAgent):
     """Generate diverse trajectories. Just used as a flag"""
 
+    def __init__(self, action_space: gym.Space):
+        super().__init__(action_space)
+        self.perfect_agent_sh = PerfectAgent(
+            action_space, curriculum_goals=["Grow any small_herbivorous"]
+        )
+        self.perfect_agent_shbh = PerfectAgent(
+            action_space,
+            curriculum_goals=[
+                "Grow any small_herbivorous then grow any big_herbivorous"
+            ],
+        )
+        self.random_agent = RandomAgent(action_space)
+
     def __call__(self, obs: str, **kwargs):
-        raise NotImplementedError("DiverseAgent does not generate actions")
+        """Act as random agent"""
+        return self.random_agent(obs, **kwargs), False
+
+    def reset(self, info: Dict[str, Any]):
+        self.perfect_agent_sh.reset(info)
+        self.perfect_agent_shbh.reset(info)
+        self.random_agent.reset(info)
+
+    def generate_trajectories(
+        self,
+        env: BaseRuleEnv,
+        nb_trajectories: int,
+        progression: float,
+        n_steps: Optional[int] = None,
+    ) -> Tuple[List[Trajectory], Set[str]]:
+        """Generate (n_traj-1)//3 Small Herbivores, (n_traj)//3 Big Herbivores and (n_tra+1)j//3 Random trajectories"""
+        trajectories = []
+        set_discovered_transition = set()
+        for incr, agent in enumerate(
+            [self.perfect_agent_sh, self.perfect_agent_shbh, self.random_agent]
+        ):
+            new_trajectories, new_discovered_transitions = agent.generate_trajectories(
+                env,
+                (nb_trajectories + incr) // 3,
+                0,
+                0,
+            )
+            trajectories.extend(new_trajectories)
+            set_discovered_transition.update(new_discovered_transitions)
+        return trajectories, set_discovered_transition
 
 
 class RandomAgent(BaseAgent):
@@ -37,7 +83,7 @@ class RandomAgent(BaseAgent):
 
 
 class PerfectAgent(BaseAgent):
-    """Heuristic agent for the Playground environment"""
+    """Heuristic agent for the Playground environment, able to solve all goals"""
 
     def __init__(
         self, action_space: gym.Space, curriculum_goals: Optional[List[str]] = None
@@ -81,6 +127,7 @@ class PerfectAgent(BaseAgent):
         return action, self.is_done
 
     def reset(self, info: Dict[str, Any]):
+        """Compute plan to reach goal"""
         if not getattr(self, "is_done", False) and hasattr(self, "obj_dict"):
             raise ValueError("You need to finish the plan before resetting")
         self.obj_dict = info["obj_dict"]
@@ -126,21 +173,21 @@ class PlaygroundDecisionTree:
         for goal_type, goal_obj in zip(self.lst_goal_type, self.lst_goal_obj):
             # Compute plan
             if goal_type == "grow":
-                if goal_obj not in {
+                if goal_obj in {
                     "small_herbivorous",
                     "big_herbivorous",
                     "small_carnivorous",
                     "big_carnivorous",
                     "plant",
                 }:
+                    goal_cat = goal_obj
+                    goal_obj = None
+                else:
                     for obj in self.obj_dict.keys():
                         if goal_obj in obj:
                             goal_obj = obj
                             break
                     goal_cat = self.obj_cat[goal_obj]
-                else:
-                    goal_cat = goal_obj
-                    goal_obj = None
                 if goal_cat == "plant":
                     _, success = self._grow_plant(goal_obj)
                 elif goal_cat == "small_herbivorous":
@@ -305,20 +352,22 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     """
 
     def __init__(self, **kwargs) -> None:
+        # Define all_transitions
+        self.all_transition_to_prompt = {
+            "standing": "You are standing on x. ",
+            "holding1": "You are holding y. ",
+            "holding2": "You are holding y and z. ",
+            "transformP": "x and y transform into z. ",
+            "transformBH": "x, y and z transform into w. ",
+            "nothing": "Nothing has changed. ",
+        }
+
         def statisitician_template(
             trajectory: Trajectory,
             discovered_transition: Set[str],
             rule: Optional[str] = None,
         ):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
-            transition_to_abstract_traj = {
-                "standing": "You are standing on x. ",
-                "holding1": "You are holding y. ",
-                "holding2": "You are holding y and z. ",
-                "transformP": "x and y transform into z. ",
-                "transformBH": "x, y and z transform into w. ",
-                "nothing": "Nothing has changed. ",
-            }
             base_user_prompt = (
                 "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
                 + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
@@ -329,7 +378,10 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
             # Give abstract trajectory
             base_user_prompt += "\n\n In the current space:\nYou see x, y, and z. You are standing on y. Your are holding nothing. "
-            for transition_type, transition_text in transition_to_abstract_traj.items():
+            for (
+                transition_type,
+                transition_text,
+            ) in self.all_transition_to_prompt.items():
                 if transition_type in discovered_transition:
                     base_user_prompt += "\na: action. \no: " + transition_text
             # give real trajectory
@@ -353,9 +405,9 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         def _format_trajectory_for_theorist(trajectory: Trajectory) -> str:
             """Format trjaectory for theorist"""
             msg = f"In the current space: {trajectory.lst_obs[0]}. \nThe sequence of actions and observations is: "
-            for i in range(len(trajectory.lst_diff)):
+            for i, diff in enumerate(trajectory.lst_diff):
                 msg += f" a: {trajectory.lst_act[i]}"
-                msg += f" o: {trajectory.lst_diff[i]}"
+                msg += f" o: {diff}"
             msg += "\n"
             return msg
 
@@ -392,6 +444,9 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         self.stat_template = statisitician_template
         self.th_prompt = ""
         self.th_template = theorist_template
+        self.test_dataset_path = os.path.join(
+            os.path.dirname(__file__), "data/test_dataset.json"
+        )
 
         # Playground parameters
         self.max_steps = 64
@@ -904,601 +959,23 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         """
         return np.array([0, 0, release_id])
 
-    @staticmethod
-    def get_test_dataset() -> List[Trajectory]:
-        """Return the test dataset"""
-        # Small Herbivores
-        trajectories = [
-            Trajectory(
-                lst_obs=[
-                    "You see: baby pig, water, carrot seed, beet seed, beet seed, carrot seed, baby elephant, baby elephant\nYou are on: nothing\nInventory (0/2): empty",
-                    "You see: baby pig, water, carrot seed, beet seed, beet seed, carrot seed, baby elephant, baby elephant\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby pig, carrot seed, beet seed, beet seed, carrot seed, baby elephant, baby elephant\nYou are on: nothing\nInventory (1/2): water",
-                    "You see: baby pig, carrot seed, beet seed, beet seed, carrot seed, baby elephant, baby elephant\nYou are on: carrot seed\nInventory (1/2): water",
-                    "You see: baby pig, carrot, beet seed, beet seed, carrot seed, baby elephant, baby elephant\nYou are on: carrot\nInventory (0/2): empty",
-                    "You see: baby pig, beet seed, beet seed, carrot seed, baby elephant, baby elephant\nYou are on: nothing\nInventory (1/2): carrot",
-                    "You see: baby pig, beet seed, beet seed, carrot seed, baby elephant, baby elephant\nYou are on: baby pig\nInventory (1/2): carrot",
-                    "You see: pig, beet seed, beet seed, carrot seed, baby elephant, baby elephant\nYou are on: pig\nInventory (0/2): empty",
-                ],
-                lst_act=[
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the carrot seed.",
-                    "You give the water.",
-                    "You pick up the object.",
-                    "You go to the baby pig.",
-                    "You give the carrot.",
-                ],
-                lst_diff=[
-                    "You are standing on the water.",
-                    "You are holding the water.",
-                    "You are standing on the carrot seed.",
-                    "The water and carrot seed transform into the carrot.",
-                    "You are holding the carrot.",
-                    "You are standing on the baby pig.",
-                    "The carrot and baby pig transform into the pig.",
-                ],
-            )
-        ]
-        trajectories.append(
-            Trajectory(
-                lst_obs=[
-                    "You see: baby pig, water, beet seed, baby rhinoceros, baby rhinoceros, baby pig, baby pig, baby sheep\nYou are on: nothing\nInventory (0/2): empty",
-                    "You see: baby pig, water, beet seed, baby rhinoceros, baby rhinoceros, baby pig, baby pig, baby sheep\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby pig, beet seed, baby rhinoceros, baby rhinoceros, baby pig, baby pig, baby sheep\nYou are on: nothing\nInventory (1/2): water",
-                    "You see: baby pig, beet seed, baby rhinoceros, baby rhinoceros, baby pig, baby pig, baby sheep\nYou are on: beet seed\nInventory (1/2): water",
-                    "You see: baby pig, beet, baby rhinoceros, baby rhinoceros, baby pig, baby pig, baby sheep\nYou are on: beet\nInventory (0/2): empty",
-                    "You see: baby pig, baby rhinoceros, baby rhinoceros, baby pig, baby pig, baby sheep\nYou are on: nothing\nInventory (1/2): beet",
-                    "You see: baby pig, baby rhinoceros, baby rhinoceros, baby pig, baby pig, baby sheep\nYou are on: baby sheep\nInventory (1/2): beet",
-                    "You see: baby pig, baby rhinoceros, baby rhinoceros, baby pig, baby pig, sheep\nYou are on: sheep\nInventory (0/2): empty",
-                ],
-                lst_act=[
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the beet seed.",
-                    "You give the water.",
-                    "You pick up the object.",
-                    "You go to the baby sheep.",
-                    "You give the beet.",
-                ],
-                lst_diff=[
-                    "You are standing on the water.",
-                    "You are holding the water.",
-                    "You are standing on the beet seed.",
-                    "The water and beet seed transform into the beet.",
-                    "You are holding the beet.",
-                    "You are standing on the baby sheep.",
-                    "The beet and baby sheep transform into the sheep.",
-                ],
-            )
-        )
-        trajectories.append(
-            Trajectory(
-                lst_obs=[
-                    "You see: baby pig, water, berry seed, baby giraffe, potato seed, water, baby cow, carrot seed\nYou are on: nothing\nInventory (0/2): empty",
-                    "You see: baby pig, water, berry seed, baby giraffe, potato seed, water, baby cow, carrot seed\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby pig, berry seed, baby giraffe, potato seed, water, baby cow, carrot seed\nYou are on: nothing\nInventory (1/2): water",
-                    "You see: baby pig, berry seed, baby giraffe, potato seed, water, baby cow, carrot seed\nYou are on: carrot seed\nInventory (1/2): water",
-                    "You see: baby pig, berry seed, baby giraffe, potato seed, water, baby cow, carrot\nYou are on: carrot\nInventory (0/2): empty",
-                    "You see: baby pig, berry seed, baby giraffe, potato seed, water, baby cow\nYou are on: nothing\nInventory (1/2): carrot",
-                    "You see: baby pig, berry seed, baby giraffe, potato seed, water, baby cow\nYou are on: baby cow\nInventory (1/2): carrot",
-                    "You see: baby pig, berry seed, baby giraffe, potato seed, water, cow\nYou are on: cow\nInventory (0/2): empty",
-                ],
-                lst_act=[
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the carrot seed.",
-                    "You give the water.",
-                    "You pick up the object.",
-                    "You go to the baby cow.",
-                    "You give the carrot.",
-                ],
-                lst_diff=[
-                    "You are standing on the water.",
-                    "You are holding the water.",
-                    "You are standing on the carrot seed.",
-                    "The water and carrot seed transform into the carrot.",
-                    "You are holding the carrot.",
-                    "You are standing on the baby cow.",
-                    "The carrot and baby cow transform into the cow.",
-                ],
-            )
-        )
-        # Small Herbivores than Big Herbivores
-        trajectories.append(
-            Trajectory(
-                lst_obs=[
-                    "You see: baby rhinoceros, water, pea seed, water, carrot seed, water, berry seed, water\nYou are on: nothing\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, water, pea seed, water, carrot seed, water, berry seed, water\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, pea seed, water, carrot seed, water, berry seed, water\nYou are on: nothing\nInventory (1/2): water",
-                    "You see: baby rhinoceros, pea seed, water, carrot seed, water, berry seed, water\nYou are on: berry seed\nInventory (1/2): water",
-                    "You see: baby rhinoceros, pea seed, water, carrot seed, water, berry, water\nYou are on: berry\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, pea seed, water, carrot seed, water, water\nYou are on: nothing\nInventory (1/2): berry",
-                    "You see: baby rhinoceros, pea seed, water, carrot seed, water, water\nYou are on: water\nInventory (1/2): berry",
-                    "You see: baby rhinoceros, pea seed, carrot seed, water, water\nYou are on: nothing\nInventory (2/2): water, berry",
-                    "You see: baby rhinoceros, pea seed, carrot seed, water, water\nYou are on: carrot seed\nInventory (2/2): water, berry",
-                    "You see: baby rhinoceros, pea seed, carrot, water, water\nYou are on: carrot\nInventory (1/2): berry",
-                    "You see: baby rhinoceros, pea seed, water, water\nYou are on: nothing\nInventory (2/2): carrot, berry",
-                    "You see: baby rhinoceros, pea seed, water, water\nYou are on: baby rhinoceros\nInventory (2/2): carrot, berry",
-                    "You see: rhinoceros, pea seed, water, water\nYou are on: rhinoceros\nInventory (0/2): empty",
-                ],
-                lst_act=[
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the berry seed.",
-                    "You give the water.",
-                    "You pick up the object.",
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the carrot seed.",
-                    "You give the water.",
-                    "You pick up the object.",
-                    "You go to the baby rhinoceros.",
-                    "You give all the objects you hold.",
-                ],
-                lst_diff=[
-                    "You are standing on the water.",
-                    "You are holding the water.",
-                    "You are standing on the berry seed.",
-                    "The water and berry seed transform into the berry.",
-                    "You are holding the berry.",
-                    "You are standing on the water.",
-                    "You are holding the berry and the water.",
-                    "You are standing on the carrot seed.",
-                    "The water and carrot seed transform into the carrot.",
-                    "You are holding the berry and the carrot.",
-                    "You are standing on the baby rhinoceros.",
-                    "The carrot, berry and baby rhinoceros transform into the rhinoceros.",
-                ],
-            )
-        )
-        trajectories.append(
-            Trajectory(
-                lst_obs=[
-                    "You see: baby elephant, water, beet seed, water, potato seed, water, carrot seed, beet seed\nYou are on: nothing\nInventory (0/2): empty",
-                    "You see: baby elephant, water, beet seed, water, potato seed, water, carrot seed, beet seed\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby elephant, beet seed, water, potato seed, water, carrot seed, beet seed\nYou are on: nothing\nInventory (1/2): water",
-                    "You see: baby elephant, beet seed, water, potato seed, water, carrot seed, beet seed\nYou are on: beet seed\nInventory (1/2): water",
-                    "You see: baby elephant, beet, water, potato seed, water, carrot seed, beet seed\nYou are on: beet\nInventory (0/2): empty",
-                    "You see: baby elephant, water, potato seed, water, carrot seed, beet seed\nYou are on: nothing\nInventory (1/2): beet",
-                    "You see: baby elephant, water, potato seed, water, carrot seed, beet seed\nYou are on: water\nInventory (1/2): beet",
-                    "You see: baby elephant, potato seed, water, carrot seed, beet seed\nYou are on: nothing\nInventory (2/2): beet, water",
-                    "You see: baby elephant, potato seed, water, carrot seed, beet seed\nYou are on: carrot seed\nInventory (2/2): beet, water",
-                    "You see: baby elephant, potato seed, water, carrot, beet seed\nYou are on: carrot\nInventory (1/2): beet",
-                    "You see: baby elephant, potato seed, water, beet seed\nYou are on: nothing\nInventory (2/2): beet, carrot",
-                    "You see: baby elephant, potato seed, water, beet seed\nYou are on: baby elephant\nInventory (2/2): beet, carrot",
-                    "You see: elephant, potato seed, water, beet seed\nYou are on: elephant\nInventory (0/2): empty",
-                ],
-                lst_act=[
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the beet seed.",
-                    "You give the water.",
-                    "You pick up the object.",
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the carrot seed.",
-                    "You give the water.",
-                    "You pick up the object.",
-                    "You go to the baby elephant.",
-                    "You give all the objects you hold.",
-                ],
-                lst_diff=[
-                    "You are standing on the water.",
-                    "You are holding the water.",
-                    "You are standing on the beet seed.",
-                    "The water and beet seed transform into the beet.",
-                    "You are holding the beet.",
-                    "You are standing on the water.",
-                    "You are holding the beet and the water.",
-                    "You are standing on the carrot seed.",
-                    "The water and carrot seed transform into the carrot.",
-                    "You are holding the beet and the carrot.",
-                    "You are standing on the baby elephant.",
-                    "The beet, carrot and baby elephant transform into the elephant.",
-                ],
-            )
-        )
-        trajectories.append(
-            Trajectory(
-                lst_obs=[
-                    "You see: baby elephant, water, pea seed, water, carrot seed, baby pig, baby rhinoceros, baby giraffe\nYou are on: nothing\nInventory (0/2): empty",
-                    "You see: baby elephant, water, pea seed, water, carrot seed, baby pig, baby rhinoceros, baby giraffe\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby elephant, pea seed, water, carrot seed, baby pig, baby rhinoceros, baby giraffe\nYou are on: nothing\nInventory (1/2): water",
-                    "You see: baby elephant, pea seed, water, carrot seed, baby pig, baby rhinoceros, baby giraffe\nYou are on: carrot seed\nInventory (1/2): water",
-                    "You see: baby elephant, pea seed, water, carrot, baby pig, baby rhinoceros, baby giraffe\nYou are on: carrot\nInventory (0/2): empty",
-                    "You see: baby elephant, pea seed, water, baby pig, baby rhinoceros, baby giraffe\nYou are on: nothing\nInventory (1/2): carrot",
-                    "You see: baby elephant, pea seed, water, baby pig, baby rhinoceros, baby giraffe\nYou are on: water\nInventory (1/2): carrot",
-                    "You see: baby elephant, pea seed, baby pig, baby rhinoceros, baby giraffe\nYou are on: nothing\nInventory (2/2): water, carrot",
-                    "You see: baby elephant, pea seed, baby pig, baby rhinoceros, baby giraffe\nYou are on: pea seed\nInventory (2/2): water, carrot",
-                    "You see: baby elephant, pea, baby pig, baby rhinoceros, baby giraffe\nYou are on: pea\nInventory (1/2): carrot",
-                    "You see: baby elephant, baby pig, baby rhinoceros, baby giraffe\nYou are on: nothing\nInventory (2/2): pea, carrot",
-                    "You see: baby elephant, baby pig, baby rhinoceros, baby giraffe\nYou are on: baby giraffe\nInventory (2/2): pea, carrot",
-                    "You see: baby elephant, baby pig, baby rhinoceros, giraffe\nYou are on: giraffe\nInventory (0/2): empty",
-                ],
-                lst_act=[
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the carrot seed.",
-                    "You give the water.",
-                    "You pick up the object.",
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the pea seed.",
-                    "You give the water.",
-                    "You pick up the object.",
-                    "You go to the baby giraffe.",
-                    "You give all the objects you hold.",
-                ],
-                lst_diff=[
-                    "You are standing on the water.",
-                    "You are holding the water.",
-                    "You are standing on the carrot seed.",
-                    "The water and carrot seed transform into the carrot.",
-                    "You are holding the carrot.",
-                    "You are standing on the water.",
-                    "You are holding the carrot and the water.",
-                    "You are standing on the pea seed.",
-                    "The water and pea seed transform into the pea.",
-                    "You are holding the carrot and the pea.",
-                    "You are standing on the baby giraffe.",
-                    "The pea, carrot and baby giraffe transform into the giraffe.",
-                ],
-            )
-        )
-        # Random Trajectories
-        trajectories.append(
-            Trajectory(
-                lst_obs=[
-                    "You see: baby giraffe, water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: nothing\nInventory (0/2): empty",
-                    "You see: baby giraffe, water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: baby giraffe\nInventory (0/2): empty",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: nothing\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: berry seed\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: pea seed\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: baby pig\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: baby pig\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: baby pig\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: pea seed\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: pea seed\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: pea seed\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: pea seed\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (1/2): baby giraffe",
-                    "You see: water, berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (1/2): baby giraffe",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: nothing\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: berry seed\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: pea seed\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: pea seed\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: water\nInventory (2/2): baby giraffe, water",
-                    "You see: berry seed, water, pea seed, pea seed, water, baby pig\nYou are on: berry seed\nInventory (2/2): baby giraffe, water",
-                ],
-                lst_act=[
-                    "You go to the baby giraffe.",
-                    "You pick up the object.",
-                    "You go to the berry seed.",
-                    "You go to the water.",
-                    "You go to the water.",
-                    "You go to the pea seed.",
-                    "You go to the baby pig.",
-                    "You give the baby giraffe.",
-                    "You give the baby giraffe.",
-                    "You go to the pea seed.",
-                    "You go to the pea seed.",
-                    "You give the baby giraffe.",
-                    "You give the baby giraffe.",
-                    "You go to the water.",
-                    "You give the baby giraffe.",
-                    "You pick up the object.",
-                    "You go to the water.",
-                    "You go to the water.",
-                    "You go to the berry seed.",
-                    "You go to the water.",
-                    "You give the baby giraffe.",
-                    "You go to the water.",
-                    "You give all the objects you hold.",
-                    "You pick up the object.",
-                    "You go to the pea seed.",
-                    "You give all the objects you hold.",
-                    "You go to the water.",
-                    "You give all the objects you hold.",
-                    "You give the baby giraffe.",
-                    "You go to the berry seed.",
-                ],
-                lst_diff=[
-                    "You are standing on the baby giraffe.",
-                    "You are holding the baby giraffe.",
-                    "You are standing on the berry seed.",
-                    "You are standing on the water.",
-                    "Nothing has changed.",
-                    "You are standing on the pea seed.",
-                    "You are standing on the baby pig.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "You are standing on the pea seed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "You are standing on the water.",
-                    "Nothing has changed.",
-                    "You are holding the baby giraffe and the water.",
-                    "You are standing on the water.",
-                    "Nothing has changed.",
-                    "You are standing on the berry seed.",
-                    "You are standing on the water.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "You are standing on the pea seed.",
-                    "Nothing has changed.",
-                    "You are standing on the water.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "You are standing on the berry seed.",
-                ],
-            )
-        )
-        trajectories.append(
-            Trajectory(
-                lst_obs=[
-                    "You see: baby elephant, water, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: nothing\nInventory (0/2): empty",
-                    "You see: baby elephant, water, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: nothing\nInventory (0/2): empty",
-                    "You see: baby elephant, water, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby elephant, water, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: carrot seed\nInventory (0/2): empty",
-                    "You see: baby elephant, water, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby elephant, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: nothing\nInventory (1/2): water",
-                    "You see: baby elephant, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: baby elephant\nInventory (1/2): water",
-                    "You see: baby elephant, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: baby elephant\nInventory (1/2): water",
-                    "You see: baby elephant, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: baby elephant\nInventory (1/2): water",
-                    "You see: baby elephant, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: carrot seed\nInventory (1/2): water",
-                    "You see: baby elephant, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: water\nInventory (1/2): water",
-                    "You see: baby elephant, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: water\nInventory (1/2): water",
-                    "You see: baby elephant, carrot seed, water, carrot seed, baby sheep, water, carrot seed\nYou are on: water\nInventory (1/2): water",
-                    "You see: baby elephant, carrot seed, carrot seed, baby sheep, water, carrot seed\nYou are on: nothing\nInventory (2/2): water, water",
-                    "You see: baby elephant, carrot seed, carrot seed, baby sheep, water, carrot seed\nYou are on: baby sheep\nInventory (2/2): water, water",
-                    "You see: baby elephant, carrot seed, carrot seed, baby sheep, water, carrot seed\nYou are on: baby sheep\nInventory (2/2): water, water",
-                    "You see: baby elephant, carrot seed, carrot seed, baby sheep, water, carrot seed\nYou are on: baby sheep\nInventory (2/2): water, water",
-                    "You see: baby elephant, carrot seed, carrot seed, baby sheep, water, carrot seed\nYou are on: carrot seed\nInventory (2/2): water, water",
-                    "You see: baby elephant, carrot seed, carrot seed, baby sheep, water, carrot seed\nYou are on: carrot seed\nInventory (2/2): water, water",
-                    "You see: baby elephant, carrot, carrot seed, baby sheep, water, carrot seed\nYou are on: carrot\nInventory (1/2): water",
-                    "You see: baby elephant, carrot, carrot seed, baby sheep, water, carrot seed\nYou are on: carrot\nInventory (1/2): water",
-                    "You see: baby elephant, carrot, carrot seed, baby sheep, water, carrot seed\nYou are on: water\nInventory (1/2): water",
-                    "You see: baby elephant, carrot, carrot seed, baby sheep, water, carrot seed\nYou are on: carrot\nInventory (1/2): water",
-                    "You see: baby elephant, carrot, carrot seed, baby sheep, water, carrot seed\nYou are on: baby elephant\nInventory (1/2): water",
-                    "You see: baby elephant, carrot, carrot seed, baby sheep, water, carrot seed\nYou are on: carrot seed\nInventory (1/2): water",
-                    "You see: baby elephant, carrot, carrot, baby sheep, water, carrot seed\nYou are on: carrot\nInventory (0/2): empty",
-                    "You see: baby elephant, carrot, carrot, baby sheep, water, carrot seed\nYou are on: baby sheep\nInventory (0/2): empty",
-                    "You see: baby elephant, carrot, carrot, baby sheep, water, carrot seed\nYou are on: baby sheep\nInventory (0/2): empty",
-                    "You see: baby elephant, carrot, carrot, baby sheep, water, carrot seed\nYou are on: carrot seed\nInventory (0/2): empty",
-                    "You see: baby elephant, carrot, carrot, baby sheep, water, carrot seed\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby elephant, carrot, carrot, baby sheep, water, carrot seed\nYou are on: baby elephant\nInventory (0/2): empty",
-                ],
-                lst_act=[
-                    "You pick up the object.",
-                    "You go to the water.",
-                    "You go to the carrot seed.",
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the baby elephant.",
-                    "You give the water.",
-                    "You give the water.",
-                    "You go to the carrot seed.",
-                    "You go to the water.",
-                    "You go to the water.",
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the baby sheep.",
-                    "You give all the objects you hold.",
-                    "You pick up the object.",
-                    "You go to the carrot seed.",
-                    "You go to the carrot seed.",
-                    "You give the water.",
-                    "You give the water.",
-                    "You go to the water.",
-                    "You go to the carrot.",
-                    "You go to the baby elephant.",
-                    "You go to the carrot seed.",
-                    "You give the water.",
-                    "You go to the baby sheep.",
-                    "You go to the baby sheep.",
-                    "You go to the carrot seed.",
-                    "You go to the water.",
-                    "You go to the baby elephant.",
-                ],
-                lst_diff=[
-                    "Nothing has changed.",
-                    "You are standing on the water.",
-                    "You are standing on the carrot seed.",
-                    "You are standing on the water.",
-                    "You are holding the water.",
-                    "You are standing on the baby elephant.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "You are standing on the carrot seed.",
-                    "You are standing on the water.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "You are holding the water and the water.",
-                    "You are standing on the baby sheep.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "You are standing on the carrot seed.",
-                    "Nothing has changed.",
-                    "The water and carrot seed transform into the carrot.",
-                    "Nothing has changed.",
-                    "You are standing on the water.",
-                    "You are standing on the carrot.",
-                    "You are standing on the baby elephant.",
-                    "You are standing on the carrot seed.",
-                    "The water and carrot seed transform into the carrot.",
-                    "You are standing on the baby sheep.",
-                    "Nothing has changed.",
-                    "You are standing on the carrot seed.",
-                    "You are standing on the water.",
-                    "You are standing on the baby elephant.",
-                ],
-            )
-        )
-        trajectories.append(
-            Trajectory(
-                lst_obs=[
-                    "You see: baby rhinoceros, water, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: nothing\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, water, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby cow\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, water, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: potato seed\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, water, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, water, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, water, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, water, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, water, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: water\nInventory (0/2): empty",
-                    "You see: baby rhinoceros, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: nothing\nInventory (1/2): water",
-                    "You see: baby rhinoceros, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby sheep\nInventory (1/2): water",
-                    "You see: baby rhinoceros, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby cow\nInventory (1/2): water",
-                    "You see: baby rhinoceros, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: potato seed\nInventory (1/2): water",
-                    "You see: baby rhinoceros, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: water\nInventory (1/2): water",
-                    "You see: baby rhinoceros, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: water\nInventory (1/2): water",
-                    "You see: baby rhinoceros, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: water\nInventory (1/2): water",
-                    "You see: baby rhinoceros, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby cow\nInventory (1/2): water",
-                    "You see: baby rhinoceros, potato seed, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: potato seed\nInventory (1/2): water",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: nothing\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: pea seed\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                    "You see: baby rhinoceros, water, pea seed, baby rhinoceros, baby sheep, baby cow\nYou are on: baby rhinoceros\nInventory (2/2): water, potato seed",
-                ],
-                lst_act=[
-                    "You go to the baby cow.",
-                    "You go to the potato seed.",
-                    "You go to the water.",
-                    "You go to the baby rhinoceros.",
-                    "You go to the baby rhinoceros.",
-                    "You go to the water.",
-                    "You go to the water.",
-                    "You pick up the object.",
-                    "You go to the baby sheep.",
-                    "You go to the baby cow.",
-                    "You go to the potato seed.",
-                    "You go to the water.",
-                    "You give the water.",
-                    "You give the water.",
-                    "You go to the baby cow.",
-                    "You go to the potato seed.",
-                    "You pick up the object.",
-                    "You go to the baby rhinoceros.",
-                    "You give all the objects you hold.",
-                    "You give the potato seed.",
-                    "You give the water.",
-                    "You give the water.",
-                    "You go to the baby rhinoceros.",
-                    "You give the water.",
-                    "You go to the baby rhinoceros.",
-                    "You give the water.",
-                    "You give the water.",
-                    "You go to the pea seed.",
-                    "You go to the baby rhinoceros.",
-                    "You give the potato seed.",
-                ],
-                lst_diff=[
-                    "You are standing on the baby cow.",
-                    "You are standing on the potato seed.",
-                    "You are standing on the water.",
-                    "You are standing on the baby rhinoceros.",
-                    "Nothing has changed.",
-                    "You are standing on the water.",
-                    "Nothing has changed.",
-                    "You are holding the water.",
-                    "You are standing on the baby sheep.",
-                    "You are standing on the baby cow.",
-                    "You are standing on the potato seed.",
-                    "You are standing on the water.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "You are standing on the baby cow.",
-                    "You are standing on the potato seed.",
-                    "You are holding the water and the potato seed.",
-                    "You are standing on the baby rhinoceros.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "Nothing has changed.",
-                    "You are standing on the pea seed.",
-                    "You are standing on the baby rhinoceros.",
-                    "Nothing has changed.",
-                ],
-            )
-        )
-        return trajectories
-
-
-def generate_diverse_trajectories(
-    env: PlayGroundText,
-    n_traj: int,
-) -> Tuple[List[Trajectory], Set[str]]:
-    """Generate (n_traj-1)//3 Small Herbivores, (n_traj)//3 Big Herbivores and (n_tra+1)j//3 Random trajectories"""
-    trajectories = []
-    set_discovered_transition = set()
-    perfect_agent = PerfectAgent(
-        env.action_space, curriculum_goals=["Grow any small_herbivorous"]
-    )
-    new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env,
-        perfect_agent,
-        "Grow any small_herbivorous then grow any big_herbivorous",
-        (n_traj) // 3,
-        0,
-    )
-    trajectories.extend(new_trajectories)
-    set_discovered_transition.update(new_discovered_transitions)
-    perfect_agent = PerfectAgent(
-        env.action_space,
-        curriculum_goals=["Grow any small_herbivorous then grow any big_herbivorous"],
-    )
-    new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env,
-        perfect_agent,
-        "Grow any small_herbivorous then grow any big_herbivorous",
-        (n_traj + 1) // 3,
-        0,
-    )
-    trajectories.extend(new_trajectories)
-    set_discovered_transition.update(new_discovered_transitions)
-    random_agent = RandomAgent(env.action_space)
-    new_trajectories, new_discovered_transitions = generate_text_trajectories(
-        env,
-        random_agent,
-        "Grow any small_herbivorous then grow any big_herbivorous",
-        (n_traj + 2) // 3,
-        0,
-    )
-    trajectories.extend(new_trajectories)
-    set_discovered_transition.update(new_discovered_transitions)
-    return trajectories, set_discovered_transition
-
 
 class PlayGroundDiscrete(PlayGroundText):
+    """
+    PlayGroundDiscrete is a discrete version of the PlayGroundText environment to be controled with a classic RL agent.
+    The difference is only on the state and action space format.
+    TThe transition id is returned as the reward. The real reward is computed after.
+
+    Args:
+        PlayGroundText (BaseRuleEnv): The base environment class.
+
+    Raises:
+        ValueError: If an unsupported object category is encountered.
+        ValueError: If an unsupported action is encountered.
+        ValueError: If the number of sequential goals is greater than 2.
+        NotImplementedError: If rendering is attempted.
+    """
+
     TRANSITION_TYPE_TO_ID = {
         "nothing": 0,
         "standing": 1,
@@ -1809,3 +1286,76 @@ class PlayGroundDiscrete(PlayGroundText):
 
     def get_action_mask(self) -> np.ndarray:
         return self.action_mask
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument(
+        "--filepath",
+        type=str,
+        default=os.path.join(os.path.dirname(__file__), "data/test_dataset2.json"),
+        help="Path to save the dataset",
+    )
+
+    # Argument for the environment
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=30,
+        help="Maximum number of steps in the environment",
+    )
+    parser.add_argument(
+        "--max-objects",
+        type=int,
+        default=8,
+        help="Maximum number of objects in the environment",
+    )
+    parser.add_argument(
+        "--nb-trajectories",
+        type=int,
+        default=9,
+        help="Number of trajectories for the dataset. A third will be dedicated to collect small Herbivorous, a third to collect small and big Herbivorous and a third to act randomly",
+    )
+    parser.add_argument(
+        "--rule",
+        type=str,
+        default="grow any small_herbivorous then grow any big_herbivorous",
+        help="Rule for the environment",
+    )
+    args = parser.parse_args()
+
+    env: BaseRuleEnv = gym.make(
+        "worldllm_envs/PlaygroundText-v1",
+        **{
+            "max_steps": args.max_steps,
+            "seed": args.seed,
+            "playground_config": {"max_nb_objects": args.max_objects},
+            "test_dataset_path": None,
+        },
+    )
+    env.reset(options={"rule": args.rule})
+    # Create the different agents
+    perfect_agent_sh = PerfectAgent(
+        env.action_space, curriculum_goals=["Grow any small_herbivorous"]
+    )
+    perfect_agent_shbh = PerfectAgent(
+        env.action_space,
+        curriculum_goals=["Grow any small_herbivorous then grow any big_herbivorous"],
+    )
+    random_agent = RandomAgent(env.action_space)
+    # Collect all trajectories
+    trajectories: List[Trajectory] = []
+    for incr, agent in enumerate([perfect_agent_sh, perfect_agent_shbh, random_agent]):
+        new_trajectories, new_discovered_transitions = agent.generate_trajectories(
+            env,
+            (args.nb_trajectories + incr) // 3,
+            0,
+            0,
+        )
+        trajectories.extend(new_trajectories)
+    # Save the trajectories
+    with open(args.filepath, "w") as f:
+        json.dump([t.to_dict() for t in trajectories], f)
+
+    print("Done.")

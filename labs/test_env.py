@@ -1,9 +1,6 @@
 import time
 
 import gymnasium
-import numpy as np
-import torch
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from worldllm_envs.base import BaseRuleEnv
@@ -35,7 +32,7 @@ for _ in tqdm(range(n_episodes)):
         done = terminated or truncated or agent_done
         n_steps += 1
         print(f"Action: {action}, Observation: {obs}")
-    print(info["text_trajectory"])
+    print(info["trajectory_obs_diff"])
 
 print(f"Time: {time.perf_counter() - start_time}")
 print("Done.")

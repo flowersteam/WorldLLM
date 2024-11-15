@@ -8,8 +8,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from utils.utils_env import Trajectory
-from worldllm_envs.base import EnvPromptInfo
+from worldllm_envs.base import EnvPromptInfo, Trajectory
 
 
 @dataclass
@@ -367,10 +366,7 @@ def _score_trajectory(
     lst_message: List[Tuple[Dict[str, str], Dict[str, str]]],
     lst_candidate: List[Tuple[Dict[str, str]]],
 ) -> Tuple[torch.Tensor, List[List[float]]]:
-    """Score and reuse the pas key and values"""
-    if len(lst_message) == 1:
-        # Do stuff
-        raise ValueError("Need at least 2 messages")
+    """Score and reuse the past key and values"""
     inputs_msg = llm.tokenizer.apply_chat_template(
         lst_message,
         add_generation_prompt=False,
@@ -488,7 +484,7 @@ def compute_likelihood(
     rules: List[Optional[str]],
     trajectories: List[Trajectory],
     return_all_logp: bool = False,
-) -> Tuple[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]], List[List[float]]]:
+) -> Tuple[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]], List[List[List[float]]]]:
     """Compute the likelihood of the new data given the rules."""
     lst_messages = []
     lst_candidates = []

@@ -1,7 +1,6 @@
 import argparse
 import random
 from functools import partial
-from itertools import product
 from typing import Any, ClassVar, Dict, Optional, Tuple, Type, TypeVar, Union
 
 import gymnasium
@@ -9,10 +8,7 @@ import numpy as np
 import torch as th
 from gymnasium import spaces
 from sb3_contrib import MaskablePPO
-from sb3_contrib.common.maskable.buffers import (
-    MaskableRolloutBuffer,
-    MaskableRolloutBufferSamples,
-)
+from sb3_contrib.common.maskable.buffers import MaskableRolloutBuffer
 from sb3_contrib.common.maskable.utils import get_action_masks, is_masking_supported
 from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
@@ -20,7 +16,6 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.utils import obs_as_tensor
 from stable_baselines3.common.vec_env import VecEnv
-from torch.nn import functional as F
 
 from worldllm_envs.base import BaseRuleEnv
 

@@ -1,0 +1,3 @@
+defaults:
+  - base_agent
+_target_: worldllm_envs.base.RandomAgent
