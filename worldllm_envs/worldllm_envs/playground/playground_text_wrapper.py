@@ -964,6 +964,7 @@ class PlayGroundDiscrete(PlayGroundText):
     """
     PlayGroundDiscrete is a discrete version of the PlayGroundText environment to be controled with a classic RL agent.
     The difference is only on the state and action space format.
+    TThe transition id is returned as the reward. The real reward is computed after.
 
     Args:
         PlayGroundText (BaseRuleEnv): The base environment class.
