@@ -76,7 +76,8 @@ class BaseRuleEnv(gym.Env, abc.ABC):
         if self.test_dataset_path is not None:
             self.test_dataset = self.load_test_dataset(self.test_dataset_path)
 
-    def load_test_dataset(self, test_dataset_path: str) -> List[Trajectory]:
+    @staticmethod
+    def load_test_dataset(test_dataset_path: str) -> List[Trajectory]:
         """Load test dataset from the given path."""
         try:
             with open(test_dataset_path, "r", encoding="utf-8") as f:
