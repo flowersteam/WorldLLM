@@ -51,6 +51,8 @@ class CustomMaskablePPO(MaskablePPO):
     """Modification of the PPO algorithm to modify rewards between end of the collecting of the rollout
     and the training"""
 
+    rollout_buffer: CustomMaskableRolloutBuffer
+
     def collect_rollouts(  # type: ignore[override]
         self,
         env: VecEnv,
