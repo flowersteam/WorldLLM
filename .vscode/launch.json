@@ -75,7 +75,8 @@
                 "-cn",
                 "metropolis_alp.yaml",
                 "algorithm.nb_iterations_mh=1",
-                "algorithm.nb_iterations=1",
+                "algorithm.nb_iterations=2",
+                "algorithm.save_every=1",
                 "experimenter.hyperparameters.n_steps=30",
             ]
         },
@@ -128,6 +129,7 @@
                 "-cn",
                 "metropolis_cp.yaml",
                 "algorithm.nb_iterations_mh=1",
+                "algorithm.save_every=3",
                 "algorithm.nb_iterations=4",
             ]
         }

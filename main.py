@@ -81,6 +81,7 @@ def main(cfg: DictConfig) -> None:
             theorist,
             statistician,
             OmegaConf.to_object(cfg.algorithm),
+            cfg.output_dir,
         )
     else:
         raise NotImplementedError(f"Algorithm {cfg.algorithm} not implemented.")

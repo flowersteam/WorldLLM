@@ -1,5 +1,6 @@
 """Main file for the Metropolis-Hastings algorithm"""
 
+import os
 from copy import copy
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -117,6 +118,7 @@ def metropolis_hastings(
     theorist: LlmModel,
     statistician: Statistician,
     cfg: Dict[str, Any],
+    output_dir: str,
 ) -> RuleOutput:
     """Metropolis-Hasting algorithm, return logs to save"""
 
@@ -317,6 +319,17 @@ def metropolis_hastings(
             # Train the experimenter
             experimenter.train_step(new_rewards)
 
+        if i > 0 and i % cfg["save_every"] == 0:
+            output = RuleOutput(
+                all_dict["rules"],
+                all_dict["likelihoods"],
+                all_dict,
+            )
+            # Save output
+            output.to_json(os.path.join(output_dir, f"all_{i}.json"))
+            # Save experimenter if sb3
+            if isinstance(experimenter, SB3Agent):
+                experimenter.model.save(os.path.join(output_dir, f"experimenter_{i}"))
     # endregion
     # Add all transtion to the statistician for scoring the test
     statistician.prompt_info.discovered_transitions = env.get_all_transition_to_prompt()
