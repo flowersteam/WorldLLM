@@ -14,8 +14,7 @@ from stable_baselines3.common.utils import obs_as_tensor
 from stable_baselines3.common.vec_env import VecEnv
 from tqdm import tqdm
 
-from utils.utils_env import BaseAgent, Trajectory
-from worldllm_envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseAgent, BaseRuleEnv, Trajectory
 
 
 class CustomMaskableRolloutBuffer(MaskableRolloutBuffer):

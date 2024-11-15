@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import numpy as np
 from tqdm import tqdm
 
-from utils.utils_env import BaseAgent, Trajectory
 from utils.utils_llm import (
     LlmModel,
     Statistician,
@@ -18,7 +17,7 @@ from utils.utils_llm import (
 )
 from utils.utils_save import RuleOutput
 from utils.utils_sb3 import SB3Agent
-from worldllm_envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseAgent, BaseRuleEnv, Trajectory
 
 
 def get_worst_trajectories(

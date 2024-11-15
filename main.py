@@ -9,10 +9,9 @@ from omegaconf import DictConfig, OmegaConf
 
 from montecarlo_methods.important_sampling import important_sampling
 from montecarlo_methods.metropolis_hastings import metropolis_hastings
-from utils.utils_env import BaseAgent, build_env
 from utils.utils_llm import build_llms
 from utils.utils_sb3 import SB3Agent
-from worldllm_envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseAgent, BaseRuleEnv, build_env
 
 
 def load_experimenter(cfg: DictConfig, env: BaseRuleEnv) -> BaseAgent:

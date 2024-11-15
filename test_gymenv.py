@@ -6,8 +6,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from utils.utils_env import RandomAgent, Trajectory
-from worldllm_envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseRuleEnv, RandomAgent, Trajectory
 
 writer = SummaryWriter(log_dir="./logs_ppo_sb3/RandomAgent2")
 seed = None

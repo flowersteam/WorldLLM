@@ -6,8 +6,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import gymnasium as gym
 import numpy as np
 
-from utils.utils_env import BaseAgent, Trajectory
-from worldllm_envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseAgent, BaseRuleEnv, Trajectory
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
 from worldllm_envs.playground.playgroundnavv1 import PlayGroundNavigationV1
