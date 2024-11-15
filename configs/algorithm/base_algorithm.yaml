@@ -1,7 +1,9 @@
 name: ???
 stat_sys_prompt: "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can."
 th_sys_prompt: "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can."
+exp_sys_prompt: "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can."
 stat_batch_size: 25
 th_batch_size: 5
+exp_batch_size: 25
 nb_collecting: 10
 save_every: 50

@@ -81,6 +81,20 @@
             ]
         },
         {
+            "name": "Pipeline LLM",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-cn",
+                "metropolis_llm.yaml",
+                "algorithm.nb_iterations_mh=1",
+                "algorithm.nb_iterations=2",
+                "algorithm.save_every=1",
+            ]
+        },
+        {
             "name": "Pipeline DB",
             "type": "debugpy",
             "request": "launch",

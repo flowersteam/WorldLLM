@@ -52,8 +52,10 @@ class EnvPromptInfo:
 
     stat_prompt: str
     th_prompt: str
+    exp_prompt: str
     stat_template: Callable[[str], str]
     th_template: Callable[[List[str], Optional[str], Optional[List[str]]], str]
+    exp_template: Callable[[str, List[str], str, str], str]
 
 
 class BaseRuleEnv(gym.Env, abc.ABC):
@@ -62,8 +64,10 @@ class BaseRuleEnv(gym.Env, abc.ABC):
     def __init__(self, **kwargs) -> None:
         self.stat_prompt: str
         self.th_prompt: str
+        self.exp_prompt: str
         self.stat_template: Callable[[str], Any]
         self.th_template: Callable[[List[str], Optional[str], Optional[List[str]]], str]
+        self.exp_template: Callable[[str, List[str], str, str], str]
         self.test_dataset_path: Optional[str]
         self.rule: BaseRule
         self.all_transition_to_prompt: Dict[str, str]
@@ -100,8 +104,10 @@ class BaseRuleEnv(gym.Env, abc.ABC):
         return EnvPromptInfo(
             self.stat_prompt,
             self.th_prompt,
+            self.exp_prompt,
             self.stat_template,
             self.th_template,
+            self.exp_template,
         )
 
     @staticmethod
@@ -227,7 +233,7 @@ class BaseAgent(abc.ABC):
         self,
         env: BaseRuleEnv,
         nb_trajectories: int,
-        progression: float,
+        reset_info: Dict[str, Any],
         n_steps: Optional[int] = None,
     ) -> Tuple[List[Trajectory], Set[str]]:
         """
@@ -235,7 +241,7 @@ class BaseAgent(abc.ABC):
         Args:
             env (BaseRuleEnv): The environment to generate trajectories from.
             nb_trajectories (int): The number of trajectories to generate.
-            progression (float): The progression value to be added to the info for curriculum learning.
+            reset_info (Dict[str,Any]): Additional information to pass to the agent for reseting.
             n_steps (Optional[int], optional): Gather a number of steps instead of trajectories. Used in derived class
         Returns:
             Tuple[List[Trajectory], Set[str]]: A tuple containing a list of generated trajectories and a set of discovered transition types.
@@ -249,9 +255,7 @@ class BaseAgent(abc.ABC):
             leave=False,
         ):
             obs, info = env.reset()
-            info["pipeline_progression"] = (
-                progression  # Add progression to info for curriculum learning
-            )
+            info.update(reset_info)
             self.reset(info)
             done = False
             while not done:
