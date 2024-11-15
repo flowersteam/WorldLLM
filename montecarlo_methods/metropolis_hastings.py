@@ -122,7 +122,7 @@ def metropolis_hastings(
     """Metropolis-Hasting algorithm, return logs to save"""
 
     # Load test dataset:
-    test_trajectories = env.unwrapped.get_test_dataset()
+    test_trajectories = env.unwrapped.test_dataset
 
     all_dict: Dict[str, Any] = {
         "rules": [],

@@ -32,6 +32,20 @@ class Trajectory:
     def __len__(self):
         return len(self.lst_diff)
 
+    def to_dict(self) -> Dict[str, List[str]]:
+        """Convert the trajectory to a dictionary."""
+        return {
+            "obs": self.lst_obs,
+            "act": self.lst_act,
+            "diff": self.lst_diff,
+        }
+
+    @staticmethod
+    def from_dict(traj_dict: Dict[str, List[str]]) -> "Trajectory":
+        """Convert the dictionary to a trajectory."""
+        return Trajectory(traj_dict["obs"], traj_dict["act"], traj_dict["diff"])
+
+
 @dataclass
 class EnvPromptInfo:
     """Prompting info to give to the LLM"""
@@ -50,13 +64,28 @@ class BaseRuleEnv(gym.Env, abc.ABC):
         self.th_prompt: str
         self.stat_template: Callable[[str], Any]
         self.th_template: Callable[[List[str], Optional[str], Optional[List[str]]], str]
+        self.test_dataset_path: Optional[str]
+        self.rule: BaseRule
+        self.all_transition_to_prompt: Dict[str, str]
         for attr, value in kwargs.items():
             if hasattr(self, attr):
                 setattr(self, attr, value)
-        self.rule: BaseRule
-        self.all_transition_to_prompt: Dict[str, str]
         # Set the seed
         self.set_seed(kwargs.get("seed", None))
+        # Load the test_dataset
+        if self.test_dataset_path is not None:
+            self.test_dataset = self.load_test_dataset(self.test_dataset_path)
+
+    def load_test_dataset(self, test_dataset_path: str) -> List[Trajectory]:
+        """Load test dataset from the given path."""
+        try:
+            with open(test_dataset_path, "r", encoding="utf-8") as f:
+                test_dataset = json.load(f)
+            return [Trajectory.from_dict(traj) for traj in test_dataset]
+        except FileNotFoundError as e:
+            # Customize the error message and include the original error message
+            msg = f"Test dataset not found at {test_dataset_path}. Generate the dataset by running the main script of the chosen environment."
+            raise FileNotFoundError(msg) from e
 
     def set_seed(self, seed: Optional[int]) -> None:
         """Set the seed of the environment"""

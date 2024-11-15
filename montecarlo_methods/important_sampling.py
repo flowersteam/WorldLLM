@@ -38,7 +38,7 @@ def important_sampling(
 ) -> RuleOutput:
 
     # Load test dataset:
-    test_trajectories = env.unwrapped.get_test_dataset()
+    test_trajectories = env.unwrapped.test_dataset
 
     all_dict: Dict[str, Any] = {
         "rules": [],
