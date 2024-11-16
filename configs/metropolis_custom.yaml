@@ -1,0 +1,32 @@
+defaults:
+  - base_config
+  - algorithm: metropolis_hastings
+  - llm@theorist: Phi-3-mini-4k-instruct
+  - llm@statistician: Phi-3-mini-4k-instruct
+  - experimenter: sb3agent
+  - environment: playground_rl
+
+exp_name: test_pipeline
+
+statistician: null
+seed: 60
+algorithm:
+  nb_rules: 1
+  nb_iterations: 400
+  nb_iterations_mh: 5
+  reward_type: custom
+  count_based_exponent: 1
+  use_hasting_correction: False
+  stat_batch_size: 5
+  th_batch_size: 1
+experimenter:
+  tb_name: ${exp_name}
+  tb_folder: logs_ppo_sb3_test
+  reward_per_transition:
+    - 0.1
+    - 0.09
+    - 0.21
+    - 0.03
+    - 0.77
+    - 0.87
+    - 1.74
