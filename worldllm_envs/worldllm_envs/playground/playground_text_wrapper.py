@@ -437,6 +437,30 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     msg += f"\nCan you find a set of easily undestandable and concise rules to predict how the environment will change based on these trajectories? You can take inspiration from the previous rules:\n{previous_rule}\nAnswer with just the rules."
             return msg
 
+        def experimenter_template(
+            obs: str,
+            possible_actions: List[str],
+            rule: Optional[str],
+            goal: str,
+        ) -> str:
+            """Template given to the experimenter to ask for a new action"""
+            msg = (
+                "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
+                + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
+            )
+            msg += "Your objective is to take the best action given the past actions and observations. "
+            if rule is not None:
+                msg += f"You know that: \n{rule}\n"
+            msg += "The goal is to " + goal + ". "
+            msg += "The possible actions are: "
+            for action in possible_actions:
+                msg += f"\n{action} "
+            msg += "\n\nIn the current space:\n"
+            # Add initialisation observation and first action
+            msg += obs
+            msg += " \n\nWhat is the best action to take? Answer with just the action."
+            return msg
+
         # WorldLLM parameters
         self.observation_space = gym.spaces.Text(int(1e6))
         self.action_space = gym.spaces.Text(int(1e6))
@@ -444,6 +468,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         self.stat_template = statisitician_template
         self.th_prompt = ""
         self.th_template = theorist_template
+        self.exp_prompt = ""
+        self.exp_template = experimenter_template
         self.test_dataset_path = os.path.join(
             os.path.dirname(__file__), "data/test_dataset.json"
         )

@@ -136,11 +136,17 @@ def metropolis_hastings(
     add_worst_trajectories = cfg["num_worst_trajectories"] > 0
     # region Initialize and first loop of the algorithm
     # 1. Generate trajectories
+
+    reset_info = {
+        "pipeline_progression": 0,
+        "stat_rule": None,
+        "env_rule": env.unwrapped.rule,
+    }
     prompt_trajectories, set_discovered_transitions = (
         experimenter.generate_trajectories(
             env,
             cfg["nb_trajectories"],
-            0.0,
+            reset_info,
             (
                 experimenter.model.n_steps * experimenter.model.n_envs
                 if isinstance(experimenter, SB3Agent)
@@ -197,11 +203,16 @@ def metropolis_hastings(
         desc="Loop iterations",
     ):
         # 1. Regenerate trajectories
+        reset_info = {
+            "pipeline_progression": i / cfg["nb_iterations"],
+            "stat_rule": best_rule,
+            "env_rule": env.unwrapped.rule,
+        }
         prompt_trajectories, set_discovered_transitions = (
             experimenter.generate_trajectories(
                 env,
                 cfg["nb_trajectories"],
-                i / cfg["nb_iterations"],
+                reset_info,
                 (
                     experimenter.model.n_steps * experimenter.model.n_envs
                     if isinstance(experimenter, SB3Agent)

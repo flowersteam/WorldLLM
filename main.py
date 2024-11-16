@@ -1,6 +1,7 @@
 import os
 import random
 from functools import partial
+from typing import Tuple
 
 import hydra
 import numpy as np
@@ -9,13 +10,16 @@ from omegaconf import DictConfig, OmegaConf
 
 from montecarlo_methods.important_sampling import important_sampling
 from montecarlo_methods.metropolis_hastings import metropolis_hastings
-from utils.utils_llm import build_llms
+from utils.utils_llm import LlmAgent, LlmModel, Statistician, build_llms
 from utils.utils_sb3 import SB3Agent
 from worldllm_envs.base import BaseAgent, BaseRuleEnv, build_env
 
 
-def load_experimenter(cfg: DictConfig, env: BaseRuleEnv) -> BaseAgent:
-    """Load the experimenter used to collect data"""
+def load_modules(
+    cfg: DictConfig, env: BaseRuleEnv
+) -> Tuple[Statistician, LlmModel, BaseAgent]:
+    """Load the modules Statistician, Theorist and Experimenter"""
+    statistician, theorist = build_llms(cfg, env)
     if cfg.experimenter.type == "BaseAgent":
         experimenter_config = OmegaConf.to_object(cfg.experimenter)
         del (
@@ -32,11 +36,11 @@ def load_experimenter(cfg: DictConfig, env: BaseRuleEnv) -> BaseAgent:
             seed=cfg.seed,
         )
         # SB3 include the environment in the experimenter
+    elif cfg.experimenter.type == "LLM":
+        experimenter = LlmAgent.create_agent(cfg, env, theorist)
     else:
-        raise NotImplementedError(
-            f"Agent {cfg.experimenter.type} not implemented. Choose between BaseAgent and SB3Agent."
-        )
-    return experimenter
+        raise NotImplementedError(f"Agent {cfg.experimenter.type} not implemented.")
+    return statistician, theorist, experimenter
 
 
 # To change the config file: -cn config_name.yaml, to modify the config file: key=value and to add a value: +key=value
@@ -58,10 +62,8 @@ def main(cfg: DictConfig) -> None:
     else:
         env_rule = env.generate_rule()
     env.reset(options={"rule": env_rule})
-    # Set Agent
-    experimenter = load_experimenter(cfg, env)
-    # Load LLMs
-    statistician, theorist = build_llms(cfg, env.unwrapped.get_message_info())
+    # Load modules
+    statistician, theorist, experimenter = load_modules(cfg, env)
     # Print gpu ram usage
     print(f"GPU RAM usage: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
     # Run the algorithm

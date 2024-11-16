@@ -2,13 +2,14 @@ import warnings
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
+import gymnasium as gym
 import numpy as np
 import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from worldllm_envs.base import EnvPromptInfo, Trajectory
+from worldllm_envs.base import BaseAgent, BaseRuleEnv, EnvPromptInfo, Trajectory
 
 
 @dataclass
@@ -138,6 +139,17 @@ def build_stat_prompt_info(
     return StatPromptInfo(
         system_prompt, env_prompt_info.stat_template, batch_size, set()
     )
+
+
+def build_exp_prompt_info(
+    model: Tuple[AutoModelForCausalLM, AutoTokenizer],
+    env_prompt_info: EnvPromptInfo,
+    base_system_prompt: str,
+    batch_size: int,
+) -> PromptInfo:
+    """Build the prompt and message necessary for the Experimenter."""
+    system_prompt = base_system_prompt + env_prompt_info.stat_prompt
+    return PromptInfo(system_prompt, env_prompt_info.exp_template, batch_size)
 
 
 def _score_candidate(
@@ -567,3 +579,192 @@ def compute_likelihood(
     if return_all_logp:
         return (log_probability.numpy(), logp.numpy()), transition_scores
     return log_probability.numpy(), transition_scores
+
+
+def compute_base_key_values(
+    llm: LlmModel, base_message: Tuple[Dict[str, str], Dict[str, str]]
+) -> Tuple[Tuple[Tuple[torch.Tensor, ...], ...], torch.Tensor, torch.Tensor]:
+    """Compute key values, attention mask and logits for the base message."""
+    with torch.no_grad():
+        inputs_base = llm.tokenizer.apply_chat_template(
+            base_message,
+            add_generation_prompt=False,
+            return_tensors="pt",
+            return_dict=True,
+        ).to(llm.model.device)
+        results = llm.model(
+            inputs_base["input_ids"],
+            attention_mask=inputs_base["attention_mask"],
+            use_cache=True,
+        )
+        last_logits = results.logits[0, -1]
+    return results.past_key_values, inputs_base["attention_mask"], last_logits
+
+
+def score_reuse_candidate(
+    llm: LlmModel,
+    past_key_values: Tuple[Tuple[torch.Tensor, ...], ...],
+    base_attention_mask: torch.Tensor,
+    base_last_layer_logits: torch.Tensor,
+    lst_candidate: List[Tuple[Dict[str, str]]],
+) -> torch.Tensor:
+    """Scoring the rule or trajectory given candidates reusing the previous key values."""
+    inputs_candidate = llm.tokenizer.apply_chat_template(
+        lst_candidate, add_generation_prompt=False, return_dict=True
+    )
+    # Pad the candidate to the same length and remove the bos token
+    max_len_candidate = max(len(c) - 1 for c in inputs_candidate["input_ids"])
+    inputs_candidate_ids = torch.stack(
+        [
+            torch.nn.functional.pad(
+                torch.tensor(input_ids[1:]),
+                (0, max_len_candidate - len(input_ids) + 1),
+                value=llm.tokenizer.pad_token_id,
+            )
+            for input_ids in inputs_candidate["input_ids"]
+        ]
+    ).to("cuda")
+    inputs_candidate_mask = torch.stack(
+        [
+            torch.nn.functional.pad(
+                torch.tensor(attention_mask[1:]),
+                (0, max_len_candidate - len(attention_mask) + 1),
+                value=0,
+            )
+            for attention_mask in inputs_candidate["attention_mask"]
+        ]
+    ).to("cuda")
+    with torch.no_grad():
+        # Create full mask
+        full_mask = torch.cat(
+            [
+                base_attention_mask.repeat(len(inputs_candidate_mask), 1),
+                inputs_candidate_mask,
+            ],
+            dim=1,
+        )
+        # Duplicate the past key and values
+        all_keys_values = []
+        for past_key_value in past_key_values:
+            all_keys_values.append(
+                (
+                    past_key_value[0].repeat(len(inputs_candidate_mask), 1, 1, 1),
+                    past_key_value[1].repeat(len(inputs_candidate_mask), 1, 1, 1),
+                )
+            )
+        past_key_values = tuple(all_keys_values)
+        results = llm.model(
+            inputs_candidate_ids,
+            attention_mask=full_mask,
+            past_key_values=past_key_values,
+            use_cache=True,
+        )
+    logits = torch.cat(
+        (
+            base_last_layer_logits[None, None, :].repeat(len(results.logits), 1, 1),
+            results.logits[:, :-1, :],
+        ),
+        dim=1,
+    )
+    logp = torch.nn.functional.log_softmax(logits, dim=-1)
+    # We need to pad to 0 the logits to ignore padding
+    logp = logp.masked_fill_(inputs_candidate_mask[:, :, None] == 0, 0)
+    score = torch.gather(logp, 2, inputs_candidate_ids[:, :, None]).squeeze(-1)
+    aggregated_scores = score.sum(-1)
+    return aggregated_scores.cpu()
+
+
+class LlmAgent(BaseAgent):
+    """Agent using the LLM to sample actions."""
+
+    def __init__(self, action_space: gym.Space):
+        super().__init__(action_space)
+        self.llm: LlmModel
+        self.current_rule = None
+        self.current_goal = None
+
+    def set_model(self, llm: LlmModel):
+        self.llm = llm
+
+    @staticmethod
+    def create_agent(cfg: DictConfig, env: BaseRuleEnv, theorist: LlmModel):
+        """Create the experimenter agent from the config and the environment."""
+        if cfg.experimenter.llm is not None:
+            experimenter_pack = load_transformers(cfg.experimenter.llm)
+        else:
+            experimenter_pack = (theorist.model, theorist.tokenizer)
+        exp_prompt_info = build_exp_prompt_info(
+            experimenter_pack,
+            env.get_message_info(),
+            cfg.algorithm.exp_sys_prompt,
+            cfg.algorithm.exp_batch_size,
+        )
+        experimenter_model = LlmModel(
+            experimenter_pack[0],
+            experimenter_pack[1],
+            exp_prompt_info,
+        )
+        experimenter = LlmAgent(env.action_space)
+        experimenter.set_model(experimenter_model)
+        return experimenter
+
+    def sample_action(self, obs: str, possible_actions: List[str]):
+        """Sample the action according to the observation ."""
+        lst_candidates = []
+        # Generate messages
+        user_prompt = self.llm.prompt_info.message_template(
+            obs, possible_actions, self.current_rule, self.current_goal
+        )
+        base_message = (
+            {
+                "role": "system",
+                "content": self.llm.prompt_info.system_prompt,
+            },
+            {
+                "role": "user",
+                "content": user_prompt,
+            },
+        )
+        base_key_values, base_attention_mask, base_last_layer_logits = (
+            compute_base_key_values(self.llm, base_message)
+        )
+        for action_str in possible_actions:
+            lst_candidates.append(
+                (
+                    {
+                        "role": "assistant",
+                        "content": action_str,
+                    },
+                )
+            )
+
+        batch_size = self.llm.prompt_info.batch_size
+        all_logp = []
+        for incr in tqdm(
+            range(0, len(possible_actions), batch_size),
+            desc="Scoring actions",
+            leave=False,
+        ):
+            logp = score_reuse_candidate(
+                self.llm,
+                base_key_values,
+                base_attention_mask,
+                base_last_layer_logits,
+                lst_candidates[incr : incr + batch_size],
+            )
+            all_logp.append(logp)
+        logp = torch.cat(all_logp)
+        action = torch.multinomial(torch.exp(logp), 1)[0].item()
+        return possible_actions[action]
+
+    def __call__(self, obs, **kwargs):
+        """Sample action from llm using constrain decoding."""
+        text_trajectory = kwargs["trajectory_obs_text"][-1]
+        possible_actions = kwargs["possible_actions"]
+        action = self.sample_action(text_trajectory, possible_actions)
+
+        return action, False
+
+    def reset(self, info: Dict[str, Any]):
+        self.current_rule = info["stat_rule"]
+        self.current_goal = info["env_rule"]
