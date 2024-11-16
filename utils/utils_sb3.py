@@ -319,6 +319,7 @@ class SB3Agent(BaseAgent):
         super().__init__(action_space)
         self.model: CustomMaskablePPO
         self.callback: TransitionCounterCallback
+        self.reward_per_transition: np.ndarray
         self.iteration = 0
 
         self._last_values: torch.Tensor
@@ -327,6 +328,9 @@ class SB3Agent(BaseAgent):
     def set_model(self, model: CustomMaskablePPO, callback: TransitionCounterCallback):
         self.model = model
         self.callback = callback
+
+    def set_reward_per_transition(self, reward_per_transition: List[float]):
+        self.reward_per_transition = np.array(reward_per_transition)
 
     @staticmethod
     def create_agent(
@@ -381,6 +385,8 @@ class SB3Agent(BaseAgent):
         )
         agent = SB3Agent(make_env().action_space)
         agent.set_model(model, callback)
+        if config["reward_per_transition"]:
+            agent.set_reward_per_transition(config["reward_per_transition"])
         return agent
 
     def __call__(self, obs, **info):
@@ -499,7 +505,16 @@ class SB3Agent(BaseAgent):
                 raise ValueError(f"Unknown reward type {cfg['reward_type']}")
             return new_rewards
         else:
-            raise ValueError(f"Unknown reward type {cfg['reward_type']}")
+            if cfg["reward_type"] == "custom":
+                true_rewards = self.model.get_rewards(self.model.rollout_buffer)
+                if hasattr(self, "reward_per_transition"):
+                    return self.reward_per_transition[true_rewards.round().astype(int)]
+                else:
+                    raise ValueError(
+                        "You must provide a reward per transition in the config to use custom reward"
+                    )
+            else:
+                raise ValueError(f"Unknown reward type {cfg['reward_type']}")
 
     def train_step(self, new_rewards: np.ndarray):
         # Modify reward before training
