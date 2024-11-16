@@ -320,6 +320,7 @@ class SB3Agent(BaseAgent):
         self.model: CustomMaskablePPO
         self.callback: TransitionCounterCallback
         self.reward_per_transition: np.ndarray
+        self.count_based: np.ndarray
         self.iteration = 0
 
         self._last_values: torch.Tensor
@@ -331,6 +332,7 @@ class SB3Agent(BaseAgent):
 
     def set_reward_per_transition(self, reward_per_transition: List[float]):
         self.reward_per_transition = np.array(reward_per_transition)
+        self.count_based = np.zeros_like(reward_per_transition)
 
     @staticmethod
     def create_agent(
@@ -503,18 +505,34 @@ class SB3Agent(BaseAgent):
                 new_rewards = curr_rewards * np.abs(curr_rewards - old_rewards)
             else:
                 raise ValueError(f"Unknown reward type {cfg['reward_type']}")
-            return new_rewards
         else:
             if cfg["reward_type"] == "custom":
-                true_rewards = self.model.get_rewards(self.model.rollout_buffer)
-                if hasattr(self, "reward_per_transition"):
-                    return self.reward_per_transition[true_rewards.round().astype(int)]
-                else:
+                if not hasattr(self, "reward_per_transition"):
                     raise ValueError(
                         "You must provide a reward per transition in the config to use custom reward"
                     )
+                true_rewards = self.model.get_rewards(self.model.rollout_buffer)
+                new_rewards = self.reward_per_transition[
+                    true_rewards.round().astype(int)
+                ]
+                # Apply count based reward
+                if cfg["count_based_exponent"]:
+                    count_based = np.zeros_like(new_rewards).flatten()
+                    unique_indices = np.arange(len(self.count_based))
+                    for idx in unique_indices:
+                        mask = true_rewards.round().astype(int).flatten() == idx
+                        count_based[mask] = (
+                            self.count_based[idx] + np.cumsum(mask)[mask]
+                        )
+                        if len(count_based[mask]) > 0:
+                            self.count_based[idx] = count_based[mask][-1]
+                    count_based = count_based.reshape(new_rewards.shape)
+                    new_rewards = new_rewards / (
+                        count_based ** cfg["count_based_exponent"]
+                    )
             else:
                 raise ValueError(f"Unknown reward type {cfg['reward_type']}")
+        return new_rewards
 
     def train_step(self, new_rewards: np.ndarray):
         # Modify reward before training

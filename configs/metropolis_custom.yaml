@@ -15,6 +15,7 @@ algorithm:
   nb_iterations: 400
   nb_iterations_mh: 5
   reward_type: custom
+  count_based_exponent: 1
   use_hasting_correction: False
   stat_batch_size: 5
   th_batch_size: 1
