@@ -1,21 +1,18 @@
 defaults:
   - base_config
-  - algorithm: metropolis_hastings
+  - algorithm: importance_sampling
   - llm@theorist: Phi-3-mini-4k-instruct
   - llm@statistician: Phi-3-mini-4k-instruct
-  - experimenter: perfectplayground
+  - experimenter: curriculumperfectplayground
   - environment: playground
 
-exp_name: no_rule_ne
+exp_name: test_pipeline
 
 statistician: null
 seed: 60
 algorithm:
   nb_rules: 1
-  nb_phases: 0
+  nb_phases: 400
   nb_iterations: 5
-  use_hasting_correction: False
   stat_batch_size: 5
   th_batch_size: 1
-  first_rules:
-    - null

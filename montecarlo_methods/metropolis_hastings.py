@@ -128,12 +128,12 @@ def metropolis_hastings(
 
     # region Main loop of the algorithm
     for i in tqdm(
-        range(cfg["nb_iterations"]),
+        range(cfg["nb_phases"]),
         desc="Loop iterations",
     ):
         # 1. Regenerate trajectories
         reset_info = {
-            "pipeline_progression": i / cfg["nb_iterations"],
+            "pipeline_progression": i / cfg["nb_phases"],
             "stat_rule": best_rule,
             "env_rule": env.unwrapped.rule,
         }
@@ -164,7 +164,7 @@ def metropolis_hastings(
         )
         # Do Multiple Metropolis Hastings steps
         for incr_mh in tqdm(
-            range(cfg["nb_iterations_mh"]), desc="Metropolis-Hastings", leave=False
+            range(cfg["nb_iterations"]), desc="Metropolis-Hastings", leave=False
         ):
             # Metropolis-Hastings step
             if add_worst_trajectories:
@@ -224,7 +224,7 @@ def metropolis_hastings(
             mask = np.where(np.log(np.random.rand()) < weights, 1, 0)
             prev_rules_ind = np.where(
                 mask,
-                (i * cfg["nb_iterations_mh"]) + incr_mh + 1,
+                (i * cfg["nb_iterations"]) + incr_mh + 1,
                 prev_rules_ind,
             )
             prev_rules = np.where(mask, rules, prev_rules)

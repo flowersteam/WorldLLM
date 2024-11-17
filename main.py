@@ -74,6 +74,7 @@ def main(cfg: DictConfig) -> None:
             theorist,
             statistician,
             OmegaConf.to_object(cfg.algorithm),
+            cfg.output_dir,
         )
     elif cfg.algorithm.name == "metropolis_hastings":
         output = metropolis_hastings(
