@@ -1,9 +1,20 @@
 name: ???
+# LLMs parameters
 stat_sys_prompt: "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can."
 th_sys_prompt: "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can."
 exp_sys_prompt: "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can."
+
+## Batch sizes
 stat_batch_size: 25
 th_batch_size: 5
 exp_batch_size: 25
-nb_collecting: 10
 save_every: 50
+
+#Algorithm parameters
+nb_phases: #Number of data collection phases
+nb_iterations: 10 # Number of iterations for the algorithm for each data collection
+nb_rules: 3 # Number of particles in parallel
+nb_trajectories: 6 #Number of trajectories to collect
+nb_subset_traj: 5 #Number of trajectories given to the Theorist
+reward_type: alp
+count_based_exponent: #Exponent for the count-based rectifier
