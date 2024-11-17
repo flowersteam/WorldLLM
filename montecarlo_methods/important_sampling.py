@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
@@ -30,101 +31,114 @@ def get_unique_rules(
 
 def important_sampling(
     env: BaseRuleEnv,
-    agent: BaseAgent,
+    experimenter: BaseAgent,
     theorist: LlmModel,
     statistician: Statistician,
     cfg: Dict[str, Any],
-    curriculum_rules: List[str],
+    output_dir: str,
 ) -> RuleOutput:
-
+    """Important sampling algorithm for rule discovery. Return logs and rules."""
     # Load test dataset:
     test_trajectories = env.unwrapped.test_dataset
 
     all_dict: Dict[str, Any] = {
         "rules": [],
         "current_true_rule": [],
+        "best_rule": [],
         "weights": [],
-        "counts": [],
         "importance_probs": [],
         "likelihoods": [],
-        "test_likelihoods": [],
-        "test_transition_scores": [],
     }
-    for incr_collecting in tqdm(
-        range(cfg["nb_collecting"]), desc="Collecting iterations"
-    ):
-        rule_to_test = curriculum_rules[
-            int(incr_collecting * len(curriculum_rules) / cfg["nb_collecting"])
-        ]
-        # Generate trajectories
-        if isinstance(agent, DiverseAgent):
-            prompt_trajectories, set_discovered_transitions = (
-                generate_diverse_trajectories(env)
+    best_rule = None
+    prev_best_rule = None
+    best_rule_likelihood: float
+    # region Main loop
+    for i in tqdm(range(cfg["nb_phases"]), desc="Collecting iterations"):
+        reset_info = {
+            "pipeline_progression": i / cfg["nb_phases"],
+            "stat_rule": best_rule,
+            "env_rule": env.unwrapped.rule,
+        }
+        # 1. Generate trajectories
+        prompt_trajectories, set_discovered_transitions = (
+            experimenter.generate_trajectories(
+                env,
+                cfg["nb_trajectories"],
+                reset_info,
+                (
+                    experimenter.model.n_steps * experimenter.model.n_envs
+                    if isinstance(experimenter, SB3Agent)
+                    else None
+                ),
             )
-            assert len(prompt_trajectories) == cfg["nb_trajectories"]
-        elif isinstance(agent, SB3Agent):
-            raise NotImplementedError("Not implemented yet.")
-        else:
-            prompt_trajectories, set_discovered_transitions = (
-                generate_text_trajectories(
-                    env, agent, rule_to_test, cfg["nb_trajectories"]
-                )
-            )
+        )
+        # Take smaller subset to generate the rules
+        subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]
         # Update seen transitions for the statistician
         statistician.prompt_info.discovered_transitions.update(
             set_discovered_transitions
         )
-        # Sample rules
+        # Recompute likelihood for the best rule
+        best_rule_likelihood = compute_likelihood(
+            statistician,
+            [best_rule],
+            subset_trajectories,
+        )[0][0]
+        # 2. Generate rules
         rules, importance_probs = generate_rules(
-            theorist, prompt_trajectories, cfg["nb_rules"]
+            theorist, subset_trajectories, cfg["nb_rules"] * cfg["nb_iterations"]
         )
-        # Get unique rules and counts
-        rules, counts, importance_probs = get_unique_rules(rules, importance_probs)
-        if cfg["add_true_rule"]:
-            rules.append(rule_to_test)
-            counts = np.append(counts, 1)
-            importance_probs = np.append(
-                importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
-            )
-        if cfg["add_without_rule"]:
-            rules.append(None)
-            counts = np.append(counts, 1)
-            importance_probs = np.append(
-                importance_probs, np.log(1 / (cfg["nb_rules"] + 1))
-            )
-        # Compute likelihoods of new data using the rules
-        likelihoods, _ = compute_likelihood(statistician, rules, prompt_trajectories)
+        # 3. Compute likelihoods of new data using the rules
+        likelihoods, _ = compute_likelihood(statistician, rules, subset_trajectories)
 
-        # weights is just the likelihoods for importance sampling with resampling
-        weights = np.log(counts) + likelihoods - importance_probs
+        # 4.weights is just the likelihoods for importance sampling with resampling
+        weights = likelihoods - importance_probs
 
+        # 5. Logs
         all_dict["rules"].extend(rules)
         all_dict["weights"].extend(weights)
-        all_dict["counts"].extend(counts)
         all_dict["importance_probs"].extend(importance_probs)
         all_dict["likelihoods"].extend(likelihoods)
-        all_dict["current_true_rule"].extend([rule_to_test for _ in range(len(rules))])
-
-    # Add all transtion to the statistician for scoring the test
-    statistician.prompt_info.discovered_transitions = {
-        "standing",
-        "holding1",
-        "holding2",
-        "transformP",
-        "transformSH",
-        "transformBH",
-        "nothing",
-    }
-    # Compute likelihoods of test data for the rules
-    all_dict["test_likelihoods"], all_dict["test_transition_scores"] = (
-        compute_likelihood(statistician, all_dict["rules"], test_trajectories)
-    )
-    # Print rules and weights sorted
-    indices = np.argsort(-np.array(all_dict["test_likelihoods"]))
-    for ind in indices:
-        print(
-            f"-----true_rule-----: {all_dict['current_true_rule'][ind]}, rule:  {repr(all_dict['rules'][ind])}\n weight: {all_dict['weights'][ind]:2f}, importance: {all_dict['importance_probs'][ind]:2f}, likelihood: {all_dict['likelihoods'][ind]:2f}, count: {all_dict['counts'][ind]}, test_likelihood: {all_dict['test_likelihoods'][ind]:2f}"
+        all_dict["current_true_rule"].extend(
+            [env.unwrapped.get_rule() for _ in range(len(rules))]
         )
-    return RuleOutput(
-        curriculum_rules, all_dict["rules"], all_dict["likelihoods"], all_dict
+        # Change best rule if different than the previous one
+        best_rule_ind = np.argmax(likelihoods)
+        if best_rule_likelihood < likelihoods[best_rule_ind] or prev_best_rule is None:
+            prev_best_rule = best_rule
+            best_rule = rules[best_rule_ind]
+
+        all_dict["best_rule"].append(best_rule)
+
+        if isinstance(experimenter, SB3Agent):
+            # Prepare the rewards and score the experimenter
+            new_rewards = experimenter.compute_reward(
+                cfg,
+                statistician,
+                best_rule,
+                prev_best_rule,
+                prompt_trajectories,
+            )
+            # Train the experimenter
+            experimenter.train_step(new_rewards)
+
+        if i > 0 and i % cfg["save_every"] == 0:
+            output = RuleOutput(
+                all_dict["rules"],
+                all_dict["likelihoods"],
+                all_dict,
+            )
+            # Save output
+            output.to_json(os.path.join(output_dir, f"all_{i}.json"))
+            # Save experimenter if sb3
+            if isinstance(experimenter, SB3Agent):
+                experimenter.model.save(os.path.join(output_dir, f"experimenter_{i}"))
+    # endregion
+    # Add all transtion to the statistician for scoring the test
+    statistician.prompt_info.discovered_transitions = env.get_all_transition_to_prompt()
+    # Compute likelihoods of test data for the rules
+    all_dict["test_likelihoods_best"], all_dict["test_transition_scores_best"] = (
+        compute_likelihood(statistician, all_dict["best_rule"], test_trajectories)
     )
+    print("Importance Sampling done")
+    return RuleOutput(all_dict["rules"], all_dict["likelihoods"], all_dict)
