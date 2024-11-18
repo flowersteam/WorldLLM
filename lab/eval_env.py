@@ -32,7 +32,7 @@ for _ in tqdm(range(n_episodes)):
         done = terminated or truncated or agent_done
         n_steps += 1
         print(f"Action: {action}, Observation: {obs}")
-    print(info["trajectory_obs_diff"])
+    print(info["trajectory_diff_text"])
 
 print(f"Time: {time.perf_counter() - start_time}")
 print("Done.")
