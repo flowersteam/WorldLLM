@@ -163,8 +163,9 @@ class BaseRuleEnv(gym.Env, abc.ABC):
 class TextWrapper(gym.Wrapper):
     def __init__(self, env: BaseRuleEnv):
         super().__init__(env)
-        self.text_trajectory: List[str]
         self.obs_trajectory: List[Any]
+        self.act_trajectory: List[str]
+        self.diff_trajectory: List[str]
 
     # TODO: remove unwrapped as it takes longer to take the function
     def action_to_text(self, action):
@@ -179,14 +180,17 @@ class TextWrapper(gym.Wrapper):
     def step(self, action):
         act_text = self.action_to_text(action)
         observation, reward, terminated, truncated, info = self.env.step(action)
-        obs_text = self.observation_to_text(observation)
-        self.text_trajectory.extend([act_text, obs_text])
-        self.obs_trajectory.append(observation)
+        obs_diff, add_info = self.observation_to_text(observation)
+        info.update(add_info)
         info["action_text"] = act_text
-        info["text_trajectory"] = self.text_trajectory
-        info["obs_trajectory"] = self.obs_trajectory
+        self.obs_trajectory.append(observation)
+        self.act_trajectory.append(act_text)
+        self.diff_trajectory.append(obs_diff)
+        info["trajectory_obs_text"] = self.obs_trajectory
+        info["trajectory_act_text"] = self.act_trajectory
+        info["trajectory_diff_text"] = self.diff_trajectory
         return (
-            obs_text,
+            obs_diff,
             reward,
             terminated,
             truncated,
@@ -195,11 +199,14 @@ class TextWrapper(gym.Wrapper):
 
     def reset(self, seed=None, options=None):
         observation, info = self.env.reset(seed=seed, options=options)
-        text_obs = self.observation_to_text(observation)
-        self.text_trajectory = [text_obs]
+        text_obs, add_info = self.observation_to_text(observation)
+        info.update(add_info)
         self.obs_trajectory = [observation]
-        info["text_trajectory"] = self.text_trajectory
-        info["obs_trajectory"] = self.obs_trajectory
+        self.act_trajectory = []
+        self.diff_trajectory = []
+        info["trajectory_obs_text"] = self.obs_trajectory
+        info["trajectory_act_text"] = self.act_trajectory
+        info["trajectory_diff_text"] = self.diff_trajectory
         return text_obs, info
 
 
@@ -209,8 +216,7 @@ def build_env(cfg: DictConfig, rule: Optional[str] = None) -> BaseRuleEnv:
     kwargs = OmegaConf.to_container(cfg.environment.kwargs, resolve=True)
     kwargs["seed"] = cfg.seed
     env = gym.make(cfg.environment.id, **kwargs)
-    if not isinstance(env.unwrapped, BaseRuleEnv):
-        raise ValueError("The environment must be rule based.")
+    assert isinstance(env.unwrapped, BaseRuleEnv), "The environment must be rule based."
     if rule is not None:
         env.reset(options={"rule": rule})
     return env
