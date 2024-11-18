@@ -3,16 +3,19 @@ defaults:
   - algorithm: metropolis_hastings
   - llm@theorist: Phi-3-mini-4k-instruct
   - llm@statistician: Phi-3-mini-4k-instruct
-  - experimenter: perfectplayground
-  - environment: playground
+  - experimenter: random
+  - environment: door
 
-exp_name: test_playground
+exp_name: test_pipeline
 
 statistician: null
 seed: 60
 algorithm:
-  nb_rules: 3
+  nb_rules: 1
+  nb_phases: 400
+  nb_iterations: 5
+  use_hasting_correction: False
   stat_batch_size: 5
   th_batch_size: 1
-  nb_trajectories: 6
-  use_hasting_correction: False
+environment:
+  rule: not_blue

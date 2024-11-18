@@ -176,7 +176,7 @@ class DoorEnv(BaseRuleEnv):
         ):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
             base_user_prompt = (
-                "You are in an environment in front of a door. You have several objects at your disposal."
+                "You are in an environment in front of a door. You have several objects at your disposal. "
                 + "You have access to all combinations of the possible objects: key, card and ball, with the possible colors: red, green and blue, and the possible sizes: small, medium and large. "
             )
             if rule is not None:
@@ -201,7 +201,14 @@ class DoorEnv(BaseRuleEnv):
 
         def _format_trajectory_for_theorist(trajectory: Trajectory) -> str:
             """Format trjaectory for theorist"""
-            msg = trajectory.lst_act[0] + trajectory.lst_diff[0]
+            msg = (
+                trajectory.lst_obs[0]
+                + " "
+                + trajectory.lst_act[0]
+                + " "
+                + trajectory.lst_diff[0]
+                + "\n"
+            )
             return msg
 
         # When designing the template keep in mind that the text generated should be only the rule
@@ -212,14 +219,14 @@ class DoorEnv(BaseRuleEnv):
         ):
             """Template given to the theorist to sample new rules given trajectories"""
             msg = (
-                "You are in environment with a door. You have several objects at your disposal."
-                + "There are all the combinations of the possible objects: key, card and ball with the possible colors: red, green and blue and the possible sizes: small, medium and large."
+                "You are in environment with a door. You have several objects at your disposal. "
+                + "There are all the combinations of the possible objects: key, card and ball with the possible colors: red, green and blue and the possible sizes: small, medium and large. "
                 + "You have these information: \n"
             )
             for trajectory in trajectories:
                 msg += _format_trajectory_for_theorist(trajectory)
             if previous_rule is None:
-                msg += "\nFrom these, can you find the rule for the door? It should respect all the trajectories while still being as general as possible. Answer with just the rule"
+                msg += "\nFrom these, can you find the rule for the door? It should respect all the trajectories while still being as general as possible. Answer with just the rule."
             else:
                 if worst_trajectories is not None:
                     msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' You also know that the previous rule failed the most on those trajectories:\n"
@@ -227,7 +234,7 @@ class DoorEnv(BaseRuleEnv):
                         msg += _format_trajectory_for_theorist(trajectory)
                     msg += "\nAnswer with just the rule."
                 else:
-                    msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' Answer with just the rule"
+                    msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' Answer with just the rule."
             return msg
 
         def experimenter_template(

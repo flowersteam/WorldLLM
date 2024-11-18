@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import gymnasium as gym
 import numpy as np
 
-from worldllm_envs.base import BaseAgent, BaseRuleEnv, Trajectory
+from worldllm_envs.base import BaseAgent, BaseRuleEnv, RandomAgent, Trajectory
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
 from worldllm_envs.playground.playgroundnavv1 import PlayGroundNavigationV1
@@ -72,14 +72,6 @@ class DiverseAgent(BaseAgent):
             trajectories.extend(new_trajectories)
             set_discovered_transition.update(new_discovered_transitions)
         return trajectories, set_discovered_transition
-
-
-class RandomAgent(BaseAgent):
-    """Random agent for the Playground environment"""
-
-    def __call__(self, obs: str, **kwargs) -> Tuple[str, bool]:
-        """Take action according to plan"""
-        return random.choice(kwargs["possible_actions"]), False
 
 
 class PerfectAgent(BaseAgent):
