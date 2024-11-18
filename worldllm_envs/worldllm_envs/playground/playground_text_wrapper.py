@@ -1320,7 +1320,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--filepath",
         type=str,
-        default=os.path.join(os.path.dirname(__file__), "data/test_dataset2.json"),
+        default=os.path.join(os.path.dirname(__file__), "data/test_dataset.json"),
         help="Path to save the dataset",
     )
 
@@ -1375,7 +1375,7 @@ if __name__ == "__main__":
     for incr, agent in enumerate([perfect_agent_sh, perfect_agent_shbh, random_agent]):
         new_trajectories, new_discovered_transitions = agent.generate_trajectories(
             env,
-            (args.nb_trajectories + incr) // 3,
+            {"progression": (args.nb_trajectories + incr) // 3},
             0,
             0,
         )
