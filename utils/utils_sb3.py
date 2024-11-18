@@ -398,7 +398,7 @@ class SB3Agent(BaseAgent):
         self,
         env: BaseRuleEnv,
         nb_trajectories: int,
-        progression: float,
+        reset_info: Dict[str, Any],
         n_steps: Optional[int] = None,
     ):
         """Generate trajectories using the agent

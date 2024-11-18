@@ -69,7 +69,7 @@ def metropolis_hastings(
     reset_info = {
         "pipeline_progression": 0,
         "stat_rule": None,
-        "env_rule": env.unwrapped.rule,
+        "env_rule": env.unwrapped.get_rule(),
     }
     prompt_trajectories, set_discovered_transitions = (
         experimenter.generate_trajectories(
@@ -135,7 +135,7 @@ def metropolis_hastings(
         reset_info = {
             "pipeline_progression": i / cfg["nb_phases"],
             "stat_rule": best_rule,
-            "env_rule": env.unwrapped.rule,
+            "env_rule": env.unwrapped.get_rule(),
         }
         prompt_trajectories, set_discovered_transitions = (
             experimenter.generate_trajectories(

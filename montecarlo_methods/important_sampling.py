@@ -57,7 +57,7 @@ def important_sampling(
         reset_info = {
             "pipeline_progression": i / cfg["nb_phases"],
             "stat_rule": best_rule,
-            "env_rule": env.unwrapped.rule,
+            "env_rule": env.unwrapped.get_rule(),
         }
         # 1. Generate trajectories
         prompt_trajectories, set_discovered_transitions = (
