@@ -1,11 +1,14 @@
+import argparse
+import json
 import os
 import random
 from enum import Enum
 from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import gymnasium as gym
+import numpy as np
 
-from worldllm_envs.base import BaseRule, BaseRuleEnv, Trajectory
+from worldllm_envs.base import BaseAgent, BaseRule, BaseRuleEnv, RandomAgent, Trajectory
 
 
 class Sizes(Enum):
@@ -317,7 +320,7 @@ class DoorEnv(BaseRuleEnv):
             self.door_state_to_text[1] if is_open else self.door_state_to_text[0],
             True,
             False,
-            {"rule": self.rule},
+            {"rule": self.rule, "transition_type": "opened" if is_open else "closed"},
         )
 
 
@@ -358,3 +361,73 @@ class CustomRules:
             condition=lambda x: False,
             condition_text="The door opens with no objects.",
         )
+
+
+class AllAgent(BaseAgent):
+    """Agent that takes all the possible actions."""
+
+    def __init__(self, action_space: gym.Space):
+        super().__init__(action_space)
+        self.action_iterator = Combination.get_all()
+        self.next_action = next(self.action_iterator, None)
+
+    def reset(self, info: Dict[str, Any]):
+        """Reset the agent."""
+
+    def __call__(self, obs, **kwargs):
+        action = self.next_action.return_prompt()
+        self.next_action = next(self.action_iterator, None)
+        return action, self.next_action is None
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument(
+        "--filepath",
+        type=str,
+        default=os.path.join(os.path.dirname(__file__), "data/test_dataset.json"),
+        help="Path to save the dataset",
+    )
+
+    # Argument for the environment
+    parser.add_argument(
+        "--nb-trajectories",
+        type=int,
+        default=27,
+        help="Number of trajectories for the dataset.",
+    )
+    parser.add_argument(
+        "--rule",
+        type=str,
+        default="not_blue",
+        help="The rule that the environment follows.",
+    )
+    args = parser.parse_args()
+
+    env: BaseRuleEnv = gym.make(
+        "worldllm_envs/Door-v0",
+        **{
+            "seed": args.seed,
+            "test_dataset_path": None,
+        },
+    )
+    # Set the seed
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+    all_agent = AllAgent(env.action_space)
+    env.reset(options={"rule": env.generate_rule(args.rule)})
+    # Collect all trajectories
+    trajectories: List[Trajectory] = []
+    new_trajectories, new_discovered_transitions = all_agent.generate_trajectories(
+        env,
+        args.nb_trajectories,
+        {},
+        0,
+    )
+    trajectories.extend(new_trajectories)
+    # Save the trajectories
+    with open(args.filepath, "w", encoding="utf-8") as f:
+        json.dump([t.to_dict() for t in trajectories], f)
+
+    print("Done.")
