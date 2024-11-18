@@ -1,10 +1,11 @@
+import os
 import random
 from enum import Enum
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import gymnasium as gym
 
-from worldllm_envs.base import BaseRule, BaseRuleEnv
+from worldllm_envs.base import BaseRule, BaseRuleEnv, Trajectory
 
 
 class Sizes(Enum):
@@ -26,6 +27,8 @@ class Shapes(Enum):
 
 
 class Combination:
+    """Handle a combination of color, size and shape."""
+
     def __init__(self, size: Sizes, color: Colors, shape: Shapes):
         self.size = size
         self.color = color
@@ -72,6 +75,7 @@ def generate_comb(
     Tuple[Optional[Sizes], Optional[Colors], Optional[Shapes]],
     Tuple[Sizes, Colors, Shapes],
 ]:
+    """Generate a condition on the combination of color, size and shape."""
     if number_component == 0:
         return (None, None, None)
     elif number_component == 1:
@@ -104,6 +108,8 @@ def generate_comb(
 
 
 class Rule(BaseRule):
+    """Rule wrapper for the Door Environment."""
+
     def __init__(
         self,
         condition: Callable[[Combination], bool],
@@ -113,11 +119,13 @@ class Rule(BaseRule):
         self.condition = condition
 
     @staticmethod
-    def from_combination(
+    def from_tuple(
         size: Optional[Sizes] = None,
         color: Optional[Colors] = None,
         shape: Optional[Shapes] = None,
     ) -> "Rule":
+        """Generate condition from tuple of color, size and shape."""
+
         def condition(prompt: Combination) -> bool:
             for cond_attr, prompt_attr in zip(
                 [size, color, shape], [prompt.size, prompt.color, prompt.shape]
@@ -135,9 +143,9 @@ class Rule(BaseRule):
             condition_text,
         )
 
-    def is_opened(self, prompt: Combination) -> bool:
+    def is_opened(self, combinaison: Combination) -> bool:
         """Apply condition on combination"""
-        return self.condition(prompt)
+        return self.condition(combinaison)
 
     def __repr__(self) -> str:
         return f"Rule({self.condition_text})"
@@ -153,19 +161,51 @@ class DoorEnv(BaseRuleEnv):
     """Basic Door Environment."""
 
     def __init__(self, **kwargs) -> None:
-        def statisitician_template(rule: str, trajectory: str):
+        self.all_transition_to_prompt = {
+            "opened": "The door is opened.",
+            "closed": "The door is closed.",
+        }
+
+        def statisitician_template(
+            trajectory: Trajectory,
+            discovered_transition: Set[str],
+            rule: Optional[str] = None,
+        ):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
-            return (
+            base_user_prompt = (
                 "You are in an environment in front of a door. You have several objects at your disposal."
-                + "You have access to all combinations of the possible objects: key, card and ball, with the possible colors: red, green and blue, and the possible sizes: small, medium and large."
-                + f"You know that: {rule} and {trajectory}\nDo you think the door will open ? You must answer only by saying 'The door is opened.' or 'The door is closed.'."
+                + "You have access to all combinations of the possible objects: key, card and ball, with the possible colors: red, green and blue, and the possible sizes: small, medium and large. "
             )
+            if rule is not None:
+                base_user_prompt += f"You know that: \n{rule}\n"
+            base_user_prompt += "Your objective is to predict whether the door will open or close given the object you are holding. "
+            base_user_prompt += "In the current space:\n"
+            base_user_prompt += trajectory.lst_act[0] + "\n"
+
+            base_user_prompt += (
+                "Do you think the door will open ? You must answer only by saying "
+            )
+            if "opened" in discovered_transition:
+                base_user_prompt += "'The door is opened.'"
+                if "closed" in discovered_transition:
+                    base_user_prompt += " or 'The door is closed.'."
+            if "closed" in discovered_transition:
+                base_user_prompt += "'The door is closed.'."
+
+            all_user_prompts = [base_user_prompt]
+            all_assistant_prompts = [trajectory.lst_diff[0]]
+            return all_user_prompts, all_assistant_prompts
+
+        def _format_trajectory_for_theorist(trajectory: Trajectory) -> str:
+            """Format trjaectory for theorist"""
+            msg = trajectory.lst_act[0] + trajectory.lst_diff[0]
+            return msg
 
         # When designing the template keep in mind that the text generated should be only the rule
         def theorist_template(
-            trajectories: List[str],
+            trajectories: List[Trajectory],
             previous_rule: Optional[str] = None,
-            worst_trajectories: Optional[List[str]] = None,
+            worst_trajectories: Optional[List[Trajectory]] = None,
         ):
             """Template given to the theorist to sample new rules given trajectories"""
             msg = (
@@ -174,70 +214,107 @@ class DoorEnv(BaseRuleEnv):
                 + "You have these information: \n"
             )
             for trajectory in trajectories:
-                msg += f"{trajectory}\n"
+                msg += _format_trajectory_for_theorist(trajectory)
             if previous_rule is None:
                 msg += "\nFrom these, can you find the rule for the door? It should respect all the trajectories while still being as general as possible. Answer with just the rule"
             else:
                 if worst_trajectories is not None:
                     msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' You also know that the previous rule failed the most on those trajectories:\n"
                     for trajectory in worst_trajectories:
-                        msg += f"{trajectory}\n"
+                        msg += _format_trajectory_for_theorist(trajectory)
                     msg += "\nAnswer with just the rule."
                 else:
                     msg += f"\nFrom these, can you find the rule for the door? You can take inspiration from the previous rule:'{previous_rule}' Answer with just the rule"
             return msg
 
+        def experimenter_template(
+            obs: str,
+            possible_actions: List[str],
+            rule: Optional[str],
+            goal: str,
+        ) -> str:
+            """Template given to the experimenter to ask for a new action"""
+            msg = (
+                "You are in environment with a door. You have several objects at your disposal."
+                + "There are all the combinations of the possible objects: key, card and ball with the possible colors: red, green and blue and the possible sizes: small, medium and large."
+            )
+            msg += "Your objective is to pick the best combination to open the door. "
+            if rule is not None:
+                msg += f"You know that: \n{rule}\n"
+            msg += "The possible actions are: "
+            for action in possible_actions:
+                msg += f"\n{action} "
+            msg += " \n\nWhat is the best action to take? Answer with just the action."
+            return msg
+
         # Default config:
-        self.observation_space = gym.spaces.Discrete(2)
-        self.action_space = gym.spaces.MultiDiscrete([3, 3, 3])
+        self.observation_space = gym.spaces.Text(int(1e6))
+        self.action_space = gym.spaces.Text(int(1e6))
         self.stat_prompt = ""
         self.stat_template = statisitician_template
         self.th_prompt = ""
         self.th_template = theorist_template
+        self.exp_prompt = ""
+        self.exp_template = experimenter_template
+        self.test_dataset_path = os.path.join(
+            os.path.dirname(__file__), "data/test_dataset.json"
+        )
         super().__init__(**kwargs)
+
+        # DoorEnv attributes
+        self.door_state_to_text = {
+            0: "The door is closed.",
+            1: "The door is opened.",
+        }
 
     @staticmethod
     def generate_rule(custom_rule: Optional[Union[str, List[str]]] = None) -> Rule:
         """Generate Rule from custom rule or random combination of color, size and shape."""
         if custom_rule is None:
-            return Rule.from_combination(*generate_comb(2))
+            return Rule.from_tuple(*generate_comb(2))
         if (
             isinstance(custom_rule, str)
-            and getattr(CustomRules, custom_rule)
+            and hasattr(CustomRules, custom_rule)
             and isinstance(getattr(CustomRules, custom_rule), Callable)
         ):
             return getattr(CustomRules, custom_rule)()
         elif isinstance(custom_rule, list):
-            return Rule.from_combination(
+            return Rule.from_tuple(
                 Sizes(custom_rule[0]) if custom_rule[0] is not None else None,
                 Colors(custom_rule[1]) if custom_rule[1] is not None else None,
                 Shapes(custom_rule[2]) if custom_rule[2] is not None else None,
             )
         raise ValueError(f"Rule {custom_rule} could not be found or built.")
 
-    def action_to_text(self, action: Tuple[int, int, int]) -> str:
-        combination = self.mapping_action(action)
-        return combination.return_prompt()
+    def action_to_text(self, action: str) -> str:
+        return action
 
-    def observation_to_text(self, observation) -> str:
-        return "The door is opened." if observation == 1 else "The door is closed."
+    def observation_to_text(self, observation: str):
+        return observation, {}
 
     def mapping_action(self, action: Tuple[int, int, int]) -> Combination:
+        """Map action to combination of color, size and shape."""
         return Combination(
             *[list(enum)[i] for enum, i in zip([Sizes, Colors, Shapes], action)]
         )
 
-    def _reset(self, options: Optional[Dict[str, Any]]) -> Tuple[int, Dict[str, Any]]:
+    def _reset(self, options: Optional[Dict[str, Any]]):
         # Change the rule if new one is presented
         if options is not None and "rule" in options:
             self.rule = options["rule"]
-        return 0, {"rule": self.rule}
+        return self.door_state_to_text[0], {
+            "rule": self.rule,
+            "possible_actions": [
+                combi.return_prompt() for combi in Combination.get_all()
+            ],
+        }
 
-    def step(self, action):
-        is_open = self.rule.is_opened(self.mapping_action(action))
+    def step(self, action: str):
+        combination = Combination.from_prompt(action)
+        is_open = self.rule.is_opened(combination)
         return (
-            1 if is_open else 0,
-            1 if is_open else 0,
+            self.door_state_to_text[1] if is_open else self.door_state_to_text[0],
+            self.door_state_to_text[1] if is_open else self.door_state_to_text[0],
             True,
             False,
             {"rule": self.rule},

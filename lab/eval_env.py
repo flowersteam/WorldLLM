@@ -3,15 +3,16 @@ import time
 import gymnasium
 from tqdm import tqdm
 
-from worldllm_envs.base import BaseRuleEnv
-from worldllm_envs.playground.playground_text_wrapper import RandomAgent
+from worldllm_envs.base import BaseRuleEnv, RandomAgent
 
 seed = None
 
 env: BaseRuleEnv = gymnasium.make(
-    "worldllm_envs/PlaygroundText-v1",
-    **{"max_steps": 30, "seed": seed, "playground_config": {"max_nb_objects": 8}},
+    "worldllm_envs/Door-v0",
+    **{"seed": seed, "test_dataset_path": None},
 )
+new_rule = env.generate_rule("not_blue_key")
+env.reset(options={"rule": new_rule})
 
 
 agent = RandomAgent(env.action_space)
@@ -19,8 +20,7 @@ n_episodes = 10
 start_time = time.perf_counter()
 n_steps = 0
 for _ in tqdm(range(n_episodes)):
-    new_rule = "grow any small_herbivorous then grow any big_herbivorous"
-    obs, info = env.reset(options={"rule": new_rule})
+    obs, info = env.reset()
     # Compute plan
     agent.reset(info)
     done = False

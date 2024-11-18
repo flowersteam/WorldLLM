@@ -291,6 +291,9 @@ class RandomAgent(BaseAgent):
             action_mask = kwargs["action_mask"]
             possible_actions = np.arange(len(action_mask))[action_mask]
             return possible_actions[np.random.randint(len(possible_actions))], False
+        if "possible_actions" in kwargs:
+            possible_actions = kwargs["possible_actions"]
+            return possible_actions[np.random.randint(len(possible_actions))], False
         return self.action_space.sample(), False
 
 
