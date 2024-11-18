@@ -53,7 +53,9 @@ class EnvPromptInfo:
     stat_prompt: str
     th_prompt: str
     exp_prompt: str
-    stat_template: Callable[[str], str]
+    stat_template: Callable[
+        [Trajectory, Set[str], Optional[str]], Tuple[List[str], List[str]]
+    ]
     th_template: Callable[[List[str], Optional[str], Optional[List[str]]], str]
     exp_template: Callable[[str, List[str], str, str], str]
 
@@ -65,7 +67,9 @@ class BaseRuleEnv(gym.Env, abc.ABC):
         self.stat_prompt: str
         self.th_prompt: str
         self.exp_prompt: str
-        self.stat_template: Callable[[str], Any]
+        self.stat_template: Callable[
+            [Trajectory, Set[str], Optional[str]], Tuple[List[str], List[str]]
+        ]
         self.th_template: Callable[[List[str], Optional[str], Optional[List[str]]], str]
         self.exp_template: Callable[[str, List[str], str, str], str]
         self.test_dataset_path: Optional[str]
@@ -112,7 +116,7 @@ class BaseRuleEnv(gym.Env, abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def generate_rule(rule: Optional[Any]) -> BaseRule:
+    def generate_rule(custom_rule: Optional[Any]) -> BaseRule:
         """Generate Rule from argument or randomly"""
 
     def change_rule(self, rule: BaseRule) -> None:
@@ -127,7 +131,7 @@ class BaseRuleEnv(gym.Env, abc.ABC):
         """Return text associated with the action"""
 
     @abc.abstractmethod
-    def observation_to_text(self, observation) -> str:
+    def observation_to_text(self, observation) -> Tuple[str, Dict[str, Any]]:
         """Return text associated with the observation"""
 
     def get_rule(self) -> BaseRule:

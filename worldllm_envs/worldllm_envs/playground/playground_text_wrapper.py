@@ -534,7 +534,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             for k in self.env_params["categories"][cat]:
                 self.types_to_categories[k] = cat
 
-    def generate_rule(self, custom_rule: Optional[List[str]] = None) -> List[str]:
+    def generate_rule(self, custom_rule: Optional[str] = None) -> str:
         # print("WARNING: no other rule than the default one is available")
         if custom_rule is not None:
             return custom_rule
@@ -553,7 +553,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                         or lst_components[2] in {"living_thing", "animal"}
                     ):
                         lst_goal_possible.append(goal)
-                return [random.choice(lst_goal_possible)]
+                return random.choice(lst_goal_possible)
         else:
             raise NotImplementedError("Test mode not supported yet")
             # If we are in test mode, we want to test the model on unseen data
@@ -603,7 +603,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 output += "Your are holding nothing."
             else:
                 output += f"You are holding {obs_hold[0]}."
-        return output
+        return output, {}
 
     def get_diff(
         self, last_observation: str, observation: str, action: str
