@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Un
 
 import gymnasium as gym
 import numpy as np
+from tqdm import tqdm
 
 from worldllm_envs.base import BaseAgent, BaseRule, BaseRuleEnv, RandomAgent, Trajectory
 
@@ -375,16 +376,60 @@ class AllAgent(BaseAgent):
 
     def __init__(self, action_space: gym.Space):
         super().__init__(action_space)
-        self.action_iterator = Combination.get_all()
-        self.next_action = next(self.action_iterator, None)
+        self.action_iterator: Iterator
+        self.next_action: Optional[Combination]
 
     def reset(self, info: Dict[str, Any]):
-        """Reset the agent."""
+        self.action_iterator = Combination.get_all()
+        self.next_action = next(self.action_iterator, None)
 
     def __call__(self, obs, **kwargs):
         action = self.next_action.return_prompt()
         self.next_action = next(self.action_iterator, None)
         return action, self.next_action is None
+
+    def generate_trajectories(
+        self,
+        env: DoorEnv,
+        nb_trajectories: int,
+        reset_info: Dict[str, Any],
+        n_steps: Optional[int] = None,
+    ) -> Tuple[List[Trajectory], Set[str]]:
+        """
+        Generate text-based trajectories from the given environment.
+        Args:
+            env (BaseRuleEnv): The environment to generate trajectories from.
+            nb_trajectories (int): The number of trajectories to generate.
+            reset_info (Dict[str,Any]): Additional information to pass to the agent for reseting.
+            n_steps (Optional[int], optional): Gather a number of steps instead of trajectories. Used in derived class
+        Returns:
+            Tuple[List[Trajectory], Set[str]]: A tuple containing a list of generated trajectories and a set of discovered transition types.
+        """
+        # Set rule
+        self.reset(reset_info)
+        lst_trajectory = []
+        set_discovered_transitions = set()
+        for _ in tqdm(
+            range(nb_trajectories),
+            desc="Generating trajectories",
+            leave=False,
+        ):
+            obs, info = env.reset()
+            info.update(reset_info)
+            done = False
+            while not done:
+                action, agent_done = self(obs, **info)
+                obs, _, terminated, truncated, info = env.step(action)
+                set_discovered_transitions.add(info["transition_type"])
+                done = terminated or truncated or agent_done
+            lst_trajectory.append(
+                Trajectory(
+                    info["trajectory_obs_text"],
+                    info["trajectory_act_text"],
+                    info["trajectory_diff_text"],
+                )
+            )
+        return lst_trajectory, set_discovered_transitions
 
 
 if __name__ == "__main__":

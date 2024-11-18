@@ -1,0 +1,3 @@
+defaults:
+  - base_agent
+_target_: worldllm_envs.door.door.AllAgent #Needs to collect 27 trajectories to collect exactly all of them
