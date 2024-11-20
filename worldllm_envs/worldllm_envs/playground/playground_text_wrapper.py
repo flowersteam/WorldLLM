@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import gymnasium as gym
 import numpy as np
 
-from worldllm_envs.base import BaseAgent, BaseRuleEnv, Trajectory
+from worldllm_envs.base import BaseAgent, BaseRuleEnv, RandomAgent, Trajectory
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
 from worldllm_envs.playground.playgroundnavv1 import PlayGroundNavigationV1
@@ -72,14 +72,6 @@ class DiverseAgent(BaseAgent):
             trajectories.extend(new_trajectories)
             set_discovered_transition.update(new_discovered_transitions)
         return trajectories, set_discovered_transition
-
-
-class RandomAgent(BaseAgent):
-    """Random agent for the Playground environment"""
-
-    def __call__(self, obs: str, **kwargs) -> Tuple[str, bool]:
-        """Take action according to plan"""
-        return random.choice(kwargs["possible_actions"]), False
 
 
 class PerfectAgent(BaseAgent):
@@ -534,7 +526,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             for k in self.env_params["categories"][cat]:
                 self.types_to_categories[k] = cat
 
-    def generate_rule(self, custom_rule: Optional[List[str]] = None) -> List[str]:
+    def generate_rule(self, custom_rule: Optional[str] = None) -> str:
         # print("WARNING: no other rule than the default one is available")
         if custom_rule is not None:
             return custom_rule
@@ -553,7 +545,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                         or lst_components[2] in {"living_thing", "animal"}
                     ):
                         lst_goal_possible.append(goal)
-                return [random.choice(lst_goal_possible)]
+                return random.choice(lst_goal_possible)
         else:
             raise NotImplementedError("Test mode not supported yet")
             # If we are in test mode, we want to test the model on unseen data
@@ -603,7 +595,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 output += "Your are holding nothing."
             else:
                 output += f"You are holding {obs_hold[0]}."
-        return output
+        return output, {}
 
     def get_diff(
         self, last_observation: str, observation: str, action: str
@@ -1320,7 +1312,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--filepath",
         type=str,
-        default=os.path.join(os.path.dirname(__file__), "data/test_dataset2.json"),
+        default=os.path.join(os.path.dirname(__file__), "data/test_dataset.json"),
         help="Path to save the dataset",
     )
 
@@ -1375,7 +1367,7 @@ if __name__ == "__main__":
     for incr, agent in enumerate([perfect_agent_sh, perfect_agent_shbh, random_agent]):
         new_trajectories, new_discovered_transitions = agent.generate_trajectories(
             env,
-            (args.nb_trajectories + incr) // 3,
+            {"progression": (args.nb_trajectories + incr) // 3},
             0,
             0,
         )

@@ -1,4 +1,6 @@
-defaults: 
+defaults:
   - base_env
 
 id: "worldllm_envs/Door-v0"
+kwargs:
+  test_dataset_path: "./worldllm_envs/worldllm_envs/door/data/test_dataset.json"

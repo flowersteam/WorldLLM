@@ -4,7 +4,7 @@ defaults:
   - llm@theorist: Phi-3-mini-4k-instruct
   - llm@statistician: Phi-3-mini-4k-instruct
   - experimenter: random
-  - environment: playground
+  - environment: door
 
 exp_name: test_pipeline
 
@@ -17,3 +17,5 @@ algorithm:
   use_hasting_correction: False
   stat_batch_size: 5
   th_batch_size: 1
+environment:
+  rule: not_blue

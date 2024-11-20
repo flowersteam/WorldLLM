@@ -3,8 +3,8 @@ defaults:
   - algorithm: metropolis_hastings
   - llm@theorist: Phi-3-mini-4k-instruct
   - llm@statistician: Phi-3-mini-4k-instruct
-  - experimenter: random
-  - environment: playground
+  - experimenter: perfectdoor
+  - environment: door
 
 exp_name: test_pipeline
 
@@ -17,3 +17,7 @@ algorithm:
   use_hasting_correction: False
   stat_batch_size: 5
   th_batch_size: 1
+  nb_trajectories: 27
+  nb_subset_traj: 27
+environment:
+  rule: not_blue
