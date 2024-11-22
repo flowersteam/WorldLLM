@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -48,7 +49,10 @@ statistician = Statistician(
     world_model[1],
     stat_prompt_info,
 )
-rules_to_test = [None]
+rules_to_test = [
+    None,
+    '1. If no state change, say "Nothing has changed."\n2. If you stand on an object, say "You are standing on the [object]."\n3. If you end up on a new object, say "You are standing on the [new object]."\n4. Continue if no active actions or progress is made, repeat "Nothing has changed."\n5. If an object transforms, say "The [object] and the water transform into the [new object]."',
+]
 # Create the different agents
 
 perfect_agent_sh = PerfectAgent(
@@ -60,10 +64,12 @@ perfect_agent_shbh = PerfectAgent(
 )
 random_agent = RandomAgent(env.action_space)
 all_scores = []
+all_index = []
 pbar = tqdm(range(3 * NB_EPISODES), desc="Generating trajectories")
 for agent in [perfect_agent_sh, perfect_agent_shbh, random_agent]:
     for _ in range(NB_EPISODES):
         all_scores_per_episode = []
+        all_index_per_episode = []
         obs, info = env.reset()
         reset_info = {"pipeline_progression": 0}
         info.update(reset_info)
@@ -74,10 +80,9 @@ for agent in [perfect_agent_sh, perfect_agent_shbh, random_agent]:
             # Record inputs from keyboard
             # Print possible actions
             action, agent_done = agent(obs, **info)
-            all_transitions = env.get_all_possible_transitions()
-
+            all_transitions = env.unwrapped.get_all_possible_transitions()
             # Get the score of the LLM for all transitions
-            lst_trajectories = [
+            lst_possible_trajectories = [
                 Trajectory(
                     lst_obs=[
                         info["trajectory_obs_text"][-1],
@@ -89,13 +94,25 @@ for agent in [perfect_agent_sh, perfect_agent_shbh, random_agent]:
                 for transition in all_transitions
             ]
             (_, logp), _ = compute_likelihood(
-                statistician, rules_to_test, lst_trajectories, return_all_logp=True
+                statistician,
+                rules_to_test,
+                lst_possible_trajectories,
+                return_all_logp=True,
             )
-            all_scores_per_episode.append(logp)
+            all_scores_per_episode.append(logp.tolist())
             obs, reward, terminated, truncated, info = env.step(action)
+            true_diff = info["trajectory_diff_text"][-1]
+            index_true = all_transitions.index(true_diff)
+            all_index_per_episode.append(index_true)
             done = terminated or truncated or agent_done
         pbar.update(1)
         all_scores.append(all_scores_per_episode)
+        all_index.append(all_index_per_episode)
 
+# Save the scores to json
+with open("./outputs/scores.json", "w", encoding="utf-8") as f:
+    json.dump(
+        {"scores": all_scores, "rules": rules_to_test, "true_obs_index": all_index}, f
+    )
 
 print("Done.")
