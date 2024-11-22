@@ -978,10 +978,12 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         # Add all holding2 transitions
         for i, obj1 in enumerate(all_objects):
             for j in range(i + 1, len(all_objects)):
-                if i != j:
-                    all_transitions.append(
-                        f"You are holding the {obj1} and the {all_objects[j]}."
-                    )
+                all_transitions.append(
+                    f"You are holding the {obj1} and the {all_objects[j]}."
+                )
+                all_transitions.append(
+                    f"You are holding the {all_objects[j]} and the {obj1}."
+                )
 
         # Add all transformP transitions
         for seed in all_seed_plant:
