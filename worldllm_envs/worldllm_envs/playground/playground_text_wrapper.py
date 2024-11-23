@@ -945,7 +945,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
         return desc, info
 
-    def get_all_possible_transitions(self) -> List[str]:
+    def get_all_possible_transitions(self) -> Tuple[List[str], List[str]]:
         """Return all possible next observations from current observation"""
         # Split text description
         all_objects = []
@@ -966,15 +966,18 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             elif obj_info["category"] == "big_herbivorous" and not obj_info["grown"]:
                 all_baby_big_herbivorous.append(obj)
 
-        all_transitions = []
-        all_transitions.append("Nothing has changed.")
+        all_transitions = ["Nothing has changed."]
+        all_transitions_type = ["nothing"]
         # Add all possible standing transitions
         all_transitions.append("You are standing on nothing.")
+        all_transitions_type.append("standing")
         for obj in all_objects:
             all_transitions.append(f"You are standing on the {obj}.")
+            all_transitions_type.append("standing")
         # Add all holding1 transitions
         for obj in all_objects:
             all_transitions.append(f"You are holding the {obj}.")
+            all_transitions_type.append("holding1")
         # Add all holding2 transitions
         for i, obj1 in enumerate(all_objects):
             for j in range(i + 1, len(all_objects)):
@@ -984,6 +987,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 all_transitions.append(
                     f"You are holding the {all_objects[j]} and the {obj1}."
                 )
+                all_transitions_type.append("holding2")
+                all_transitions_type.append("holding2")
 
         # Add all transformP transitions
         for seed in all_seed_plant:
@@ -994,6 +999,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             all_transitions.append(
                 f"The {seed} and the water transform into the {new_name}."
             )
+            all_transitions_type.append("transformP")
+            all_transitions_type.append("transformP")
         # Add all transformSH transitions
         for baby in all_baby_small_herbivorous:
             new_name = baby[5:]
@@ -1004,6 +1011,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 all_transitions.append(
                     f"The {mature_plant} and the {baby} transform into the {new_name}."
                 )
+                all_transitions_type.extend(["transformSH", "transformSH"])
         # Add all transformBH transitions
         for baby in all_baby_big_herbivorous:
             new_name = baby[5:]
@@ -1019,7 +1027,13 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                         all_transitions.append(
                             f"The {mature_plant1}, the {mature_plant2} and the {baby} transform into the {new_name}."
                         )
-        return np.unique(all_transitions).tolist()
+                        all_transitions_type.extend(
+                            ["transformBH", "transformBH", "transformBH"]
+                        )
+        unique_index = np.unique(all_transitions, return_index=True)[1]
+        return [all_transitions[index] for index in unique_index], [
+            all_transitions_type[index] for index in unique_index
+        ]
 
     # --- Actions ---
 

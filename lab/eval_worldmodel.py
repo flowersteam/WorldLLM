@@ -19,6 +19,7 @@ from utils.utils_llm import (
 
 SEED = 15
 NB_EPISODES = 3
+BATCH_SIZE = 20
 
 # Load the environment
 env: BaseRuleEnv = gymnasium.make(
@@ -42,7 +43,7 @@ stat_prompt_info = build_stat_prompt_info(
     world_model,
     env.get_message_info(),
     "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
-    10,
+    BATCH_SIZE,
 )
 statistician = Statistician(
     world_model[0],
@@ -50,9 +51,14 @@ statistician = Statistician(
     stat_prompt_info,
 )
 rules_to_test = [
+    # Norule
     None,
+    # Rule ALP
     '1. If no state change, say "Nothing has changed."\n2. If you stand on an object, say "You are standing on the [object]."\n3. If you end up on a new object, say "You are standing on the [new object]."\n4. Continue if no active actions or progress is made, repeat "Nothing has changed."\n5. If an object transforms, say "The [object] and the water transform into the [new object]."',
+    '1. If no state change, say "Nothing has changed."\n2. If you stand on an object, say "You are standing on the [object]."\n3. If you would have ended up on a new object, say "You are standing on the [object]."\n4. Continue if no active actions or progress is made, repeat "Nothing has changed."\n5. If an object transforms, say "The [object] and the water transform into the [new object]."',
+    '1. If no state change, say "Nothing has changed."\n2. If you stand on an object, say "You are standing on the [object]."\n3. If you would have ended up on a new object, say "You are standing on the [object]."\n4. Continue if no active actions or progress is made, repeat "Nothing has changed."\n5. If an object transforms when you are on it, say "The [object] and the water transform into the [new object]."',
 ]
+algorithm_used = [None, "ALP", "ALP", "ALP"]
 # Create the different agents
 
 perfect_agent_sh = PerfectAgent(
@@ -65,11 +71,13 @@ perfect_agent_shbh = PerfectAgent(
 random_agent = RandomAgent(env.action_space)
 all_scores = []
 all_index = []
+all_transitions_type = []
 pbar = tqdm(range(3 * NB_EPISODES), desc="Generating trajectories")
 for agent in [perfect_agent_sh, perfect_agent_shbh, random_agent]:
     for _ in range(NB_EPISODES):
         all_scores_per_episode = []
         all_index_per_episode = []
+        all_transitions_type_per_episode = []
         obs, info = env.reset()
         reset_info = {"pipeline_progression": 0}
         info.update(reset_info)
@@ -80,7 +88,9 @@ for agent in [perfect_agent_sh, perfect_agent_shbh, random_agent]:
             # Record inputs from keyboard
             # Print possible actions
             action, agent_done = agent(obs, **info)
-            all_transitions = env.unwrapped.get_all_possible_transitions()
+            all_transitions, transitions_type = (
+                env.unwrapped.get_all_possible_transitions()
+            )
             # Get the score of the LLM for all transitions
             lst_possible_trajectories = [
                 Trajectory(
@@ -100,6 +110,7 @@ for agent in [perfect_agent_sh, perfect_agent_shbh, random_agent]:
                 return_all_logp=True,
             )
             all_scores_per_episode.append(logp.tolist())
+            all_transitions_type_per_episode.append(transitions_type)
             obs, reward, terminated, truncated, info = env.step(action)
             true_diff = info["trajectory_diff_text"][-1]
             index_true = all_transitions.index(true_diff)
@@ -108,11 +119,19 @@ for agent in [perfect_agent_sh, perfect_agent_shbh, random_agent]:
         pbar.update(1)
         all_scores.append(all_scores_per_episode)
         all_index.append(all_index_per_episode)
+        all_transitions_type.append(all_transitions_type_per_episode)
 
 # Save the scores to json
 with open("./outputs/scores.json", "w", encoding="utf-8") as f:
     json.dump(
-        {"scores": all_scores, "rules": rules_to_test, "true_obs_index": all_index}, f
+        {
+            "scores": all_scores,
+            "rules": rules_to_test,
+            "algorithm_used": algorithm_used,
+            "true_obs_index": all_index,
+            "transition_type": all_transitions_type,
+        },
+        f,
     )
 
 print("Done.")
