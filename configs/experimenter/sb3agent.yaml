@@ -1,8 +1,8 @@
 type: SB3Agent
 
-n_envs: 15
-tb_folder: "./logs_ppo_sb3_pipeline"
-tb_name: test_pipeline
+n_envs: 15 # Number of environments to run in parallel
+tb_folder: "./logs_ppo_sb3_pipeline" # Tensorboard folder
+tb_name: test_pipeline # Tensorboard name
 hyperparameters:
   gamma: 0.99
   lr: 5e-4

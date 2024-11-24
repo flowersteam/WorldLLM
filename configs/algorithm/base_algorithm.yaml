@@ -16,5 +16,5 @@ nb_iterations: 10 # Number of iterations for the algorithm for each data collect
 nb_rules: 3 # Number of particles in parallel
 nb_trajectories: 6 #Number of trajectories to collect
 nb_subset_traj: 5 #Number of trajectories given to the Theorist
-reward_type: alp
+reward_type: alp #Type of reward to use if sb3agent is used
 count_based_exponent: #Exponent for the count-based rectifier
