@@ -945,6 +945,96 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
         return desc, info
 
+    def get_all_possible_transitions(self) -> Tuple[List[str], List[str]]:
+        """Return all possible next observations from current observation"""
+        # Split text description
+        all_objects = []
+        all_seed_plant = []
+        all_mature_plant = []
+        all_baby_small_herbivorous = []
+        all_baby_big_herbivorous = []
+        for obj, obj_info in self.obj_dict.items():
+            obj = rm_trailing_number(obj)
+            all_objects.append(obj)
+            if obj_info["category"] == "plant":
+                if obj_info["grown"]:
+                    all_mature_plant.append(obj)
+                else:
+                    all_seed_plant.append(obj)
+            elif obj_info["category"] == "small_herbivorous" and not obj_info["grown"]:
+                all_baby_small_herbivorous.append(obj)
+            elif obj_info["category"] == "big_herbivorous" and not obj_info["grown"]:
+                all_baby_big_herbivorous.append(obj)
+
+        all_transitions = ["Nothing has changed."]
+        all_transitions_type = ["nothing"]
+        # Add all possible standing transitions
+        all_transitions.append("You are standing on nothing.")
+        all_transitions_type.append("standing")
+        for obj in all_objects:
+            all_transitions.append(f"You are standing on the {obj}.")
+            all_transitions_type.append("standing")
+        # Add all holding1 transitions
+        for obj in all_objects:
+            all_transitions.append(f"You are holding the {obj}.")
+            all_transitions_type.append("holding1")
+        # Add all holding2 transitions
+        for i, obj1 in enumerate(all_objects):
+            for j in range(i + 1, len(all_objects)):
+                all_transitions.append(
+                    f"You are holding the {obj1} and the {all_objects[j]}."
+                )
+                all_transitions.append(
+                    f"You are holding the {all_objects[j]} and the {obj1}."
+                )
+                all_transitions_type.append("holding2")
+                all_transitions_type.append("holding2")
+
+        # Add all transformP transitions
+        for seed in all_seed_plant:
+            new_name = seed[:-5]
+            all_transitions.append(
+                f"The water and the {seed} transform into the {new_name}."
+            )
+            all_transitions.append(
+                f"The {seed} and the water transform into the {new_name}."
+            )
+            all_transitions_type.append("transformP")
+            all_transitions_type.append("transformP")
+        # Add all transformSH transitions
+        for baby in all_baby_small_herbivorous:
+            new_name = baby[5:]
+            for mature_plant in all_mature_plant:
+                all_transitions.append(
+                    f"The {baby} and the {mature_plant} transform into the {new_name}."
+                )
+                all_transitions.append(
+                    f"The {mature_plant} and the {baby} transform into the {new_name}."
+                )
+                all_transitions_type.extend(["transformSH", "transformSH"])
+        # Add all transformBH transitions
+        for baby in all_baby_big_herbivorous:
+            new_name = baby[5:]
+            for i, mature_plant1 in enumerate(all_mature_plant):
+                for j, mature_plant2 in enumerate(all_mature_plant):
+                    if i != j:
+                        all_transitions.append(
+                            f"The {baby}, the {mature_plant1} and the {mature_plant2} transform into the {new_name}."
+                        )
+                        all_transitions.append(
+                            f"The {mature_plant1}, the {baby} and the {mature_plant2} transform into the {new_name}."
+                        )
+                        all_transitions.append(
+                            f"The {mature_plant1}, the {mature_plant2} and the {baby} transform into the {new_name}."
+                        )
+                        all_transitions_type.extend(
+                            ["transformBH", "transformBH", "transformBH"]
+                        )
+        unique_index = np.unique(all_transitions, return_index=True)[1]
+        return [all_transitions[index] for index in unique_index], [
+            all_transitions_type[index] for index in unique_index
+        ]
+
     # --- Actions ---
 
     def go_to(self, obj_desc):
