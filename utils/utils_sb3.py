@@ -61,7 +61,13 @@ class CustomMaskablePPO(MaskablePPO):
         rollout_buffer: CustomMaskableRolloutBuffer,
         n_rollout_steps: int,
         use_masking: bool = True,
-    ) -> Tuple[List[List[Trajectory]], Set[str], torch.Tensor, np.ndarray]:
+    ) -> Tuple[
+        List[List[Trajectory]],
+        Set[str],
+        List[List[List[str]]],
+        torch.Tensor,
+        np.ndarray,
+    ]:
         """Modified collect rollouts to modify the rewards before training"""
 
         assert isinstance(
@@ -79,6 +85,8 @@ class CustomMaskablePPO(MaskablePPO):
 
         trajectories: List[List[Trajectory]] = [[] for _ in range(env.num_envs)]
         set_discovered_transitions = set()
+        lst_transitions: List[List[List[str]]] = [[] for _ in range(env.num_envs)]
+        lst_transition_episode: List[List[str]] = [[] for _ in range(env.num_envs)]
 
         if use_masking and not is_masking_supported(env):
             raise ValueError(
@@ -106,6 +114,7 @@ class CustomMaskablePPO(MaskablePPO):
             true_rewards = np.copy(rewards)
             # Update seen transitions
             for idx, info in enumerate(infos):
+                lst_transition_episode[idx].append(info["transition_type"])
                 set_discovered_transitions.add(info["transition_type"])
 
             self.num_timesteps += env.num_envs
@@ -133,6 +142,8 @@ class CustomMaskablePPO(MaskablePPO):
                             infos[idx]["trajectory_diff_text"],
                         )
                     )
+                    lst_transitions[idx].append(lst_transition_episode[idx])
+                    lst_transition_episode[idx] = []
                 if (
                     done
                     and infos[idx].get("terminal_observation") is not None
@@ -176,8 +187,9 @@ class CustomMaskablePPO(MaskablePPO):
                         infos[idx]["trajectory_diff_text"],
                     )
                 )
+                lst_transitions[idx].append(lst_transition_episode[idx])
         # Return the trajectories done and last information
-        return trajectories, set_discovered_transitions, values, dones
+        return trajectories, set_discovered_transitions, lst_transitions, values, dones
 
     def get_rewards(self, rollout_buffer: CustomMaskableRolloutBuffer) -> np.ndarray:
         return rollout_buffer.true_rewards
@@ -412,6 +424,7 @@ class SB3Agent(BaseAgent):
         (
             trajectories_text,
             set_discovered_transitions,
+            lst_transitions,
             self._last_values,
             self._last_dones,
         ) = self.model.collect_rollouts(
@@ -425,7 +438,8 @@ class SB3Agent(BaseAgent):
         prompt_trajectories = [
             traj for sublist in trajectories_text for traj in sublist
         ]
-        return prompt_trajectories, set_discovered_transitions
+        lst_transitions = [transi for sublist in lst_transitions for transi in sublist]
+        return prompt_trajectories, set_discovered_transitions, lst_transitions
 
     def compute_reward(
         self,

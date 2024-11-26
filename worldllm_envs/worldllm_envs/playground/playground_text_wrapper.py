@@ -56,22 +56,26 @@ class DiverseAgent(BaseAgent):
         nb_trajectories: int,
         progression: float,
         n_steps: Optional[int] = None,
-    ) -> Tuple[List[Trajectory], Set[str]]:
+    ):
         """Generate (n_traj-1)//3 Small Herbivores, (n_traj)//3 Big Herbivores and (n_tra+1)j//3 Random trajectories"""
         trajectories = []
+        lst_transitions = []
         set_discovered_transition = set()
         for incr, agent in enumerate(
             [self.perfect_agent_sh, self.perfect_agent_shbh, self.random_agent]
         ):
-            new_trajectories, new_discovered_transitions = agent.generate_trajectories(
-                env,
-                (nb_trajectories + incr) // 3,
-                0,
-                0,
+            new_trajectories, new_discovered_transitions, new_transitions = (
+                agent.generate_trajectories(
+                    env,
+                    (nb_trajectories + incr) // 3,
+                    0,
+                    0,
+                )
             )
             trajectories.extend(new_trajectories)
             set_discovered_transition.update(new_discovered_transitions)
-        return trajectories, set_discovered_transition
+            lst_transitions.extend(new_transitions)
+        return trajectories, set_discovered_transition, lst_transitions
 
 
 class PerfectAgent(BaseAgent):
