@@ -1269,24 +1269,32 @@ class PlayGroundDiscrete(PlayGroundText):
         else:
             return "release all"
 
-    def _update_action_mask(self, obs: np.ndarray) -> None:
+    def text_action_to_discrete(self, action: str) -> int:
+        action, obj = self._split_action(action)
+        if action == "go to":
+            if obj == "nothing":
+                return 13
+            elif "seed" in obj:
+                return self.types_to_id[obj[:-5]]
+            elif "baby" in obj:
+                return self.types_to_id[obj[5:]]
+            return self.types_to_id[obj] + 13
+        elif action == "grasp":
+            return 26
+        elif action == "release":
+            if obj == "all":
+                return 29
+            return [rm_trailing_number(obj_i) for obj_i in self.obj_inventory].index(
+                obj
+            ) + 27
+        raise ValueError("The action " + action + " is not recognized")
+
+    def _update_action_mask(self, possible_actions: np.ndarray) -> None:
         """Return the possible actions from given state"""
-        # Check go to action
-        # We don't need to take care of the category
-        # We need to flip the numpy array with column then
-        flatten_seen_obs = obs[0].sum(-1).flatten("F")
-        self.action_mask[:26] = flatten_seen_obs >= 1
-        # Check grasp action always possible
-        self.action_mask[26] = True
-        # Check release action
-        if np.all(obs[2] == 0):
-            self.action_mask[27:] = False
-        else:
-            self.action_mask[27] = True
-            if np.all(obs[3] == 0):
-                self.action_mask[28:] = False
-            else:
-                self.action_mask[28:] = True
+        ## Convert the observation to feature
+        indices = [self.text_action_to_discrete(action) for action in possible_actions]
+        self.action_mask = np.zeros(30, dtype=bool)
+        self.action_mask[indices] = True
 
     def _reset(
         self, options: Optional[Dict[str, Any]]
@@ -1317,7 +1325,7 @@ class PlayGroundDiscrete(PlayGroundText):
         # Compute the str description
         obs_desc, info_description = self.generate_description()
         text_obs = self.observation_to_text(obs_desc)
-        self._update_action_mask(obs)
+        self._update_action_mask(info_description["possible_actions"])
         self.trajectory_obs_text = [obs_desc]
         self.trajectory_diff_text = []
         self.trajectory_act_text = []
@@ -1395,12 +1403,12 @@ class PlayGroundDiscrete(PlayGroundText):
 
         self.update_obj_info()
         obs = self.dict_to_feature(self.obj_dict)
-        self._update_action_mask(obs)
         # Compute the str description
         obs_desc, info_description = self.generate_description()
         text_obs, transition_type = self.get_diff(
             self._last_text_obs, obs_desc, action_str
         )
+        self._update_action_mask(info_description["possible_actions"])
         text_action = self.action_to_text(action_str)
         self.trajectory_act_text.append(text_action)
         self.trajectory_diff_text.append(text_obs)
@@ -1442,7 +1450,7 @@ class PlayGroundDiscrete(PlayGroundText):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--filepath",
         type=str,
@@ -1499,11 +1507,13 @@ if __name__ == "__main__":
     # Collect all trajectories
     trajectories: List[Trajectory] = []
     for incr, agent in enumerate([perfect_agent_sh, perfect_agent_shbh, random_agent]):
-        new_trajectories, new_discovered_transitions = agent.generate_trajectories(
-            env,
-            {"progression": (args.nb_trajectories + incr) // 3},
-            0,
-            0,
+        new_trajectories, new_discovered_transitions, lst_transition = (
+            agent.generate_trajectories(
+                env,
+                (args.nb_trajectories + incr) // 3,
+                {"pipeline_progression": incr / 3},
+                0,
+            )
         )
         trajectories.extend(new_trajectories)
     # Save the trajectories
