@@ -394,7 +394,7 @@ class AllAgent(BaseAgent):
         nb_trajectories: int,
         reset_info: Dict[str, Any],
         n_steps: Optional[int] = None,
-    ) -> Tuple[List[Trajectory], Set[str]]:
+    ) -> Tuple[List[Trajectory], Set[str], List[List[str]]]:
         """
         Generate text-based trajectories from the given environment.
         Args:
@@ -403,24 +403,25 @@ class AllAgent(BaseAgent):
             reset_info (Dict[str,Any]): Additional information to pass to the agent for reseting.
             n_steps (Optional[int], optional): Gather a number of steps instead of trajectories. Used in derived class
         Returns:
-            Tuple[List[Trajectory], Set[str]]: A tuple containing a list of generated trajectories and a set of discovered transition types.
+            Tuple[List[Trajectory], Set[str], List[List[str]]]: A tuple containing a list of generated trajectories, a set of discovered transition types and the collected transition.
         """
         # Set rule
         self.reset(reset_info)
         lst_trajectory = []
-        set_discovered_transitions = set()
+        lst_transitions = []
         for _ in tqdm(
             range(nb_trajectories),
             desc="Generating trajectories",
             leave=False,
         ):
+            lst_transitions_episode = []
             obs, info = env.reset()
             info.update(reset_info)
             done = False
             while not done:
                 action, agent_done = self(obs, **info)
                 obs, _, terminated, truncated, info = env.step(action)
-                set_discovered_transitions.add(info["transition_type"])
+                lst_transitions_episode.append(info["transition_type"])
                 done = terminated or truncated or agent_done
             lst_trajectory.append(
                 Trajectory(
@@ -429,7 +430,18 @@ class AllAgent(BaseAgent):
                     info["trajectory_diff_text"],
                 )
             )
-        return lst_trajectory, set_discovered_transitions
+            lst_transitions.append(lst_transitions_episode)
+        return (
+            lst_trajectory,
+            set(
+                [
+                    transition
+                    for transition_episode in lst_transitions
+                    for transition in transition_episode
+                ]
+            ),
+            lst_transitions,
+        )
 
 
 if __name__ == "__main__":
@@ -471,11 +483,13 @@ if __name__ == "__main__":
     env.reset(options={"rule": env.generate_rule(args.rule)})
     # Collect all trajectories
     trajectories: List[Trajectory] = []
-    new_trajectories, new_discovered_transitions = all_agent.generate_trajectories(
-        env,
-        args.nb_trajectories,
-        {},
-        0,
+    new_trajectories, new_discovered_transitions, lst_transition = (
+        all_agent.generate_trajectories(
+            env,
+            args.nb_trajectories,
+            {},
+            0,
+        )
     )
     trajectories.extend(new_trajectories)
     # Save the trajectories
