@@ -355,7 +355,6 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             "holding2": "You are holding y and z. ",
             "transformP": "x and y transform into z. ",
             "transformBH": "x, y and z transform into w. ",
-            "nothing": "Nothing has changed. ",
         }
 
         def statisitician_template(
@@ -611,16 +610,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         )
         obs_obj, obs_stand, obs_hold = self._split_description(observation)
         action_type, action_obj = self._split_action(action)
-        if (
-            Counter(last_obs_obj) == Counter(obs_obj)
-            and Counter(last_obs_stand) == Counter(obs_stand)
-            and Counter(last_obs_hold) == Counter(obs_hold)
-        ):
-            return (
-                "Nothing has changed.",
-                "nothing",
-            )
-        elif action_type == "go to":
+        if action_type == "go to":
             if action_obj == "nothing":
                 return (
                     "You are standing on nothing.",
@@ -911,40 +901,90 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             if not self.obj_dict[obj]["grasped"]
         )
         agent_on = [
-            rm_trailing_number(obj)
-            for obj in self.obj_dict.keys()
-            if self.obj_dict[obj]["agent_on"]
+            obj for obj in self.obj_dict.keys() if self.obj_dict[obj]["agent_on"]
         ]
-        desc += (
-            f'\nYou are on: {", ".join(agent_on) if len(agent_on) > 0 else "nothing"}'
-        )
+        assert len(agent_on) <= 1, "In this environment, you can only stand on 1 object"
+        desc += f'\nYou are on: {", ".join([rm_trailing_number(obj_on) for obj_on in agent_on]) if len(agent_on) > 0 else "nothing"}'
         obj_held = [
-            rm_trailing_number(obj)
-            for obj in self.obj_dict.keys()
-            if self.obj_dict[obj]["grasped"]
+            (obj) for obj in self.obj_dict.keys() if self.obj_dict[obj]["grasped"]
         ]
         nb_held = 0
         for obj in self.obj_dict.keys():
             if self.obj_dict[obj]["grasped"]:
                 nb_held += 1
-        desc += f'\nInventory ({nb_held}/2): {", ".join(obj_held) if len(obj_held) > 0 else "empty"}'
+        desc += f'\nInventory ({nb_held}/2): {", ".join([rm_trailing_number(o_held) for o_held in obj_held]) if len(obj_held) > 0 else "empty"}'
 
-        possible_actions = (
-            ["Grasp"]
-            + [
+        # Create a list of possible actions
+        possible_actions = []
+        # Check for Grasp
+        if len(obj_held) < 2 and len(agent_on) > 0:
+            possible_actions.append("Grasp")
+        # Add Go to
+        possible_actions.extend(
+            [
                 "Go to " + rm_trailing_number(obj)
                 for obj in self.obj_dict.keys()
                 if not self.obj_dict[obj]["grasped"]
             ]
-            + ["Release " + obj for obj in obj_held]
         )
-        if len(obj_held) == 2:
-            possible_actions.append("Release all")
+        # Check Release
+        if len(obj_held) >= 1 and len(agent_on) >= 1:
+            categories = {
+                "water": [],
+                "plant_seed": [],
+                "plant": [],
+                "baby_sh": [],
+                "baby_bh": [],
+            }
+            agent_on_category = None
+            for obj in agent_on + obj_held:
+                if rm_trailing_number(obj) == "water":
+                    category_to_add = "water"
+                elif self.obj_dict[obj]["category"] == "plant":
+                    if self.obj_dict[obj]["grown"]:
+                        category_to_add = "plant"
+                    else:
+                        category_to_add = "plant_seed"
+                elif (
+                    self.obj_dict[obj]["category"] == "small_herbivorous"
+                    and not self.obj_dict[obj]["grown"]
+                ):
+                    category_to_add = "baby_sh"
+                elif (
+                    self.obj_dict[obj]["category"] == "big_herbivorous"
+                    and not self.obj_dict[obj]["grown"]
+                ):
+                    category_to_add = "baby_bh"
+                else:
+                    continue
+                categories[category_to_add].append(obj)
+                if obj == agent_on[0]:
+                    agent_on_category = category_to_add
+
+            if len(categories["water"]) >= 1 and len(categories["plant_seed"]) >= 1:
+                if agent_on_category == "water":
+                    for plant_seed in categories["plant_seed"]:
+                        possible_actions.append(
+                            f"Release {rm_trailing_number(plant_seed)}"
+                        )
+                elif agent_on_category == "plant_seed":
+                    possible_actions.append("Release water")
+            if len(categories["plant"]) >= 1 and len(categories["baby_sh"]) >= 1:
+                if agent_on_category == "plant":
+                    for baby_sh in categories["baby_sh"]:
+                        possible_actions.append(
+                            f"Release {rm_trailing_number(baby_sh)}"
+                        )
+                elif agent_on_category == "baby_sh":
+                    for plant in categories["plant"]:
+                        possible_actions.append(f"Release {rm_trailing_number(plant)}")
+            if len(categories["plant"]) >= 2 and len(categories["baby_bh"]) >= 1:
+                possible_actions.append("Release all")
 
         info = {
             "goal": self.goal_str,
             "possible_actions": possible_actions,
-            "inventory": obj_held,
+            "inventory": [rm_trailing_number(obj) for obj in obj_held],
         }
 
         return desc, info
@@ -970,8 +1010,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             elif obj_info["category"] == "big_herbivorous" and not obj_info["grown"]:
                 all_baby_big_herbivorous.append(obj)
 
-        all_transitions = ["Nothing has changed."]
-        all_transitions_type = ["nothing"]
+        all_transitions = []
+        all_transitions_type = []
         # Add all possible standing transitions
         all_transitions.append("You are standing on nothing.")
         all_transitions_type.append("standing")
