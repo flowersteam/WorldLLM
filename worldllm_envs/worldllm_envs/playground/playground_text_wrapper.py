@@ -1386,7 +1386,6 @@ class PlayGroundDiscrete(PlayGroundText):
         if len(self.goals_reached) == 2:
             self.goals_reached[1] = (
                 get_reward_from_state(o, self.goals[1], self.env_params)
-                and self.goals_reached[0]
                 or self.goals_reached[1]
             )
         elif len(self.goals_reached) > 2:
