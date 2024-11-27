@@ -54,7 +54,7 @@ class DiverseAgent(BaseAgent):
         self,
         env: BaseRuleEnv,
         nb_trajectories: int,
-        progression: float,
+        reset_info: Dict[str, Any],
         n_steps: Optional[int] = None,
     ):
         """Generate (n_traj-1)//3 Small Herbivores, (n_traj)//3 Big Herbivores and (n_tra+1)j//3 Random trajectories"""
@@ -68,7 +68,7 @@ class DiverseAgent(BaseAgent):
                 agent.generate_trajectories(
                     env,
                     (nb_trajectories + incr) // 3,
-                    0,
+                    {"pipeline_progression": 0},
                     0,
                 )
             )
