@@ -1,8 +1,8 @@
-hydra:  
+hydra:
   output_subdir: ${output_dir}
-  run:  
+  run:
     dir: .
 
-seed: 42
-exp_name: ???
-output_dir: ./outputs/${exp_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}_${seed}
+seed: 42 # Seed for reproducibility, used in the agents, algorithm and environment
+exp_name: ??? # Name of the experiment
+output_dir: ./outputs/${exp_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}_${seed} # Output directory

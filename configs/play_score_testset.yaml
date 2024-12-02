@@ -1,3 +1,4 @@
+#Used to evaluate the test set with no rule
 defaults:
   - base_config
   - algorithm: metropolis_hastings

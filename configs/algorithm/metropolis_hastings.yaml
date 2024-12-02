@@ -3,6 +3,6 @@ defaults:
 
 name: metropolis_hastings
 
-use_hasting_correction: False
-first_rules:
-num_worst_trajectories: 0
+use_hasting_correction: False # Use the Metropolis Hastings or just Metropolis algorithm
+first_rules: # Rule to start instead of generating
+num_worst_trajectories: 0 # Number of worst trajectories to give to the Theorist from the previous iteration
