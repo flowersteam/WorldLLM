@@ -54,24 +54,28 @@ class DiverseAgent(BaseAgent):
         self,
         env: BaseRuleEnv,
         nb_trajectories: int,
-        progression: float,
+        reset_info: Dict[str, Any],
         n_steps: Optional[int] = None,
-    ) -> Tuple[List[Trajectory], Set[str]]:
+    ):
         """Generate (n_traj-1)//3 Small Herbivores, (n_traj)//3 Big Herbivores and (n_tra+1)j//3 Random trajectories"""
         trajectories = []
+        lst_transitions = []
         set_discovered_transition = set()
         for incr, agent in enumerate(
             [self.perfect_agent_sh, self.perfect_agent_shbh, self.random_agent]
         ):
-            new_trajectories, new_discovered_transitions = agent.generate_trajectories(
-                env,
-                (nb_trajectories + incr) // 3,
-                0,
-                0,
+            new_trajectories, new_discovered_transitions, new_transitions = (
+                agent.generate_trajectories(
+                    env,
+                    (nb_trajectories + incr) // 3,
+                    {"pipeline_progression": 0},
+                    0,
+                )
             )
             trajectories.extend(new_trajectories)
             set_discovered_transition.update(new_discovered_transitions)
-        return trajectories, set_discovered_transition
+            lst_transitions.extend(new_transitions)
+        return trajectories, set_discovered_transition, lst_transitions
 
 
 class PerfectAgent(BaseAgent):
@@ -351,7 +355,6 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             "holding2": "You are holding y and z. ",
             "transformP": "x and y transform into z. ",
             "transformBH": "x, y and z transform into w. ",
-            "nothing": "Nothing has changed. ",
         }
 
         def statisitician_template(
@@ -607,16 +610,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         )
         obs_obj, obs_stand, obs_hold = self._split_description(observation)
         action_type, action_obj = self._split_action(action)
-        if (
-            Counter(last_obs_obj) == Counter(obs_obj)
-            and Counter(last_obs_stand) == Counter(obs_stand)
-            and Counter(last_obs_hold) == Counter(obs_hold)
-        ):
-            return (
-                "Nothing has changed.",
-                "nothing",
-            )
-        elif action_type == "go to":
+        if action_type == "go to":
             if action_obj == "nothing":
                 return (
                     "You are standing on nothing.",
@@ -783,7 +777,6 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         if len(self.goals_reached) == 2:
             self.goals_reached[1] = (
                 get_reward_from_state(o, self.goals[1], self.env_params)
-                and self.goals_reached[0]
                 or self.goals_reached[1]
             )
         elif len(self.goals_reached) > 2:
@@ -907,40 +900,90 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             if not self.obj_dict[obj]["grasped"]
         )
         agent_on = [
-            rm_trailing_number(obj)
-            for obj in self.obj_dict.keys()
-            if self.obj_dict[obj]["agent_on"]
+            obj for obj in self.obj_dict.keys() if self.obj_dict[obj]["agent_on"]
         ]
-        desc += (
-            f'\nYou are on: {", ".join(agent_on) if len(agent_on) > 0 else "nothing"}'
-        )
+        assert len(agent_on) <= 1, "In this environment, you can only stand on 1 object"
+        desc += f'\nYou are on: {", ".join([rm_trailing_number(obj_on) for obj_on in agent_on]) if len(agent_on) > 0 else "nothing"}'
         obj_held = [
-            rm_trailing_number(obj)
-            for obj in self.obj_dict.keys()
-            if self.obj_dict[obj]["grasped"]
+            (obj) for obj in self.obj_dict.keys() if self.obj_dict[obj]["grasped"]
         ]
         nb_held = 0
         for obj in self.obj_dict.keys():
             if self.obj_dict[obj]["grasped"]:
                 nb_held += 1
-        desc += f'\nInventory ({nb_held}/2): {", ".join(obj_held) if len(obj_held) > 0 else "empty"}'
+        desc += f'\nInventory ({nb_held}/2): {", ".join([rm_trailing_number(o_held) for o_held in obj_held]) if len(obj_held) > 0 else "empty"}'
 
-        possible_actions = (
-            ["Grasp"]
-            + [
+        # Create a list of possible actions
+        possible_actions = []
+        # Check for Grasp
+        if len(obj_held) < 2 and len(agent_on) > 0:
+            possible_actions.append("Grasp")
+        # Add Go to
+        possible_actions.extend(
+            [
                 "Go to " + rm_trailing_number(obj)
                 for obj in self.obj_dict.keys()
                 if not self.obj_dict[obj]["grasped"]
             ]
-            + ["Release " + obj for obj in obj_held]
         )
-        if len(obj_held) == 2:
-            possible_actions.append("Release all")
+        # Check Release
+        if len(obj_held) >= 1 and len(agent_on) >= 1:
+            categories = {
+                "water": [],
+                "plant_seed": [],
+                "plant": [],
+                "baby_sh": [],
+                "baby_bh": [],
+            }
+            agent_on_category = None
+            for obj in agent_on + obj_held:
+                if rm_trailing_number(obj) == "water":
+                    category_to_add = "water"
+                elif self.obj_dict[obj]["category"] == "plant":
+                    if self.obj_dict[obj]["grown"]:
+                        category_to_add = "plant"
+                    else:
+                        category_to_add = "plant_seed"
+                elif (
+                    self.obj_dict[obj]["category"] == "small_herbivorous"
+                    and not self.obj_dict[obj]["grown"]
+                ):
+                    category_to_add = "baby_sh"
+                elif (
+                    self.obj_dict[obj]["category"] == "big_herbivorous"
+                    and not self.obj_dict[obj]["grown"]
+                ):
+                    category_to_add = "baby_bh"
+                else:
+                    continue
+                categories[category_to_add].append(obj)
+                if obj == agent_on[0]:
+                    agent_on_category = category_to_add
+
+            if len(categories["water"]) >= 1 and len(categories["plant_seed"]) >= 1:
+                if agent_on_category == "water":
+                    for plant_seed in categories["plant_seed"]:
+                        possible_actions.append(
+                            f"Release {rm_trailing_number(plant_seed)}"
+                        )
+                elif agent_on_category == "plant_seed":
+                    possible_actions.append("Release water")
+            if len(categories["plant"]) >= 1 and len(categories["baby_sh"]) >= 1:
+                if agent_on_category == "plant":
+                    for baby_sh in categories["baby_sh"]:
+                        possible_actions.append(
+                            f"Release {rm_trailing_number(baby_sh)}"
+                        )
+                elif agent_on_category == "baby_sh":
+                    for plant in categories["plant"]:
+                        possible_actions.append(f"Release {rm_trailing_number(plant)}")
+            if len(categories["plant"]) >= 2 and len(categories["baby_bh"]) >= 1:
+                possible_actions.append("Release all")
 
         info = {
             "goal": self.goal_str,
             "possible_actions": possible_actions,
-            "inventory": obj_held,
+            "inventory": [rm_trailing_number(obj) for obj in obj_held],
         }
 
         return desc, info
@@ -966,8 +1009,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             elif obj_info["category"] == "big_herbivorous" and not obj_info["grown"]:
                 all_baby_big_herbivorous.append(obj)
 
-        all_transitions = ["Nothing has changed."]
-        all_transitions_type = ["nothing"]
+        all_transitions = []
+        all_transitions_type = []
         # Add all possible standing transitions
         all_transitions.append("You are standing on nothing.")
         all_transitions_type.append("standing")
@@ -1051,9 +1094,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                         -1,
                     ]
                 )
-
-        else:
-            raise ValueError(obj_desc + " not in the environment")
+        raise ValueError(obj_desc + " not in the environment")
 
     def grasp(self):
         """
@@ -1225,24 +1266,32 @@ class PlayGroundDiscrete(PlayGroundText):
         else:
             return "release all"
 
-    def _update_action_mask(self, obs: np.ndarray) -> None:
+    def text_action_to_discrete(self, action: str) -> int:
+        action, obj = self._split_action(action)
+        if action == "go to":
+            if obj == "nothing":
+                return 13
+            elif "seed" in obj:
+                return self.types_to_id[obj[:-5]]
+            elif "baby" in obj:
+                return self.types_to_id[obj[5:]]
+            return self.types_to_id[obj] + 13
+        elif action == "grasp":
+            return 26
+        elif action == "release":
+            if obj == "all":
+                return 29
+            return [rm_trailing_number(obj_i) for obj_i in self.obj_inventory].index(
+                obj
+            ) + 27
+        raise ValueError("The action " + action + " is not recognized")
+
+    def _update_action_mask(self, possible_actions: np.ndarray) -> None:
         """Return the possible actions from given state"""
-        # Check go to action
-        # We don't need to take care of the category
-        # We need to flip the numpy array with column then
-        flatten_seen_obs = obs[0].sum(-1).flatten("F")
-        self.action_mask[:26] = flatten_seen_obs >= 1
-        # Check grasp action always possible
-        self.action_mask[26] = True
-        # Check release action
-        if np.all(obs[2] == 0):
-            self.action_mask[27:] = False
-        else:
-            self.action_mask[27] = True
-            if np.all(obs[3] == 0):
-                self.action_mask[28:] = False
-            else:
-                self.action_mask[28:] = True
+        ## Convert the observation to feature
+        indices = [self.text_action_to_discrete(action) for action in possible_actions]
+        self.action_mask = np.zeros(30, dtype=bool)
+        self.action_mask[indices] = True
 
     def _reset(
         self, options: Optional[Dict[str, Any]]
@@ -1273,7 +1322,7 @@ class PlayGroundDiscrete(PlayGroundText):
         # Compute the str description
         obs_desc, info_description = self.generate_description()
         text_obs = self.observation_to_text(obs_desc)
-        self._update_action_mask(obs)
+        self._update_action_mask(info_description["possible_actions"])
         self.trajectory_obs_text = [obs_desc]
         self.trajectory_diff_text = []
         self.trajectory_act_text = []
@@ -1337,7 +1386,6 @@ class PlayGroundDiscrete(PlayGroundText):
         if len(self.goals_reached) == 2:
             self.goals_reached[1] = (
                 get_reward_from_state(o, self.goals[1], self.env_params)
-                and self.goals_reached[0]
                 or self.goals_reached[1]
             )
         elif len(self.goals_reached) > 2:
@@ -1351,12 +1399,12 @@ class PlayGroundDiscrete(PlayGroundText):
 
         self.update_obj_info()
         obs = self.dict_to_feature(self.obj_dict)
-        self._update_action_mask(obs)
         # Compute the str description
         obs_desc, info_description = self.generate_description()
         text_obs, transition_type = self.get_diff(
             self._last_text_obs, obs_desc, action_str
         )
+        self._update_action_mask(info_description["possible_actions"])
         text_action = self.action_to_text(action_str)
         self.trajectory_act_text.append(text_action)
         self.trajectory_diff_text.append(text_obs)
@@ -1398,7 +1446,7 @@ class PlayGroundDiscrete(PlayGroundText):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--filepath",
         type=str,
@@ -1455,11 +1503,13 @@ if __name__ == "__main__":
     # Collect all trajectories
     trajectories: List[Trajectory] = []
     for incr, agent in enumerate([perfect_agent_sh, perfect_agent_shbh, random_agent]):
-        new_trajectories, new_discovered_transitions = agent.generate_trajectories(
-            env,
-            {"progression": (args.nb_trajectories + incr) // 3},
-            0,
-            0,
+        new_trajectories, new_discovered_transitions, lst_transition = (
+            agent.generate_trajectories(
+                env,
+                (args.nb_trajectories + incr) // 3,
+                {"pipeline_progression": incr / 3},
+                0,
+            )
         )
         trajectories.extend(new_trajectories)
     # Save the trajectories

@@ -17,7 +17,7 @@ chat_template = "{{ bos_token }}{% for message in messages %}{% if (message['rol
 tokenizer.chat_template = chat_template
 
 test_content = "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). I can move an object, a plant or a herbivore and place it on another object to make them interact. \n"
-test_content += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form, with x,y and z 3 objects and a an action:\n\n In the current space:\nYou see x, y, and z. You are standing on the y. Your are holding nothing. \na: action. \no: You are standing on x. \na: action. \no: You are holding y. \na: action. \no: x and y transform into z. \na: action. \no: Nothing has changed."
+test_content += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form, with x,y and z 3 objects and a an action:\n\n In the current space:\nYou see x, y, and z. You are standing on the y. Your are holding nothing. \na: action. \no: You are standing on x. \na: action. \no: You are holding y. \na: action. \no: x and y transform into z."
 test_content += "\n\nNow please complete the sequence:\n\nIn the current space:\nYou see the baby rhinoceros, the water, the pea seed, the water, the potato seed, the baby rhinoceros, the potato seed and the beet seed. You are standing on nothing. Your are holding nothing. \na: You go to the water. \no: "
 
 base_message = [

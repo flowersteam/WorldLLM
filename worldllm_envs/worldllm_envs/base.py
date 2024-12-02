@@ -245,7 +245,7 @@ class BaseAgent(abc.ABC):
         nb_trajectories: int,
         reset_info: Dict[str, Any],
         n_steps: Optional[int] = None,
-    ) -> Tuple[List[Trajectory], Set[str]]:
+    ) -> Tuple[List[Trajectory], Set[str], List[List[str]]]:
         """
         Generate text-based trajectories from the given environment.
         Args:
@@ -258,12 +258,13 @@ class BaseAgent(abc.ABC):
         """
         # Set rule
         lst_trajectory = []
-        set_discovered_transitions = set()
+        lst_transitions = []
         for _ in tqdm(
             range(nb_trajectories),
             desc="Generating trajectories",
             leave=False,
         ):
+            lst_transitions_episode = []
             obs, info = env.reset()
             info.update(reset_info)
             self.reset(info)
@@ -271,7 +272,7 @@ class BaseAgent(abc.ABC):
             while not done:
                 action, agent_done = self(obs, **info)
                 obs, _, terminated, truncated, info = env.step(action)
-                set_discovered_transitions.add(info["transition_type"])
+                lst_transitions_episode.append(info["transition_type"])
                 done = terminated or truncated or agent_done
             lst_trajectory.append(
                 Trajectory(
@@ -280,7 +281,18 @@ class BaseAgent(abc.ABC):
                     info["trajectory_diff_text"],
                 )
             )
-        return lst_trajectory, set_discovered_transitions
+            lst_transitions.append(lst_transitions_episode)
+        return (
+            lst_trajectory,
+            set(
+                [
+                    transition
+                    for transition_episode in lst_transitions
+                    for transition in transition_episode
+                ]
+            ),
+            lst_transitions,
+        )
 
 
 class RandomAgent(BaseAgent):
