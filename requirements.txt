@@ -117,7 +117,7 @@ tokenizers==0.19.1
 tomli==2.0.1
 tomlkit==0.13.0
 torch==2.3.1
-tornado==6.4.1
+tornado==6.4.2
 tqdm==4.66.4
 traitlets==5.14.3
 transformers==4.42.3
@@ -131,6 +131,6 @@ typing_extensions==4.12.2
 tzdata==2024.1
 urllib3==2.2.2
 wcwidth==0.2.13
-Werkzeug==3.0.4
+Werkzeug==3.1.3
 widgetsnbextension==4.0.13
--e git+https://github.com/Liphos/WorldLLM.git@758d3776216d32b4193b4399ab9194b44b8052e3#egg=worldllm_envs&subdirectory=worldllm_envs
+-e git+https://github.com/Liphos/WorldLLM.git@5ea0bd0925553762c93f7e49eca6cdee3cc6786f#egg=worldllm_envs&subdirectory=worldllm_envs
