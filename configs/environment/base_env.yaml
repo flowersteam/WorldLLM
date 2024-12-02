@@ -1,4 +1,4 @@
 kwargs:
-  test_dataset_path: null
-rule: null
-id: ???
+  test_dataset_path: null # Path to the test dataset null means ignored
+rule: null # Rule for the environment
+id: ??? # ID of the environment for gymnasium
