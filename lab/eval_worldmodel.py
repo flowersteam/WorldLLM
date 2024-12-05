@@ -18,7 +18,7 @@ from utils.utils_llm import (
     load_transformers,
 )
 
-SEED = 15
+SEED = 42
 NB_EPISODES = 3
 BATCH_SIZE = 20
 
