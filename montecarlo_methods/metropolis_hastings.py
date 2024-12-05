@@ -63,6 +63,7 @@ def metropolis_hastings(
         "likelihoods": [],
         "subset_transitions": [],
         "all_transitions": [],
+        "transitions": [],
     }
     add_worst_trajectories = cfg["num_worst_trajectories"] > 0
     # region Initialize and first loop of the algorithm
@@ -90,6 +91,8 @@ def metropolis_hastings(
     # Take smaller subset to generate the first rules
     subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]
     subset_lst_transitions = lst_transitions[-cfg["nb_subset_traj"] :]
+    # Add trajectories to log
+    all_dict["transitions"].append(prompt_trajectories)
     # Log the transitions
     unique_transi = np.unique(
         [transi for sublist in lst_transitions for transi in sublist],
@@ -174,6 +177,8 @@ def metropolis_hastings(
         # Take smaller subset to generate the rules
         subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]
         subset_lst_transitions = lst_transitions[-cfg["nb_subset_traj"] :]
+        # Add trajectories to log
+        all_dict["transitions"].append(prompt_trajectories)
         # Update seen transitions for the statistician
         statistician.prompt_info.discovered_transitions.update(
             set_discovered_transitions
