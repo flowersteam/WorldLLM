@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from worldllm_envs.base import BaseRule
+from worldllm_envs.base import BaseRule, Trajectory
 
 
 def to_json_serializable(obj: Any) -> Any:
@@ -20,6 +20,8 @@ def to_json_serializable(obj: Any) -> Any:
         return list(obj)
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
+    elif isinstance(obj, Trajectory):
+        return obj.to_dict()
     elif isinstance(obj, BaseRule):
         return obj.get_prompt()
     else:
