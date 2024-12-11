@@ -61,8 +61,8 @@ def metropolis_hastings(
         "weights": [],
         "importance_probs": [],
         "likelihoods": [],
-        "subset_transitions": [],
-        "all_transitions": [],
+        "nb_subset_transitions": [],
+        "nb_all_transitions": [],
         "transitions": [],
     }
     add_worst_trajectories = cfg["num_worst_trajectories"] > 0
@@ -103,14 +103,11 @@ def metropolis_hastings(
         return_counts=True,
     )
 
-    all_dict["all_transitions"].append(
-        {key: value / len(lst_transitions) for key, value in zip(*unique_transi)}
+    all_dict["nb_all_transitions"].append(
+        {key: value for key, value in zip(*unique_transi)}
     )
-    all_dict["subset_transitions"].append(
-        {
-            key: value / len(subset_lst_transitions)
-            for key, value in zip(*unique_subset_transi)
-        }
+    all_dict["nb_subset_transitions"].append(
+        {key: value for key, value in zip(*unique_subset_transi)}
     )
     # 2. Sample rules
     if cfg["first_rules"] is not None:
@@ -193,14 +190,11 @@ def metropolis_hastings(
             return_counts=True,
         )
 
-        all_dict["all_transitions"].append(
-            {key: value / len(lst_transitions) for key, value in zip(*unique_transi)}
+        all_dict["nb_all_transitions"].append(
+            {key: value for key, value in zip(*unique_transi)}
         )
-        all_dict["subset_transitions"].append(
-            {
-                key: value / len(subset_lst_transitions)
-                for key, value in zip(*unique_subset_transi)
-            }
+        all_dict["nb_subset_transitions"].append(
+            {key: value for key, value in zip(*unique_subset_transi)}
         )
         # Recompute the likelihoods for the new trajectories
         (prev_likelihoods, all_logp), _ = compute_likelihood(

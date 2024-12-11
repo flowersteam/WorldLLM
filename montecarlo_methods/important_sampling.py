@@ -48,8 +48,8 @@ def important_sampling(
         "weights": [],
         "importance_probs": [],
         "likelihoods": [],
-        "subset_transitions": [],
-        "all_transitions": [],
+        "nb_subset_transitions": [],
+        "nb_all_transitions": [],
         "transitions": [],
     }
     best_rule = None
@@ -94,14 +94,11 @@ def important_sampling(
             return_counts=True,
         )
 
-        all_dict["all_transitions"].append(
-            {key: value / len(lst_transitions) for key, value in zip(*unique_transi)}
+        all_dict["nb_all_transitions"].append(
+            {key: value for key, value in zip(*unique_transi)}
         )
-        all_dict["subset_transitions"].append(
-            {
-                key: value / len(subset_lst_transitions)
-                for key, value in zip(*unique_subset_transi)
-            }
+        all_dict["nb_subset_transitions"].append(
+            {key: value for key, value in zip(*unique_subset_transi)}
         )
         # Recompute likelihood for the best rule
         best_rule_likelihood = compute_likelihood(
