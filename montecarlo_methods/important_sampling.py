@@ -48,6 +48,9 @@ def important_sampling(
         "weights": [],
         "importance_probs": [],
         "likelihoods": [],
+        "subset_transitions": [],
+        "all_transitions": [],
+        "transitions": [],
     }
     best_rule = None
     prev_best_rule = None
@@ -60,7 +63,7 @@ def important_sampling(
             "env_rule": env.unwrapped.get_rule(),
         }
         # 1. Generate trajectories
-        prompt_trajectories, set_discovered_transitions = (
+        prompt_trajectories, set_discovered_transitions, lst_transitions = (
             experimenter.generate_trajectories(
                 env,
                 cfg["nb_trajectories"],
@@ -72,11 +75,33 @@ def important_sampling(
                 ),
             )
         )
-        # Take smaller subset to generate the rules
-        subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]
         # Update seen transitions for the statistician
         statistician.prompt_info.discovered_transitions.update(
             set_discovered_transitions
+        )
+        # Take smaller subset to generate the rules
+        subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]
+        subset_lst_transitions = lst_transitions[-cfg["nb_subset_traj"] :]
+        # Add trajectories to log
+        all_dict["transitions"].append(prompt_trajectories)
+        # Log the transitions
+        unique_transi = np.unique(
+            [transi for sublist in lst_transitions for transi in sublist],
+            return_counts=True,
+        )
+        unique_subset_transi = np.unique(
+            [transi for sublist in subset_lst_transitions for transi in sublist],
+            return_counts=True,
+        )
+
+        all_dict["all_transitions"].append(
+            {key: value / len(lst_transitions) for key, value in zip(*unique_transi)}
+        )
+        all_dict["subset_transitions"].append(
+            {
+                key: value / len(subset_lst_transitions)
+                for key, value in zip(*unique_subset_transi)
+            }
         )
         # Recompute likelihood for the best rule
         best_rule_likelihood = compute_likelihood(
