@@ -25,62 +25,63 @@ if __name__ == "__main__":
         "--dataset_path",
         type=str,
         help="Path to save the dataset",
-        default="dataset.json",
+        default="datasets/temp",
     )
     output_dir = parser.parse_args().output_dir
     dataset_path = parser.parse_args().dataset_path
-    # Load the config
-    cfg: DictConfig = OmegaConf.load(os.path.join(output_dir, "config.yaml"))
-    # set seed
-    if cfg.seed is not None:
-        np.random.seed(cfg.seed)
-        random.seed(cfg.seed)
-        torch.manual_seed(cfg.seed)
-        torch.cuda.manual_seed_all(cfg.seed)
-    # Instantiate the environment
-    # We need to correct the dataset path in the config by going back one directory
-    cfg.environment.kwargs.test_dataset_path = (
-        "." + cfg.environment.kwargs.test_dataset_path
-    )
-    env: BaseRuleEnv = build_env(cfg)
-    # Load the statistician
-    statistician, _ = build_llms(cfg, env)
-    # Load the trajectories
-    with open(os.path.join(output_dir, "all.json"), "r", encoding="utf-8") as f:
-        data = json.load(f)
+    for i_folder, folder in enumerate(os.listdir(output_dir)):
+        # Load one of the config
+        cfg: DictConfig = OmegaConf.load(
+            os.path.join(output_dir, folder, "config.yaml")
+        )
+        # Instantiate the environment
+        # We need to correct the dataset path in the config by going back one directory
+        cfg.environment.kwargs.test_dataset_path = (
+            "." + cfg.environment.kwargs.test_dataset_path
+        )
+        env: BaseRuleEnv = build_env(cfg)
+        # Load the statistician
+        statistician, _ = build_llms(cfg, env)
+        # Load the trajectories
+        with open(
+            os.path.join(output_dir, folder, "all.json"), "r", encoding="utf-8"
+        ) as f:
+            data = json.load(f)
 
-    all_trajectories = []
-    for data_collection, trajectories_dict in enumerate(data["metrics"]["transitions"]):
-        all_trajectories.extend(
-            [Trajectory.from_dict(traj) for traj in trajectories_dict]
-        )
-    # Build the dataset
-    lst_messages = []
-    for trajectory in all_trajectories:
-        all_user_prompts, all_assistant_prompts = (
-            statistician.prompt_info.message_template(
-                trajectory, env.get_all_transition_to_prompt(), None
-            )
-        )
-        for user_prompt, assistant_prompt in zip(
-            all_user_prompts, all_assistant_prompts
+        all_trajectories = []
+        for data_collection, trajectories_dict in enumerate(
+            data["metrics"]["transitions"]
         ):
-            message = (
-                {
-                    "role": "system",
-                    "content": statistician.prompt_info.system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": user_prompt,
-                },
-                {
-                    "role": "assistant",
-                    "content": assistant_prompt,
-                },
+            all_trajectories.extend(
+                [Trajectory.from_dict(traj) for traj in trajectories_dict]
             )
-            lst_messages.append(message)
-    # Save the dataset
-    with open(dataset_path, "w", encoding="utf-8") as f:
-        json.dump(lst_messages, f)
-    print("Dataset saved at", dataset_path)
+        # Build the dataset
+        lst_messages = []
+        for trajectory in all_trajectories:
+            all_user_prompts, all_assistant_prompts = (
+                statistician.prompt_info.message_template(
+                    trajectory, env.get_all_transition_to_prompt(), None
+                )
+            )
+            for user_prompt, assistant_prompt in zip(
+                all_user_prompts, all_assistant_prompts
+            ):
+                message = (
+                    {
+                        "role": "system",
+                        "content": statistician.prompt_info.system_prompt,
+                    },
+                    {
+                        "role": "user",
+                        "content": user_prompt,
+                    },
+                    {
+                        "role": "assistant",
+                        "content": assistant_prompt,
+                    },
+                )
+                lst_messages.append(message)
+        # Save the dataset
+        with open(f"{dataset_path}_{i_folder}.json", "w", encoding="utf-8") as f:
+            json.dump(lst_messages, f)
+        print("Dataset saved at", dataset_path)
