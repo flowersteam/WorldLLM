@@ -82,6 +82,8 @@ if __name__ == "__main__":
                 )
                 lst_messages.append(message)
         # Save the dataset
-        with open(f"{dataset_path}_{i_folder}.json", "w", encoding="utf-8") as f:
+        with open(
+            f"{dataset_path}/dataset_{i_folder}.json", "w", encoding="utf-8"
+        ) as f:
             json.dump(lst_messages, f)
         print("Dataset saved at", dataset_path)
