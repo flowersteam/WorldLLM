@@ -8,6 +8,7 @@ import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from unsloth import FastLanguageModel
 
 from worldllm_envs.base import BaseAgent, BaseRuleEnv, EnvPromptInfo, Trajectory
 
@@ -85,25 +86,35 @@ def load_transformers(
     """Load model using transformers"""
     if model_config["model_params"] != {}:
         warnings.warn("Model parameters are not used for transformers model.")
-    # Set quantization config
-    quantization_config = None
-    if model_config["is_quantized"]:
-        quantization_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
+
+    if "unsloth_model" in model_config and model_config["unsloth_model"]:
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=model_config["name"],
+            load_in_4bit=model_config["is_quantized"],
+            max_seq_length=4096
         )
-    model = AutoModelForCausalLM.from_pretrained(
-        model_config["name"],
-        device_map="auto",
-        trust_remote_code=True,
-        quantization_config=quantization_config,
-        local_files_only=True,
-    )
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_config["name"], local_files_only=True, **model_config["tokenizer_params"]
-    )
+        FastLanguageModel.for_inference(model)  # Enable native 2x faster inference
+    else:  # Use transformers
+        # Set quantization config
+        quantization_config = None
+        if model_config["is_quantized"]:
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16,
+            )
+        model = AutoModelForCausalLM.from_pretrained(
+            model_config["name"],
+            device_map="auto",
+            trust_remote_code=True,
+            quantization_config=quantization_config,
+            local_files_only=True,
+        )
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_config["name"], local_files_only=True, **model_config["tokenizer_params"]
+        )
+
     # We need padding token for batching
     if tokenizer.pad_token is None:
         tokenizer.add_special_tokens({"pad_token": "[PAD]"})
@@ -425,12 +436,12 @@ def _score_trajectory(
     inputs_suffix_ids = inputs_msg_ids[:, prefix_index:]
     inputs_suffix_mask = inputs_msg_mask[:, prefix_index:]
     with torch.no_grad():
-        results = llm.model(
-            inputs_base_ids,
-            attention_mask=inputs_base_att_mask,
-            use_cache=True,
-        )
-        last_logits = results.logits[:1, :]
+        # results = llm.model(
+        #     inputs_base_ids,
+        #     attention_mask=inputs_base_att_mask,
+        #     use_cache=True,
+        # )
+        # last_logits = results.logits[:1, :]
         # Create full mask
         full_mask = torch.cat(
             [
@@ -439,30 +450,42 @@ def _score_trajectory(
             ],
             dim=1,
         )
-        # Duplicate the past key and values
-        past_key_values = results.past_key_values
-        all_keys_values = []
-        for past_key_value in past_key_values:
-            all_keys_values.append(
-                (
-                    past_key_value[0].repeat(len(inputs_suffix_mask), 1, 1, 1),
-                    past_key_value[1].repeat(len(inputs_suffix_mask), 1, 1, 1),
-                )
-            )
-        past_key_values = tuple(all_keys_values)
-        results = llm.model(
-            inputs_suffix_ids,
-            attention_mask=full_mask,
-            past_key_values=past_key_values,
-            use_cache=True,
+        full_input = torch.cat(
+            [
+                inputs_base_ids.repeat(len(inputs_suffix_mask), 1),
+                inputs_suffix_ids,
+            ],
+            dim=1,
         )
-    logits = torch.cat(
-        (
-            last_logits.repeat(len(results.logits), 1, 1),
-            results.logits,
-        ),
-        dim=1,
-    )
+        results = llm.model(
+            full_input,
+            attention_mask=full_mask,
+        )
+        # # Duplicate the past key and values
+        # past_key_values = results.past_key_values
+        # all_keys_values = []
+        # for past_key_value in past_key_values:
+        #     all_keys_values.append(
+        #         (
+        #             past_key_value[0].repeat(len(inputs_suffix_mask), 1, 1, 1),
+        #             past_key_value[1].repeat(len(inputs_suffix_mask), 1, 1, 1),
+        #         )
+        #     )
+        # past_key_values = tuple(all_keys_values)
+        # results = llm.model(
+        #     inputs_suffix_ids,
+        #     attention_mask=full_mask,
+        #     past_key_values=past_key_values,
+        #     use_cache=True,
+        # )
+    # logits = torch.cat(
+    #     (
+    #         last_logits.repeat(len(results.logits), 1, 1),
+    #         results.logits,
+    #     ),
+    #     dim=1,
+    # )
+    logits = results.logits
     # We need to pad to 0 the logits to ignore the right padding
     # We first need to get the size of the window to analyse:
     padding_size = torch.tensor([max_len_msg - len(c) for c in inputs_msg["input_ids"]])
