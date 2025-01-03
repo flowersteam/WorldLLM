@@ -58,9 +58,9 @@ def main(cfg: DictConfig) -> None:
     # Load env rules
     if cfg.environment.rule is not None:
         env_rule_info = OmegaConf.to_object(cfg.environment)["rule"]
-        env_rule = env.generate_rule(env_rule_info)
+        env_rule = env.unwrapped.generate_rule(env_rule_info)
     else:
-        env_rule = env.generate_rule()
+        env_rule = env.unwrapped.generate_rule()
     env.reset(options={"rule": env_rule})
     # Load modules
     statistician, theorist, experimenter = load_modules(cfg, env)
