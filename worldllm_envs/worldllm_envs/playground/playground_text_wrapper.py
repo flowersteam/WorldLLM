@@ -11,7 +11,13 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import gymnasium as gym
 import numpy as np
 
-from worldllm_envs.base import BaseAgent, BaseRuleEnv, RandomAgent, Trajectory
+from worldllm_envs.base import (
+    BaseAgent,
+    BaseRuleEnv,
+    BaseWrapper,
+    RandomAgent,
+    Trajectory,
+)
 from worldllm_envs.playground.descriptions import generate_all_descriptions
 from worldllm_envs.playground.env_params import get_env_params
 from worldllm_envs.playground.playgroundnavv1 import PlayGroundNavigationV1
@@ -52,7 +58,7 @@ class DiverseAgent(BaseAgent):
 
     def generate_trajectories(
         self,
-        env: BaseRuleEnv,
+        env: BaseWrapper,
         nb_trajectories: int,
         reset_info: Dict[str, Any],
         n_steps: Optional[int] = None,
@@ -1481,7 +1487,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    env: BaseRuleEnv = gym.make(
+    env: BaseWrapper = gym.make(
         "worldllm_envs/PlaygroundText-v1",
         **{
             "max_steps": args.max_steps,

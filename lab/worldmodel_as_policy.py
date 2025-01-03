@@ -9,7 +9,7 @@ import gymnasium
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.utils_llm import LlmAgent, LlmModel, build_exp_prompt_info, load_transformers
-from worldllm_envs.base import BaseRuleEnv, Trajectory
+from worldllm_envs.base import BaseWrapper, Trajectory
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    env: BaseRuleEnv = gymnasium.make(
+    env: BaseWrapper = gymnasium.make(
         "worldllm_envs/PlaygroundText-v1",
         **{
             "max_steps": 30,
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     experimenter_model = load_transformers(config)
     exp_prompt_info = build_exp_prompt_info(
         experimenter_model,
-        env.get_message_info(),
+        env.unwrapped.get_message_info(),
         "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
         5,
     )

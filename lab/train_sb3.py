@@ -17,7 +17,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.utils import obs_as_tensor
 from stable_baselines3.common.vec_env import VecEnv
 
-from worldllm_envs.base import BaseRuleEnv
+from worldllm_envs.base import BaseWrapper
 
 
 def correct_reward(prev_rewards: np.ndarray):
@@ -314,7 +314,7 @@ def mask_fn(env):
 
 
 def make_env():
-    env: BaseRuleEnv = gymnasium.make(
+    env: BaseWrapper = gymnasium.make(
         "worldllm_envs/Playground-v1",
         **{
             "max_steps": 30,

@@ -9,7 +9,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from worldllm_envs.base import BaseAgent, BaseRuleEnv, EnvPromptInfo, Trajectory
+from worldllm_envs.base import BaseAgent, BaseWrapper, EnvPromptInfo, Trajectory
 
 
 @dataclass
@@ -687,7 +687,7 @@ class LlmAgent(BaseAgent):
         self.llm = llm
 
     @staticmethod
-    def create_agent(cfg: DictConfig, env: BaseRuleEnv, theorist: LlmModel):
+    def create_agent(cfg: DictConfig, env: BaseWrapper, theorist: LlmModel):
         """Create the experimenter agent from the config and the environment."""
         if cfg.experimenter.llm is not None:
             experimenter_pack = load_transformers(cfg.experimenter.llm)

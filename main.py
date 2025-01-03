@@ -12,14 +12,14 @@ from montecarlo_methods.important_sampling import important_sampling
 from montecarlo_methods.metropolis_hastings import metropolis_hastings
 from utils.utils_llm import LlmAgent, LlmModel, Statistician, build_llms
 from utils.utils_sb3 import SB3Agent
-from worldllm_envs.base import BaseAgent, BaseRuleEnv, build_env
+from worldllm_envs.base import BaseAgent, BaseWrapper, build_env
 
 
 def load_modules(
-    cfg: DictConfig, env: BaseRuleEnv
+    cfg: DictConfig, env: BaseWrapper
 ) -> Tuple[Statistician, LlmModel, BaseAgent]:
     """Load the modules Statistician, Theorist and Experimenter"""
-    statistician, theorist = build_llms(cfg, env)
+    statistician, theorist = build_llms(cfg, env.unwrapped.get_message_info())
     if cfg.experimenter.type == "BaseAgent":
         experimenter_config = OmegaConf.to_object(cfg.experimenter)
         del (
@@ -54,7 +54,7 @@ def main(cfg: DictConfig) -> None:
         torch.manual_seed(cfg.seed)
         torch.cuda.manual_seed_all(cfg.seed)
     # Instantiate the environment
-    env: BaseRuleEnv = build_env(cfg)
+    env: BaseWrapper = build_env(cfg)
     # Load env rules
     if cfg.environment.rule is not None:
         env_rule_info = OmegaConf.to_object(cfg.environment)["rule"]
