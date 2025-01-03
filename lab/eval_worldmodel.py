@@ -2,12 +2,11 @@ import json
 import os
 import sys
 from typing import List, Optional
-from argparse import ArgumentParser
 
 import gymnasium
 from tqdm import tqdm
 
-from worldllm_envs.base import BaseRuleEnv, RandomAgent, Trajectory
+from worldllm_envs.base import BaseWrapper, RandomAgent, Trajectory
 from worldllm_envs.playground.playground_text_wrapper import PerfectAgent
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -30,7 +29,7 @@ if __name__ == "__main__":
     BATCH_SIZE = 20
 
     # Load the environment
-    env: BaseRuleEnv = gymnasium.make(
+    env: BaseWrapper = gymnasium.make(
         "worldllm_envs/PlaygroundText-v1",
         **{"seed": SEED, "test_dataset_path": None, "max_steps": 30},
     )
@@ -50,7 +49,7 @@ if __name__ == "__main__":
     world_model = load_transformers(config)
     stat_prompt_info = build_stat_prompt_info(
         world_model,
-        env.get_message_info(),
+        env.unwrapped.get_message_info(),
         "You like doing a lot of puzzles. Please answer with a brief answer and be as precise as you can.",
         BATCH_SIZE,
     )

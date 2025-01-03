@@ -14,12 +14,15 @@ from omegaconf import DictConfig, OmegaConf
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.utils_llm import build_llms
-from worldllm_envs.base import BaseRuleEnv, Trajectory, build_env
+from worldllm_envs.base import BaseWrapper, Trajectory, build_env
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--output_dir", type=str, help="Directory where the experiment is saved"
+        "--output_dir",
+        type=str,
+        help="Directory where the experiment is saved",
+        required=True,
     )
     parser.add_argument(
         "--dataset_path",
@@ -39,9 +42,9 @@ if __name__ == "__main__":
         cfg.environment.kwargs.test_dataset_path = (
             "." + cfg.environment.kwargs.test_dataset_path
         )
-        env: BaseRuleEnv = build_env(cfg)
+        env: BaseWrapper = build_env(cfg)
         # Load the statistician
-        statistician, _ = build_llms(cfg, env)
+        statistician, _ = build_llms(cfg, env.unwrapped.get_message_info())
         # Load the trajectories
         with open(
             os.path.join(output_dir, folder, "all.json"), "r", encoding="utf-8"
@@ -60,7 +63,7 @@ if __name__ == "__main__":
         for trajectory in all_trajectories:
             all_user_prompts, all_assistant_prompts = (
                 statistician.prompt_info.message_template(
-                    trajectory, env.get_all_transition_to_prompt(), None
+                    trajectory, env.unwrapped.get_all_transition_to_prompt(), None
                 )
             )
             for user_prompt, assistant_prompt in zip(

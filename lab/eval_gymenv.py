@@ -6,12 +6,12 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from worldllm_envs.base import BaseRuleEnv, RandomAgent
+from worldllm_envs.base import BaseWrapper, RandomAgent
 
 writer = SummaryWriter(log_dir="./logs_ppo_sb3/RandomAgent2")
 seed = None
 
-env: BaseRuleEnv = gymnasium.make(
+env: BaseWrapper = gymnasium.make(
     "worldllm_envs/Playground-v1",
     **{"max_steps": 30, "seed": seed, "playground_config": {"max_nb_objects": 8}},
 )

@@ -398,7 +398,7 @@ class AllAgent(BaseAgent):
         """
         Generate text-based trajectories from the given environment.
         Args:
-            env (BaseRuleEnv): The environment to generate trajectories from.
+            env (BaseWrapper): The environment to generate trajectories from.
             nb_trajectories (int): The number of trajectories to generate.
             reset_info (Dict[str,Any]): Additional information to pass to the agent for reseting.
             n_steps (Optional[int], optional): Gather a number of steps instead of trajectories. Used in derived class
@@ -469,7 +469,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    env: BaseRuleEnv = gym.make(
+    env: BaseWrapper = gym.make(
         "worldllm_envs/Door-v0",
         **{
             "seed": args.seed,

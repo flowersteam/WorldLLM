@@ -17,7 +17,7 @@ from utils.utils_llm import (
 )
 from utils.utils_save import RuleOutput
 from utils.utils_sb3 import SB3Agent
-from worldllm_envs.base import BaseAgent, BaseRuleEnv, Trajectory
+from worldllm_envs.base import BaseAgent, BaseWrapper, Trajectory
 
 
 def get_worst_trajectories(
@@ -41,7 +41,7 @@ def get_worst_trajectories(
 
 
 def metropolis_hastings(
-    env: BaseRuleEnv,
+    env: BaseWrapper,
     experimenter: BaseAgent,
     theorist: LlmModel,
     statistician: Statistician,
@@ -311,7 +311,9 @@ def metropolis_hastings(
                 experimenter.model.save(os.path.join(output_dir, f"experimenter_{i}"))
     # endregion
     # Add all transtion to the statistician for scoring the test
-    statistician.prompt_info.discovered_transitions = env.get_all_transition_to_prompt()
+    statistician.prompt_info.discovered_transitions = (
+        env.unwrapped.get_all_transition_to_prompt()
+    )
     # Compute likelihoods of test data for the rules
     all_dict["test_likelihoods_best"], all_dict["test_transition_scores_best"] = (
         compute_likelihood(statistician, all_dict["best_rule"], test_trajectories)
