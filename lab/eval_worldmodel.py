@@ -215,6 +215,10 @@ if __name__ == "__main__":
             world_model[1],
             stat_prompt_info,
         )
+        # Add all the abstract trajectories
+        statistician.prompt_info.discovered_transitions = (
+            env.unwrapped.get_all_transition_to_prompt()
+        )
         # Create the different agents
         perfect_agent_sh = PerfectAgent(
             env.action_space, curriculum_goals=["Grow any small_herbivorous"]
