@@ -60,13 +60,35 @@ if __name__ == "__main__":
         default="scores_modified.json",
         help="Name of the output file",
     )
-    parser.add_argument("--nb-episodes", "-n", type=int, default=3)
+    parser.add_argument(
+        "--nb-episodes",
+        "-n",
+        type=int,
+        default=3,
+        help="Number of episodes for each agent. Need to be the same as the one used for the testset",
+    )
     parser.add_argument(
         "--batch-size", "-b", type=int, default=30, help="batch size of the model"
     )
-    parser.add_argument("--seed", "-s", type=int, default=42)
-    parser.add_argument("--finetuned_model_paths", type=list, default=[])
-    parser.add_argument("--finetuned_model_names", type=list, default=[])
+    parser.add_argument(
+        "--seed",
+        "-s",
+        type=int,
+        default=42,
+        help="Seed for the environment. Need to be the same as the one used for the testset",
+    )
+    parser.add_argument(
+        "--finetuned_model_paths",
+        type=list,
+        default=[],
+        help="Paths to the finetuned models",
+    )
+    parser.add_argument(
+        "--finetuned_model_names",
+        type=list,
+        default=[],
+        help="Saved names of the finetuned models",
+    )
     args = parser.parse_args()
 
     # Add configs to test
