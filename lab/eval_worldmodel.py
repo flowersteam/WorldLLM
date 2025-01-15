@@ -79,15 +79,17 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--finetuned_model_paths",
-        type=list,
-        default=[],
+        action="append",
         help="Paths to the finetuned models",
     )
     parser.add_argument(
         "--finetuned_model_names",
-        type=list,
-        default=[],
+        action="append",
         help="Saved names of the finetuned models",
+    )
+    parser.add_argument(
+        "--base_model_path",
+        type=str,
     )
     args = parser.parse_args()
 
@@ -210,6 +212,7 @@ if __name__ == "__main__":
     all_scores = []
     all_index = []
     all_transitions_type = []
+    print(f"{len(rules_to_test)} world models to evaluate.")
     for incr, (config, rules_to_test, algorithm_used) in enumerate(
         zip(configs, all_rules_to_test, all_algorithm_used)
     ):
@@ -324,8 +327,9 @@ if __name__ == "__main__":
         del world_model
         gc.collect()
         torch.cuda.empty_cache()
+
     # Save the scores to json
-    with open(os.path.join("./outputs/", args.output_name), "w", encoding="utf-8") as f:
+    with open(args.output_name, "w", encoding="utf-8") as f:
         json.dump(
             {
                 "scores": all_scores,
