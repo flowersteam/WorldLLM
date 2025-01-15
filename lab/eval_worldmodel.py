@@ -100,8 +100,8 @@ if __name__ == "__main__":
     # region Add not finetuned LLM
     configs.append(
         {
-            "name": "microsoft/Phi-3-mini-4k-instruct",
-            "unsloth_model": False,
+            "name": args.base_model_path,
+            "unsloth_model": True,
             "model_params": {},
             "tokenizer_params": {},
             "is_quantized": True,
