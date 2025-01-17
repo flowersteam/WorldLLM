@@ -379,18 +379,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             )
             if rule is not None:
                 base_user_prompt += f"You know that: \n{rule}\n"
-            base_user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form, with x,y, z and w 4 objects and action an action:"
-
-            # Give abstract trajectory
-            base_user_prompt += "\n\n In the current space:\nYou see x, y, and z. "
-            for (
-                transition_type,
-                transition_text,
-            ) in self.all_transition_to_prompt.items():
-                if transition_type in discovered_transition:
-                    base_user_prompt += "\na: action. \no: " + transition_text
-            # give real trajectory
-            base_user_prompt += "\n\nNow please complete the sequence:\n\n"
+            base_user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. Now please complete the sequence:\n\n"
             base_user_prompt += "In the current space:\n"
 
             all_user_prompts = []
@@ -431,15 +420,15 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             for trajectory in trajectories:
                 msg += _format_trajectory_for_theorist(trajectory)
             if previous_rule is None:
-                msg += "\nCan you find a set of easily undestandable and concise rules to predict how the environment will change based on these trajectories? They should respect all the trajectories while still being as general as possible. Answer with just the rules."
+                msg += "\nCan you find a set of easily understandable and concise rules to predict how the environment will change based on these trajectories? They should respect all the trajectories while still being as general as possible. Answer with just the rules."
             else:
                 if worst_trajectories is not None:
-                    msg += f"\nCan you find a set of easily undestandable and concise rules to predict how the environment will change based on these trajectories? You can take inspiration from the previous rules:\n{previous_rule}\nYou also know that the previous set of rules failed the most on those trajectories:\n\n"
+                    msg += f"\nCan you find a set of easily understandable and concise rules to predict how the environment will change based on these trajectories? You can take inspiration from the previous rules:\n{previous_rule}\nYou also know that the previous set of rules failed the most on those trajectories:\n\n"
                     for trajectory in worst_trajectories:
                         msg += _format_trajectory_for_theorist(trajectory)
                     msg += "\nAnswer with just the rules."
                 else:
-                    msg += f"\nCan you find a set of easily undestandable and concise rules to predict how the environment will change based on these trajectories? You can take inspiration from the previous rules:\n{previous_rule}\nAnswer with just the rules."
+                    msg += f"\nCan you find a set of easily understandable and concise rules to predict how the environment will change based on these trajectories? You can take inspiration from the previous rules:\n{previous_rule}\nAnswer with just the rules."
             return msg
 
         def experimenter_template(
@@ -595,16 +584,16 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     ) -> str:
         """Create observation from transition type and objects"""
         transition_type_to_obs = {
-            "standing": "You are next to the {0}.",
-            "holding1": "In your inventory, you have the {0}.",
-            "holding2": "In your inventory, you have the {0} and the {1}.",
-            "transformBH": "The {0}, the {1} and the {2} are replaced by the {3}.",
-            "transformP": "The {0} and the {1} are replaced by the {2}.",
-            "transformSH": "The {0} and the {1} are replaced by the {2}.",
+            "standing": "You are standing on the {0}.",
+            "holding1": "You are holding the {0}.",
+            "holding2": "You are holding the {0} and the {1}.",
+            "transformBH": "The {3} appears from the transformation.",
+            "transformP": "The {2} appears from the transformation.",
+            "transformSH": "The {2} appears from the transformation.",
         }
         empty_object_alternative = {
-            "standing": "Nothing is closeby.",
-            "holding1": "In your inventory, you have nothing.",
+            "standing": "You are standing on nothing.",
+            "holding1": "You are holding nothing.",
         }
         if len(objects) > 0 or transition_type not in empty_object_alternative:
             return transition_type_to_obs[transition_type].format(*objects)
