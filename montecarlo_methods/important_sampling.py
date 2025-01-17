@@ -7,7 +7,7 @@ from tqdm import tqdm
 from utils.utils_llm import LlmModel, Statistician, compute_likelihood, generate_rules
 from utils.utils_save import RuleOutput
 from utils.utils_sb3 import SB3Agent
-from worldllm_envs.base import BaseAgent, BaseRuleEnv
+from worldllm_envs.base import BaseAgent, BaseWrapper
 
 
 def get_unique_rules(
@@ -30,7 +30,7 @@ def get_unique_rules(
 
 
 def important_sampling(
-    env: BaseRuleEnv,
+    env: BaseWrapper,
     experimenter: BaseAgent,
     theorist: LlmModel,
     statistician: Statistician,
@@ -48,6 +48,9 @@ def important_sampling(
         "weights": [],
         "importance_probs": [],
         "likelihoods": [],
+        "nb_subset_transitions": [],
+        "nb_all_transitions": [],
+        "transitions": [],
     }
     best_rule = None
     prev_best_rule = None
@@ -60,7 +63,7 @@ def important_sampling(
             "env_rule": env.unwrapped.get_rule(),
         }
         # 1. Generate trajectories
-        prompt_trajectories, set_discovered_transitions = (
+        prompt_trajectories, set_discovered_transitions, lst_transitions = (
             experimenter.generate_trajectories(
                 env,
                 cfg["nb_trajectories"],
@@ -72,11 +75,30 @@ def important_sampling(
                 ),
             )
         )
-        # Take smaller subset to generate the rules
-        subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]
         # Update seen transitions for the statistician
         statistician.prompt_info.discovered_transitions.update(
             set_discovered_transitions
+        )
+        # Take smaller subset to generate the rules
+        subset_trajectories = prompt_trajectories[-cfg["nb_subset_traj"] :]
+        subset_lst_transitions = lst_transitions[-cfg["nb_subset_traj"] :]
+        # Add trajectories to log
+        all_dict["transitions"].append(prompt_trajectories)
+        # Log the transitions
+        unique_transi = np.unique(
+            [transi for sublist in lst_transitions for transi in sublist],
+            return_counts=True,
+        )
+        unique_subset_transi = np.unique(
+            [transi for sublist in subset_lst_transitions for transi in sublist],
+            return_counts=True,
+        )
+
+        all_dict["nb_all_transitions"].append(
+            {key: value for key, value in zip(*unique_transi)}
+        )
+        all_dict["nb_subset_transitions"].append(
+            {key: value for key, value in zip(*unique_subset_transi)}
         )
         # Recompute likelihood for the best rule
         best_rule_likelihood = compute_likelihood(
@@ -135,7 +157,9 @@ def important_sampling(
                 experimenter.model.save(os.path.join(output_dir, f"experimenter_{i}"))
     # endregion
     # Add all transtion to the statistician for scoring the test
-    statistician.prompt_info.discovered_transitions = env.get_all_transition_to_prompt()
+    statistician.prompt_info.discovered_transitions = (
+        env.unwrapped.get_all_transition_to_prompt()
+    )
     # Compute likelihoods of test data for the rules
     all_dict["test_likelihoods_best"], all_dict["test_transition_scores_best"] = (
         compute_likelihood(statistician, all_dict["best_rule"], test_trajectories)

@@ -1,8 +1,9 @@
 name: ???
 model_params: {}
+use_unsloth: True
 tokenizer_params: {}
 is_quantized: True
-generation_kwargs: 
+generation_kwargs:
   cache_implementation: "quantized"
-  cache_config: {"backend": "quanto", "nbits": 4}
+  cache_config: { "backend": "quanto", "nbits": 4 }
 chat_template: null

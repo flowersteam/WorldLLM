@@ -3,11 +3,11 @@ import time
 import gymnasium
 from tqdm import tqdm
 
-from worldllm_envs.base import BaseRuleEnv, RandomAgent
+from worldllm_envs.base import BaseWrapper, RandomAgent
 
 seed = None
 
-env: BaseRuleEnv = gymnasium.make(
+env: BaseWrapper = gymnasium.make(
     "worldllm_envs/Door-v0",
     **{"seed": seed, "test_dataset_path": None},
 )

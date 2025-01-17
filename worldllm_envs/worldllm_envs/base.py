@@ -164,7 +164,14 @@ class BaseRuleEnv(gym.Env, abc.ABC):
         pass
 
 
-class TextWrapper(gym.Wrapper):
+class BaseWrapper(gym.Wrapper):
+    """Env to use for typing"""
+
+    def __init__(self, env: BaseRuleEnv):
+        super().__init__(env)
+
+
+class TextWrapper(BaseWrapper):
     def __init__(self, env: BaseRuleEnv):
         super().__init__(env)
         self.obs_trajectory: List[Any]
@@ -214,7 +221,7 @@ class TextWrapper(gym.Wrapper):
         return text_obs, info
 
 
-def build_env(cfg: DictConfig, rule: Optional[str] = None) -> BaseRuleEnv:
+def build_env(cfg: DictConfig, rule: Optional[str] = None) -> BaseWrapper:
     """Build the environment."""
     # Add seed to kwargs
     kwargs = OmegaConf.to_container(cfg.environment.kwargs, resolve=True)
@@ -241,7 +248,7 @@ class BaseAgent(abc.ABC):
 
     def generate_trajectories(
         self,
-        env: BaseRuleEnv,
+        env: BaseWrapper,
         nb_trajectories: int,
         reset_info: Dict[str, Any],
         n_steps: Optional[int] = None,
@@ -249,7 +256,7 @@ class BaseAgent(abc.ABC):
         """
         Generate text-based trajectories from the given environment.
         Args:
-            env (BaseRuleEnv): The environment to generate trajectories from.
+            env (BaseWrapper): The environment to generate trajectories from.
             nb_trajectories (int): The number of trajectories to generate.
             reset_info (Dict[str,Any]): Additional information to pass to the agent for reseting.
             n_steps (Optional[int], optional): Gather a number of steps instead of trajectories. Used in derived class

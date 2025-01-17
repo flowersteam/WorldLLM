@@ -15,7 +15,7 @@ from stable_baselines3.common.vec_env import VecEnv
 from tqdm import tqdm
 
 from utils.utils_llm import Statistician, compute_likelihood
-from worldllm_envs.base import BaseAgent, BaseRuleEnv, Trajectory
+from worldllm_envs.base import BaseAgent, BaseWrapper, Trajectory
 
 
 class CustomMaskableRolloutBuffer(MaskableRolloutBuffer):
@@ -408,7 +408,7 @@ class SB3Agent(BaseAgent):
 
     def generate_trajectories(
         self,
-        env: BaseRuleEnv,
+        env: BaseWrapper,
         nb_trajectories: int,
         reset_info: Dict[str, Any],
         n_steps: Optional[int] = None,
