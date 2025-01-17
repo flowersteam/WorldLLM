@@ -101,7 +101,7 @@ if __name__ == "__main__":
     configs.append(
         {
             "name": args.base_model_path,
-            "unsloth_model": True,
+            "use_unsloth": True,
             "model_params": {},
             "tokenizer_params": {},
             "is_quantized": True,
@@ -194,7 +194,7 @@ if __name__ == "__main__":
         configs.append(
             {
                 "name": model_path,
-                "unsloth_model": True,
+                "use_unsloth": True,
                 "model_params": {},
                 "tokenizer_params": {},
                 "is_quantized": True,

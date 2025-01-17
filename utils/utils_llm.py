@@ -87,11 +87,11 @@ def load_transformers(
     if model_config["model_params"] != {}:
         warnings.warn("Model parameters are not used for transformers model.")
 
-    if "unsloth_model" in model_config and model_config["unsloth_model"]:
+    if model_config["use_unsloth"]:
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=model_config["name"],
             load_in_4bit=model_config["is_quantized"],
-            max_seq_length=4096
+            max_seq_length=4096,
         )
         FastLanguageModel.for_inference(model)  # Enable native 2x faster inference
     else:  # Use transformers
@@ -112,7 +112,9 @@ def load_transformers(
             local_files_only=True,
         )
         tokenizer = AutoTokenizer.from_pretrained(
-            model_config["name"], local_files_only=True, **model_config["tokenizer_params"]
+            model_config["name"],
+            local_files_only=True,
+            **model_config["tokenizer_params"]
         )
 
     # We need padding token for batching
@@ -604,6 +606,7 @@ def compute_likelihood(
     return log_probability.numpy(), transition_scores
 
 
+# region --- For the LLMAgent ---
 def compute_base_key_values(
     llm: LlmModel, base_message: Tuple[Dict[str, str], Dict[str, str]]
 ) -> Tuple[Tuple[Tuple[torch.Tensor, ...], ...], torch.Tensor, torch.Tensor]:
@@ -791,3 +794,6 @@ class LlmAgent(BaseAgent):
     def reset(self, info: Dict[str, Any]):
         self.current_rule = info["stat_rule"]
         self.current_goal = info["env_rule"]
+
+
+# endregion

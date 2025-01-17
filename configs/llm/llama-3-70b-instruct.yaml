@@ -1,6 +1,7 @@
 defaults:
   - base_llm
-  
+
 name: "meta-llama/Meta-Llama-3-70B-Instruct"
-tokenizer_params: 
+use_unsloth: False
+tokenizer_params:
   padding_side: left
