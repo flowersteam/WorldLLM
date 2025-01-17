@@ -356,11 +356,15 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     def __init__(self, **kwargs) -> None:
         # Define all_transitions
         self.all_transition_to_prompt = {
-            "standing": "You are standing on x. ",
-            "holding1": "You are holding y. ",
-            "holding2": "You are holding y and z. ",
-            "transformP": "x and y transform into z. ",
-            "transformBH": "x, y and z transform into w. ",
+            "standing": self.transition_type_to_observation("standing", ["x"]),
+            "holding1": self.transition_type_to_observation("holding1", ["y"]),
+            "holding2": self.transition_type_to_observation("holding2", ["y", "z"]),
+            "transformP": self.transition_type_to_observation(
+                "transformP", ["x", "y", "w"]
+            ),
+            "transformBH": self.transition_type_to_observation(
+                "transformBH", ["x", "y", "z", "w"]
+            ),
         }
 
         def statisitician_template(
@@ -378,7 +382,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             base_user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. The sequence will be under this form, with x,y, z and w 4 objects and action an action:"
 
             # Give abstract trajectory
-            base_user_prompt += "\n\n In the current space:\nYou see x, y, and z. You are standing on y. Your are holding nothing. "
+            base_user_prompt += "\n\n In the current space:\nYou see x, y, and z. "
             for (
                 transition_type,
                 transition_text,
@@ -572,6 +576,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
             raise ValueError("Test rule generation not implemented")
 
+    # --- Convert environment logic to text ---
+
     def action_to_text(self, action: str):
         action_type, action_obj = self._split_action(action)
         if action_type == "go to":
@@ -584,10 +590,30 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             return f"You give the {action_obj}."
         raise ValueError("The action " + action + " has not been recognized")
 
+    def transition_type_to_observation(
+        self, transition_type: str, objects: List[str]
+    ) -> str:
+        """Create observation from transition type and objects"""
+        transition_type_to_obs = {
+            "standing": "You are next to the {0}.",
+            "holding1": "In your inventory, you have the {0}.",
+            "holding2": "In your inventory, you have the {0} and the {1}.",
+            "transformBH": "The {0}, the {1} and the {2} are replaced by the {3}.",
+            "transformP": "The {0} and the {1} are replaced by the {2}.",
+            "transformSH": "The {0} and the {1} are replaced by the {2}.",
+        }
+        empty_object_alternative = {
+            "standing": "Nothing is closeby.",
+            "holding1": "In your inventory, you have nothing.",
+        }
+        if len(objects) > 0 or transition_type not in empty_object_alternative:
+            return transition_type_to_obs[transition_type].format(*objects)
+        return empty_object_alternative[transition_type]
+
     def observation_to_text(self, observation: str):
         "Format the observation into more of a sentence"
         obs_obj, obs_stand, obs_hold = self._split_description(observation)
-        output = "You see the "
+        output = "You can see in the room the following objects: the "
         for i, obj in enumerate(obs_obj):
             output += obj
             if i == len(obs_obj) - 2:
@@ -596,14 +622,14 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 output += ", the "
             else:
                 output += ". "
-        output += f"You are standing on {obs_stand[0]}. "
+        output += self.transition_type_to_observation("standing", [obs_stand[0]]) + " "
         if len(obs_hold) == 2:
-            output += f"You are holding {obs_hold[0]} and {obs_hold[1]}."
+            output += self.transition_type_to_observation("holding2", obs_hold)
         elif len(obs_hold) == 1:
             if obs_hold[0] == "empty":
-                output += "Your are holding nothing."
+                output += self.transition_type_to_observation("holding1", [])
             else:
-                output += f"You are holding {obs_hold[0]}."
+                output += self.transition_type_to_observation("holding1", obs_hold)
         return output, {}
 
     def get_diff(
@@ -619,11 +645,11 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         if action_type == "go to":
             if action_obj == "nothing":
                 return (
-                    "You are standing on nothing.",
+                    self.transition_type_to_observation("standing", []),
                     "standing",
                 )
             return (
-                f"You are standing on the {action_obj}.",
+                self.transition_type_to_observation("standing", [action_obj]),
                 "standing",
             )
         elif action_type == "grasp":
@@ -633,12 +659,16 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             ), "There should be only one object grasped at a time"
             if last_obs_hold[0] == "empty":
                 return (
-                    f"You are holding the {list(counter_diff.keys())[0]}.",
+                    self.transition_type_to_observation(
+                        "holding1", [list(counter_diff.keys())[0]]
+                    ),
                     "holding1",
                 )
             if len(last_obs_hold) == 1:
                 return (
-                    f"You are holding the {last_obs_hold[0]} and the {list(counter_diff.keys())[0]}.",
+                    self.transition_type_to_observation(
+                        "holding2", [last_obs_hold[0], list(counter_diff.keys())[0]]
+                    ),
                     "holding2",
                 )
             raise ValueError("Inventory cannot contain more than 2 objects")
@@ -660,11 +690,21 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 )
             if action_obj == "all":
                 return (
-                    f"The {last_obs_hold[0]}, the {last_obs_hold[1]} and the {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
+                    self.transition_type_to_observation(
+                        transition_type,
+                        [
+                            last_obs_hold[0],
+                            last_obs_hold[1],
+                            list(old_obj)[0],
+                            list(new_obj)[0],
+                        ],
+                    ),
                     transition_type,
                 )
             return (
-                f"The {action_obj} and the {list(old_obj)[0]} transform into the {list(new_obj)[0]}.",
+                self.transition_type_to_observation(
+                    transition_type, [action_obj, list(old_obj)[0], list(new_obj)[0]]
+                ),
                 transition_type,
             )
         raise ValueError(
@@ -691,6 +731,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         lst_standing = split_description[1].split(": ")[1].split(", ")
         lst_holding = split_description[2].split(": ")[1].split(", ")
         return lst_objects, lst_standing, lst_holding
+
+    # --- Main gym functions---
 
     def _reset(self, options: Optional[Dict[str, Any]]):
 
@@ -1018,23 +1060,31 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         all_transitions = []
         all_transitions_type = []
         # Add all possible standing transitions
-        all_transitions.append("You are standing on nothing.")
+        all_transitions.append(self.transition_type_to_observation("standing", []))
         all_transitions_type.append("standing")
         for obj in all_objects:
-            all_transitions.append(f"You are standing on the {obj}.")
+            all_transitions.append(
+                self.transition_type_to_observation("standing", [obj])
+            )
             all_transitions_type.append("standing")
         # Add all holding1 transitions
         for obj in all_objects:
-            all_transitions.append(f"You are holding the {obj}.")
+            all_transitions.append(
+                self.transition_type_to_observation("holding1", [obj])
+            )
             all_transitions_type.append("holding1")
         # Add all holding2 transitions
         for i, obj1 in enumerate(all_objects):
             for j in range(i + 1, len(all_objects)):
                 all_transitions.append(
-                    f"You are holding the {obj1} and the {all_objects[j]}."
+                    self.transition_type_to_observation(
+                        "holding2", [obj1, all_objects[j]]
+                    )
                 )
                 all_transitions.append(
-                    f"You are holding the {all_objects[j]} and the {obj1}."
+                    self.transition_type_to_observation(
+                        "holding2", [all_objects[j], obj1]
+                    )
                 )
                 all_transitions_type.append("holding2")
                 all_transitions_type.append("holding2")
@@ -1043,10 +1093,14 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         for seed in all_seed_plant:
             new_name = seed[:-5]
             all_transitions.append(
-                f"The water and the {seed} transform into the {new_name}."
+                self.transition_type_to_observation(
+                    "transformP", ["water", seed, new_name]
+                )
             )
             all_transitions.append(
-                f"The {seed} and the water transform into the {new_name}."
+                self.transition_type_to_observation(
+                    "transformP", [seed, "water", new_name]
+                )
             )
             all_transitions_type.append("transformP")
             all_transitions_type.append("transformP")
@@ -1055,10 +1109,14 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             new_name = baby[5:]
             for mature_plant in all_mature_plant:
                 all_transitions.append(
-                    f"The {baby} and the {mature_plant} transform into the {new_name}."
+                    self.transition_type_to_observation(
+                        "transformSH", [baby, mature_plant, new_name]
+                    )
                 )
                 all_transitions.append(
-                    f"The {mature_plant} and the {baby} transform into the {new_name}."
+                    self.transition_type_to_observation(
+                        "transformSH", [mature_plant, baby, new_name]
+                    )
                 )
                 all_transitions_type.extend(["transformSH", "transformSH"])
         # Add all transformBH transitions
@@ -1068,13 +1126,22 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 for j, mature_plant2 in enumerate(all_mature_plant):
                     if i != j:
                         all_transitions.append(
-                            f"The {baby}, the {mature_plant1} and the {mature_plant2} transform into the {new_name}."
+                            self.transition_type_to_observation(
+                                "transformBH",
+                                [baby, mature_plant1, mature_plant2, new_name],
+                            )
                         )
                         all_transitions.append(
-                            f"The {mature_plant1}, the {baby} and the {mature_plant2} transform into the {new_name}."
+                            self.transition_type_to_observation(
+                                "transformBH",
+                                [mature_plant1, baby, mature_plant2, new_name],
+                            )
                         )
                         all_transitions.append(
-                            f"The {mature_plant1}, the {mature_plant2} and the {baby} transform into the {new_name}."
+                            self.transition_type_to_observation(
+                                "transformBH",
+                                [mature_plant1, mature_plant2, baby, new_name],
+                            )
                         )
                         all_transitions_type.extend(
                             ["transformBH", "transformBH", "transformBH"]
