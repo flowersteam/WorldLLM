@@ -375,7 +375,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
             base_user_prompt = (
                 "You are in an environment that contains multiple objects. It can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
-                + "You can move an object, a plant or a herbivore and place it on another object to make them interact. "
+                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and transform into a new object. "
             )
             if rule is not None:
                 base_user_prompt += f"You know that: \n{rule}\n"
@@ -585,11 +585,11 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         """Create observation from transition type and objects"""
         transition_type_to_obs = {
             "standing": "You are standing on the {0}.",
-            "holding1": "You are holding the {0}.",
-            "holding2": "You are holding the {0} and the {1}.",
-            "transformBH": "The {3} appears from the transformation.",
-            "transformP": "The {2} appears from the transformation.",
-            "transformSH": "The {2} appears from the transformation.",
+            "holding1": "In your inventory, there is the {0}.",
+            "holding2": "In your inventory, there are the {0} and the {1}.",
+            "transformBH": "The objects transform into the {3}.",
+            "transformP": "The objects transform into the {2}.",
+            "transformSH": "The objects transform into the {2}.",
         }
         empty_object_alternative = {
             "standing": "You are standing on nothing.",
@@ -964,10 +964,14 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         for obj in self.obj_dict.keys():
             if self.obj_dict[obj]["grasped"]:
                 nb_held += 1
-        if len(obj_held) == 0:
-            desc += "You have nothing in your inventory."
+        if nb_held == 0:
+            desc += "In your inventory, there is nothing."
+        elif nb_held == 1:
+            desc += (
+                f"In your inventory, there is the {rm_trailing_number(obj_held[0])}."
+            )
         else:
-            desc += f'You have the {" and the ".join([rm_trailing_number(o_held) for o_held in obj_held])} in your inventory.'
+            desc += f'In your inventory, there are the {" and the ".join([rm_trailing_number(o_held) for o_held in obj_held])}.'
 
         # Create a list of possible actions
         possible_actions = []
