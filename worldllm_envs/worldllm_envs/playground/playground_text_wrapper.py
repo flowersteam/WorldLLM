@@ -398,10 +398,10 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
         def _format_trajectory_for_theorist(trajectory: Trajectory) -> str:
             """Format trjaectory for theorist"""
-            msg = f"In the current space: {trajectory.lst_obs[0]}. \nThe sequence of actions and observations is: "
+            msg = f"\nThe first state was: {trajectory.lst_obs[0]}. \nThe sequence of actions and states was: "
             for i, diff in enumerate(trajectory.lst_diff):
-                msg += f" a: {trajectory.lst_act[i]}"
-                msg += f" o: {diff}"
+                msg += f"\nThe action was: {trajectory.lst_act[i]}"
+                msg += f"\nThe change was: {diff}"
             msg += "\n"
             return msg
 
@@ -414,8 +414,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             """Template given to the theorist to sample new rules given trajectories"""
             msg = (
                 "You are in an environment that contains multiple objects. It can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
-                + "You can move an object, a plant or a herbivore and place it on another object to make them interact. "
-                + "Your previous experiences were: \n\n"
+                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and transform into a new object. "
+                + "Your previous experiences were: \n"
             )
             for trajectory in trajectories:
                 msg += _format_trajectory_for_theorist(trajectory)
@@ -439,8 +439,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         ) -> str:
             """Template given to the experimenter to ask for a new action"""
             msg = (
-                "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
-                + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
+                "You are in an environment that contains multiple objects. It can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
+                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and transform into a new object. "
             )
             msg += "Your objective is to take the best action given the past actions and observations. "
             if rule is not None:
