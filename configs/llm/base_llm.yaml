@@ -3,6 +3,7 @@ model_params: {}
 use_unsloth: True
 tokenizer_params: {}
 is_quantized: True
+max_seq_len: None
 generation_kwargs:
   cache_implementation: "quantized"
   cache_config: { "backend": "quanto", "nbits": 4 }

@@ -91,7 +91,7 @@ def load_transformers(
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=model_config["name"],
             load_in_4bit=model_config["is_quantized"],
-            max_seq_length=4096,
+            max_seq_length=model_config["max_seq_len"],
         )
         FastLanguageModel.for_inference(model)  # Enable native 2x faster inference
     else:  # Use transformers

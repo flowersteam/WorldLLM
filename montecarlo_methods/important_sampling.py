@@ -140,6 +140,7 @@ def important_sampling(
                 best_rule,
                 prev_best_rule,
                 prompt_trajectories,
+                lst_transitions,
             )
             # Train the experimenter
             experimenter.train_step(new_rewards)

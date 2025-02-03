@@ -12,3 +12,4 @@ hyperparameters:
   gae: 0.95
   nn_size: 64
 reward_per_transition: null
+ma_factor: 0

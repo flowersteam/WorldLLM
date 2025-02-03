@@ -2,6 +2,7 @@ defaults:
   - base_llm
 
 name: "unsloth/Phi-3-mini-4k-instruct-bnb-4bit"
+max_seq_len: 8192
 generation_kwargs:
   cache_implementation: null
   cache_config: null
