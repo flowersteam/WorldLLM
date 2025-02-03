@@ -1,7 +1,7 @@
 defaults:
   - base_llm
 
-name: "unsloth/Phi-3-mini-4k-instruct-bnb-4bit"
+name: "unsloth/phi-4-unsloth-bnb-4bit"
 generation_kwargs:
   cache_implementation: null
   cache_config: null
