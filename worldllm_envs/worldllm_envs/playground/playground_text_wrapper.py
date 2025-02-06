@@ -587,9 +587,9 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             "standing": "You are standing on the {0}.",
             "holding1": "In your inventory, there is the {0}.",
             "holding2": "In your inventory, there are the {0} and the {1}.",
-            "transformBH": "The objects transform into the {3}.",
-            "transformP": "The objects transform into the {2}.",
-            "transformSH": "The objects transform into the {2}.",
+            "transformBH": "The {0}, the {1} and the {2} transform into the {3}.",
+            "transformP": "The {0} and the {1} transform into the {2}.",
+            "transformSH": "The {0} and the {1} transform into the {2}.",
         }
         empty_object_alternative = {
             "standing": "You are standing on nothing.",
