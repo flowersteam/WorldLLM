@@ -1,22 +1,38 @@
+import os
+import random
+import sys
 import time
 from typing import Dict, List
 
+import numpy as np
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-quantization_config = BitsAndBytesConfig(load_in_4bit=True)
-model_name = "microsoft/Phi-3-mini-4k-instruct"
-model = AutoModelForCausalLM.from_pretrained(
-    model_name,
-    device_map="cuda",
-    torch_dtype="auto",
-    trust_remote_code=True,
-    quantization_config=quantization_config,
-)
-tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
-chat_template = "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'system') %}{{'<|system|>' + '\n' + message['content'] + '<|end|>' + '\n'}}{% elif (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif message['role'] == 'assistant' %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}"
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from utils.utils_llm import load_transformers
 
-tokenizer.chat_template = chat_template
+CONFIG_UNSLOTH = {
+    "name": "unsloth/Phi-3-mini-4k-instruct-bnb-4bit",
+    "use_unsloth": True,
+    "model_params": {},
+    "tokenizer_params": {},
+    "is_quantized": True,
+    "max_seq_len": 8192,
+    "generation_kwargs": {"cache_implementation": None, "cache_config": None},
+    "chat_template": "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'system') %}{{'<|system|>' + '\n' + message['content'] + '<|end|>' + '\n'}}{% elif (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif message['role'] == 'assistant' %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}",
+}
+CONFIG_TRANSFORMER = {
+    "name": "microsoft/Phi-3-mini-4k-instruct",
+    "use_unsloth": False,
+    "model_params": {},
+    "tokenizer_params": {},
+    "is_quantized": True,
+    "max_seq_len": 8192,
+    "generation_kwargs": {"cache_implementation": None, "cache_config": None},
+    "chat_template": "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'system') %}{{'<|system|>' + '\n' + message['content'] + '<|end|>' + '\n'}}{% elif (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif message['role'] == 'assistant' %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}",
+}
+
+
+model, tokenizer = load_transformers(CONFIG_UNSLOTH)
 
 
 def generate_answer(msg: List[Dict[str, str]]):
@@ -40,7 +56,9 @@ def generate_answer(msg: List[Dict[str, str]]):
     }
     start = time.perf_counter()
     outputs = model.generate(
-        inputs["input_ids"], attention_mask=inputs["attention_mask"], **generation_args
+        inputs["input_ids"],
+        attention_mask=inputs["attention_mask"],
+        **generation_args,
     )
     print("Time to generate: {:.3f}s".format(time.perf_counter() - start))
     start = time.perf_counter()
@@ -51,8 +69,8 @@ def generate_answer(msg: List[Dict[str, str]]):
     print("Time to decode: {:.3f}s".format(time.perf_counter() - start))
     start = time.perf_counter()
     logp = torch.nn.functional.log_softmax(torch.stack(outputs.scores, dim=1), dim=-1)
-    # Put the score of the padding token to 0 to ignore(not done by every model)
-    logp[:, :, tokenizer.pad_token_id] = 0
+    # Put the score of the padding token and eos to 0 to ignore(not done by every model)
+    logp[:, :, [tokenizer.pad_token_id, tokenizer.eos_token_id]] = 0
     scores = torch.gather(logp, 2, generated_sequences[:, :, None]).squeeze(-1)
     aggregated_scores = scores.sum(-1)
     print("Time to compute scores: {:.3f}s".format(time.perf_counter() - start))
@@ -294,6 +312,13 @@ def score_answer_prefix_caching_auto(lst_message, lst_candidate):
     return aggregated_scores.cpu()
 
 
+# Fix seed
+SEED = 2
+np.random.seed(SEED)
+random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed_all(SEED)
+torch.backends.cudnn.deterministic = True
 all_message = [
     (
         {
