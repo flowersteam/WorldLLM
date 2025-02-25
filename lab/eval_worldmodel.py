@@ -159,25 +159,26 @@ if __name__ == "__main__":
     # endregion
 
     # region Add finetuned LLM
-    for model_path, algo_name in zip(
-        args.finetuned_model_paths, args.finetuned_model_names
-    ):
-        configs.append(
-            {
-                "name": model_path,
-                "use_unsloth": True,
-                "model_params": {},
-                "tokenizer_params": {},
-                "is_quantized": True,
-                "generation_kwargs": {
-                    "cache_implementation": None,
-                    "cache_config": None,
-                },
-                "chat_template": "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'system') %}{{'<|system|>' + '\n' + message['content'] + '<|end|>' + '\n'}}{% elif (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif message['role'] == 'assistant' %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}",
-            }
-        )
-        all_rules_to_test.append([None])
-        all_algorithm_used.append([algo_name])
+    if args.finetuned_model_paths is not None and args.args.finetuned_model_paths is not None:
+        for model_path, algo_name in zip(
+            args.finetuned_model_paths, args.finetuned_model_names
+        ):
+            configs.append(
+                {
+                    "name": model_path,
+                    "use_unsloth": True,
+                    "model_params": {},
+                    "tokenizer_params": {},
+                    "is_quantized": True,
+                    "generation_kwargs": {
+                        "cache_implementation": None,
+                        "cache_config": None,
+                    },
+                    "chat_template": "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'system') %}{{'<|system|>' + '\n' + message['content'] + '<|end|>' + '\n'}}{% elif (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif message['role'] == 'assistant' %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}",
+                }
+            )
+            all_rules_to_test.append([None])
+            all_algorithm_used.append([algo_name])
     # endregion
     # # Main loop to evaluate the different world models
     all_scores = []
