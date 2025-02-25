@@ -152,7 +152,7 @@ if __name__ == "__main__":
     ]
     all_rules_to_test.append(rules_to_test)
     algorithm_used: List[Optional[str]] = [None]
-    for key in ["PB", "RB", "CP", "DB"]:
+    for key in ["PB", "CP", "RB", "DB"]:
         algorithm_used.extend([key] * 8)
     all_algorithm_used.append(algorithm_used)
     assert len(rules_to_test) == len(algorithm_used)
