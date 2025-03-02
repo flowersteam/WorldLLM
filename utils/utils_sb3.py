@@ -535,10 +535,13 @@ class SB3Agent(BaseAgent):
                         * (1 - self.ma_factor)
                         + moving_averge * self.ma_factor
                     )
-                for trans_type, new_mean in mean_per_transition.items():
+                for trans_type, moving_averge in self.ma_per_transition.items():
+                    if trans_type in mean_per_transition:
+                        new_mean = mean_per_transition[trans_type]
+                    else:
+                        new_mean = 0
                     self.ma_per_transition[trans_type] = (
-                        self.ma_factor * self.ma_per_transition[trans_type]
-                        + (1 - self.ma_factor) * new_mean
+                        self.ma_factor * moving_averge + (1 - self.ma_factor) * new_mean
                     )
             elif cfg["reward_type"] == "ll":
                 new_rewards = curr_rewards
