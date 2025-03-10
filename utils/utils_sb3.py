@@ -479,38 +479,50 @@ class SB3Agent(BaseAgent):
             np.ndarray: The computed rewards for the experimenter.
         """
         if cfg["reward_type"] in {"alp", "ll", "alpll"}:
-            # Score all the trajectories with the statistician
-            _, transition_scores = compute_likelihood(
-                statistician, [best_rule], prompt_trajectories
-            )
-
-            curr_rewards = -(
-                np.array(
-                    [score for sublist in transition_scores[0] for score in sublist]
-                )
-                .reshape(self.model.n_envs, -1)
-                .T
-            )
             if cfg["reward_type"] == "alp":
-                # Score all trajectories with previous best rule
-                _, old_transition_scores = compute_likelihood(
-                    statistician, [prev_best_rule], prompt_trajectories
-                )
-
-                # Compute the reward
-                old_rewards = -(
-                    np.array(
-                        [
-                            score
-                            for sublist in old_transition_scores[0]
-                            for score in sublist
-                        ]
+                # Avoid computation if same rule
+                if best_rule == prev_best_rule:
+                    new_rewards = np.zeros(
+                        (
+                            sum([len(trajectory) for trajectory in prompt_trajectories])
+                            // self.model.n_envs,
+                            self.model.n_envs,
+                        )
                     )
-                    .reshape(self.model.n_envs, -1)
-                    .T
-                )
+                else:
+                    # Score all the trajectories with the statistician
+                    _, transition_scores = compute_likelihood(
+                        statistician, [best_rule], prompt_trajectories
+                    )
+                    curr_rewards = -(
+                        np.array(
+                            [
+                                score
+                                for sublist in transition_scores[0]
+                                for score in sublist
+                            ]
+                        )
+                        .reshape(self.model.n_envs, -1)
+                        .T
+                    )
+                    # Score all trajectories with previous best rule
+                    _, old_transition_scores = compute_likelihood(
+                        statistician, [prev_best_rule], prompt_trajectories
+                    )
 
-                new_rewards = np.abs(curr_rewards - old_rewards)
+                    # Compute the reward
+                    old_rewards = -(
+                        np.array(
+                            [
+                                score
+                                for sublist in old_transition_scores[0]
+                                for score in sublist
+                            ]
+                        )
+                        .reshape(self.model.n_envs, -1)
+                        .T
+                    )
+                    new_rewards = np.abs(curr_rewards - old_rewards)
                 # Compute moving average with reward of same type
                 transition_type = (
                     np.array(
@@ -535,32 +547,74 @@ class SB3Agent(BaseAgent):
                         * (1 - self.ma_factor)
                         + moving_averge * self.ma_factor
                     )
-                for trans_type, new_mean in mean_per_transition.items():
+                for trans_type, moving_averge in self.ma_per_transition.items():
+                    if trans_type in mean_per_transition:
+                        new_mean = mean_per_transition[trans_type]
+                    else:
+                        new_mean = 0
                     self.ma_per_transition[trans_type] = (
-                        self.ma_factor * self.ma_per_transition[trans_type]
-                        + (1 - self.ma_factor) * new_mean
+                        self.ma_factor * moving_averge + (1 - self.ma_factor) * new_mean
                     )
             elif cfg["reward_type"] == "ll":
-                new_rewards = curr_rewards
-            elif cfg["reward_type"] == "alpll":
-                # Score all trajectories with previous best rule
-                _, old_transition_scores = compute_likelihood(
-                    statistician, [prev_best_rule], prompt_trajectories
+                # Score all the trajectories with the statistician
+                _, transition_scores = compute_likelihood(
+                    statistician, [best_rule], prompt_trajectories
                 )
 
-                # Compute the reward
-                old_rewards = -(
+                curr_rewards = -(
                     np.array(
-                        [
-                            score
-                            for sublist in old_transition_scores[0]
-                            for score in sublist
-                        ]
+                        [score for sublist in transition_scores[0] for score in sublist]
                     )
                     .reshape(self.model.n_envs, -1)
                     .T
                 )
-                new_rewards = curr_rewards * np.abs(curr_rewards - old_rewards)
+                new_rewards = curr_rewards
+            elif cfg["reward_type"] == "alpll":
+                # Avoid computation if same rule
+                if best_rule == prev_best_rule:
+                    new_rewards = np.zeros(
+                        (
+                            self.model.n_envs,
+                            sum(
+                                [len(trajectory) for trajectory in prompt_trajectories]
+                            ),
+                        )
+                    )
+                else:
+                    # Score all the trajectories with the statistician
+                    _, transition_scores = compute_likelihood(
+                        statistician, [best_rule], prompt_trajectories
+                    )
+
+                    curr_rewards = -(
+                        np.array(
+                            [
+                                score
+                                for sublist in transition_scores[0]
+                                for score in sublist
+                            ]
+                        )
+                        .reshape(self.model.n_envs, -1)
+                        .T
+                    )
+                    # Score all trajectories with previous best rule
+                    _, old_transition_scores = compute_likelihood(
+                        statistician, [prev_best_rule], prompt_trajectories
+                    )
+
+                    # Compute the reward
+                    old_rewards = -(
+                        np.array(
+                            [
+                                score
+                                for sublist in old_transition_scores[0]
+                                for score in sublist
+                            ]
+                        )
+                        .reshape(self.model.n_envs, -1)
+                        .T
+                    )
+                    new_rewards = curr_rewards * np.abs(curr_rewards - old_rewards)
             else:
                 raise ValueError(f"Unknown reward type {cfg['reward_type']}")
         else:
