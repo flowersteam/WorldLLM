@@ -51,6 +51,16 @@ def concatenate_third_axis(score1, score2):
     return concatenated_list
 
 
+CONFIG_LLM = {
+    "use_unsloth": False,
+    "model_params": {},
+    "tokenizer_params": {},
+    "is_quantized": True,
+    "max_seq_len": 4096,
+    "generation_kwargs": {"cache_implementation": None, "cache_config": None},
+    "chat_template": "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'system') %}{{'<|system|>' + '\n' + message['content'] + '<|end|>' + '\n'}}{% elif (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif message['role'] == 'assistant' %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}",
+}
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -98,18 +108,7 @@ if __name__ == "__main__":
     all_rules_to_test: List[List[Optional[str]]] = []
     all_algorithm_used: List[List[Optional[str]]] = []
     # region Add not finetuned LLM
-    configs.append(
-        {
-            "name": args.base_model_path,
-            "use_unsloth": False,
-            "model_params": {},
-            "tokenizer_params": {},
-            "is_quantized": True,
-            "max_seq_len": 4096,
-            "generation_kwargs": {"cache_implementation": None, "cache_config": None},
-            "chat_template": "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'system') %}{{'<|system|>' + '\n' + message['content'] + '<|end|>' + '\n'}}{% elif (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif message['role'] == 'assistant' %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}",
-        }
-    )
+    configs.append(CONFIG_LLM | {"name": args.base_model_path})
     rules_to_test = [
         # LL
         "1. If you are on water, the state changes to: You are standing on the water.\n2. If you pick up the object in water, the state changes to: In your inventory, there are the water and the water.\n3. If you go to any other seed, the state changes to: You are standing on the seed.\n4. If you give water to any seed, it transforms into a plant.",
@@ -155,20 +154,7 @@ if __name__ == "__main__":
         for model_path, algo_name in zip(
             args.finetuned_model_paths, args.finetuned_model_names
         ):
-            configs.append(
-                {
-                    "name": model_path,
-                    "use_unsloth": True,
-                    "model_params": {},
-                    "tokenizer_params": {},
-                    "is_quantized": True,
-                    "generation_kwargs": {
-                        "cache_implementation": None,
-                        "cache_config": None,
-                    },
-                    "chat_template": "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'system') %}{{'<|system|>' + '\n' + message['content'] + '<|end|>' + '\n'}}{% elif (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif message['role'] == 'assistant' %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}",
-                }
-            )
+            configs.append(CONFIG_LLM | {"name": model_path})
             all_rules_to_test.append([None])
             all_algorithm_used.append([algo_name])
     # endregion
