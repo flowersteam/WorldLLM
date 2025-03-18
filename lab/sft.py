@@ -18,7 +18,10 @@ import torch
 from datasets import Dataset
 
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
-from transformers import TrainingArguments, AutoModel, AutoTokenizer
+from transformers import TrainingArguments, AutoModelForCausalLM, AutoTokenizer
+
+from transformers import BitsAndBytesConfig
+from peft import prepare_model_for_kbit_training, LoraConfig, get_peft_model
 
 from unsloth import FastLanguageModel, is_bfloat16_supported
 import json
@@ -36,15 +39,21 @@ if __name__ == "__main__":
     ################
     # Model init kwargs & Tokenizer
     ################
-    max_seq_length = 4096
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        args.model_path,
+    # max_seq_length = 4096
+    # model, tokenizer = FastLanguageModel.from_pretrained(
+    #     args.model_path,
+    #     load_in_4bit=True,
+    #     dtype=None,
+    #     max_seq_length=max_seq_length
+    # )
+    config = BitsAndBytesConfig(
         load_in_4bit=True,
-        dtype=None,
-        max_seq_length=max_seq_length
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
     )
-    # model = AutoModel.from_pretrained(args.model_path)
-    # tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3-mini-4k-instruct")
+    model = AutoModelForCausalLM.from_pretrained(args.model_path, quantization_config=config)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     tokenizer.pad_token = tokenizer.eos_token
     # tokenizer.chat_template = "{% for message in messages %}{% if message['role'] == 'system' and message['content'] %}{{'<|system|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'user' %}{{'<|user|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'assistant' %}{{'<|assistant|>\n' + message['content'] + '<|end|>\n'}}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ '<|assistant|>\n' }}{% else %}{{ eos_token }}{% endif %}"
 
@@ -77,23 +86,34 @@ if __name__ == "__main__":
     # Training
     ################
     # Do model patching and add fast LoRA weights
-    model = FastLanguageModel.get_peft_model(
-        model,
+    # model = FastLanguageModel.get_peft_model(
+    #     model,
+    #     r=16,
+    #     target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+    #                     "gate_proj", "up_proj", "down_proj", ],
+    #     lora_alpha=16,
+    #     lora_dropout=0,  # Supports any, but = 0 is optimized
+    #     bias="none",  # Supports any, but = "none" is optimized
+    #     use_gradient_checkpointing=True,
+    #     random_state=args.seed,
+    #     max_seq_length=max_seq_length,
+    # )
+    model = prepare_model_for_kbit_training(model)
+    config = LoraConfig(
         r=16,
+        lora_alpha=8,
         target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                        "gate_proj", "up_proj", "down_proj", ],
-        lora_alpha=16,
-        lora_dropout=0,  # Supports any, but = 0 is optimized
-        bias="none",  # Supports any, but = "none" is optimized
-        use_gradient_checkpointing=True,
-        random_state=args.seed,
-        max_seq_length=max_seq_length,
+                        "gate_proj", "up_proj", "down_proj"],
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM"
     )
+    model = get_peft_model(model, config)
 
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
-        max_seq_length=max_seq_length,
+        # max_seq_length=max_seq_length,
         tokenizer=tokenizer,
         args=TrainingArguments(
             per_device_train_batch_size=16,
