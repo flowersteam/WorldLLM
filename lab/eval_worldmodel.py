@@ -150,22 +150,20 @@ if __name__ == "__main__":
     # region Add finetuned LLM
     if (
         args.finetuned_model_paths is not None
-        and args.args.finetuned_model_paths is not None
+        and args.finetuned_model_names is not None
     ):
         for model_path, algo_name in zip(
             args.finetuned_model_paths, args.finetuned_model_names
         ):
             configs.append(
                 {
-                    "name": model_path,
-                    "use_unsloth": True,
+                    "name": args.finetuned_model_paths,
+                    "use_unsloth": False,
                     "model_params": {},
                     "tokenizer_params": {},
                     "is_quantized": True,
-                    "generation_kwargs": {
-                        "cache_implementation": None,
-                        "cache_config": None,
-                    },
+                    "max_seq_len": 4096,
+                    "generation_kwargs": {"cache_implementation": None, "cache_config": None},
                     "chat_template": "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'system') %}{{'<|system|>' + '\n' + message['content'] + '<|end|>' + '\n'}}{% elif (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif message['role'] == 'assistant' %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}",
                 }
             )
