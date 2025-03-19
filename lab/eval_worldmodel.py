@@ -108,15 +108,15 @@ if __name__ == "__main__":
     all_rules_to_test: List[List[Optional[str]]] = []
     all_algorithm_used: List[List[Optional[str]]] = []
     # region Add not finetuned LLM
-    configs.append(CONFIG_LLM | {"name": args.base_model_path})
     rules_to_test = []
+    algorithm_used: List[Optional[str]] = []
+    for key in []:
+        algorithm_used.extend([key] * 8)
+    assert len(rules_to_test) == len(algorithm_used)
     if len(rules_to_test) > 0:
+        configs.append(CONFIG_LLM | {"name": args.base_model_path})
         all_rules_to_test.append(rules_to_test)
-        algorithm_used: List[Optional[str]] = []
-        for key in []:
-            algorithm_used.extend([key] * 8)
         all_algorithm_used.append(algorithm_used)
-        assert len(rules_to_test) == len(algorithm_used)
     # endregion
 
     # region Add finetuned LLM
@@ -131,7 +131,10 @@ if __name__ == "__main__":
             all_rules_to_test.append([None])
             all_algorithm_used.append([algo_name])
     # endregion
-    # # Main loop to evaluate the different world models
+    assert (
+        len(configs) == len(all_rules_to_test) == len(all_algorithm_used)
+    ), "The 3 files should be the same length"  # Sanity check
+    # Main loop to evaluate the different world models
     all_scores = []
     all_index = []
     all_transitions_type = []
