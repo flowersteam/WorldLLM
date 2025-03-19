@@ -375,7 +375,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
             base_user_prompt = (
                 "You are in an environment that contains multiple objects. It can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
-                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and transform into a new object. "
+                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and to combine them into a new object. "
             )
             if rule is not None:
                 base_user_prompt += f"You know that: \n{rule}\n"
@@ -414,7 +414,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             """Template given to the theorist to sample new rules given trajectories"""
             msg = (
                 "You are in an environment that contains multiple objects. It can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
-                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and transform into a new object. "
+                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and to combine them into a new object. "
                 + "Your previous experiences were: \n"
             )
             for trajectory in trajectories:
@@ -440,7 +440,7 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             """Template given to the experimenter to ask for a new action"""
             msg = (
                 "You are in an environment that contains multiple objects. It can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
-                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and transform into a new object. "
+                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and to combine them into a new object. "
             )
             msg += "Your objective is to take the best action given the past actions and observations. "
             if rule is not None:
@@ -584,12 +584,12 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
     ) -> str:
         """Create observation from transition type and objects"""
         transition_type_to_obs = {
-            "standing": "You are standing on the {0}.",
-            "holding1": "In your inventory, there is the {0}.",
-            "holding2": "In your inventory, there are the {0} and the {1}.",
-            "transformBH": "The objects transform into the {3}.",
-            "transformP": "The objects transform into the {2}.",
-            "transformSH": "The objects transform into the {2}.",
+            "standing": "The {0} is beneath you.",
+            "holding1": "The {0} is in your grasp.",
+            "holding2": "The {0} and the {1} are in your grasp.",
+            "transformBH": "The {3} results from combining the objects.",
+            "transformP": "The {2} results from combining the objects.",
+            "transformSH": "The {2} results from combining the objects.",
         }
         empty_object_alternative = {
             "standing": "You are standing on nothing.",
