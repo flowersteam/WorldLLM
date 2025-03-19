@@ -122,7 +122,7 @@ if __name__ == "__main__":
     # region Add finetuned LLM
     if (
         args.finetuned_model_paths is not None
-        and args.args.finetuned_model_paths is not None
+        and args.finetuned_model_names is not None
     ):
         for model_path, algo_name in zip(
             args.finetuned_model_paths, args.finetuned_model_names
