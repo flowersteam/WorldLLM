@@ -535,18 +535,19 @@ class SB3Agent(BaseAgent):
                     .reshape(self.model.n_envs, -1)
                     .T
                 )
-                ## Evolve the moving average
+                ## Compute current mean of reward for each transition type
                 mean_per_transition = {
                     trans_type: new_rewards[transition_type == trans_type].mean()
                     for trans_type in np.unique(transition_type)
                 }
-                # change reward with moving average
+                ## change reward with moving average
                 for trans_type, moving_averge in self.ma_per_transition.items():
                     new_rewards[transition_type == trans_type] = (
                         new_rewards[transition_type == trans_type]
                         * (1 - self.ma_factor)
                         + moving_averge * self.ma_factor
                     )
+                ## Update moving average
                 for trans_type, moving_averge in self.ma_per_transition.items():
                     if trans_type in mean_per_transition:
                         new_mean = mean_per_transition[trans_type]
