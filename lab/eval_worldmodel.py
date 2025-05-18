@@ -108,8 +108,8 @@ if __name__ == "__main__":
     all_rules_to_test: List[List[Optional[str]]] = []
     all_algorithm_used: List[List[Optional[str]]] = []
     # region Add not finetuned LLM
-    rules_to_test = []
-    algorithm_used: List[Optional[str]] = []
+    rules_to_test = [None]
+    algorithm_used: List[Optional[str]] = [None]
     for key in []:
         algorithm_used.extend([key] * 8)
     assert len(rules_to_test) == len(algorithm_used)
