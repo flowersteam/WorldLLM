@@ -374,13 +374,13 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         ):
             """template given to the llm to compute the likelihood of a rule given a trajectory"""
             base_user_prompt = (
-                "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
-                + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
+                "You are in an environment that contains multiple objects. It can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
+                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and transform into a new object. "
             )
             if rule is not None:
                 base_user_prompt += f"You know that: \n{rule}\n"
-            base_user_prompt += "Your objective is to predict the next observation in the sequence given the past actions and observations. Now please complete the sequence:\n\n"
-            base_user_prompt += "In the current space:\n"
+            base_user_prompt += "Your objective is to predict the next change in the environment given the state of the environment and the action taken. "
+            base_user_prompt += "The last state was: \n"
 
             all_user_prompts = []
             all_assistant_prompts = []
@@ -388,8 +388,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 user_prompt = base_user_prompt
                 # Add initialisation observation and first action
                 user_prompt += trajectory.lst_obs[incr] + " "
-                user_prompt += f"\na: {trajectory.lst_act[incr]} "
-                user_prompt += "\no:"
+                user_prompt += f"\nThe action was: {trajectory.lst_act[incr]} "
+                user_prompt += "\nThe change is:"
                 # Compute the prompt for the assistant
                 assistant_prompt = trajectory.lst_diff[incr]
                 all_user_prompts.append(user_prompt)
@@ -398,10 +398,10 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
         def _format_trajectory_for_theorist(trajectory: Trajectory) -> str:
             """Format trjaectory for theorist"""
-            msg = f"In the current space: {trajectory.lst_obs[0]}. \nThe sequence of actions and observations is: "
+            msg = f"\nThe first state was: {trajectory.lst_obs[0]}. \nThe sequence of actions and states was: "
             for i, diff in enumerate(trajectory.lst_diff):
-                msg += f" a: {trajectory.lst_act[i]}"
-                msg += f" o: {diff}"
+                msg += f"\nThe action was: {trajectory.lst_act[i]}"
+                msg += f"\nThe change was: {diff}"
             msg += "\n"
             return msg
 
@@ -413,9 +413,9 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         ):
             """Template given to the theorist to sample new rules given trajectories"""
             msg = (
-                "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
-                + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
-                + "Your previous experiences were: \n\n"
+                "You are in an environment that contains multiple objects. It can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
+                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and transform into a new object. "
+                + "Your previous experiences were: \n"
             )
             for trajectory in trajectories:
                 msg += _format_trajectory_for_theorist(trajectory)
@@ -439,8 +439,8 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         ) -> str:
             """Template given to the experimenter to ask for a new action"""
             msg = (
-                "I am in a space that can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
-                + "I can move an object, a plant or a herbivore and place it on another object to make them interact. "
+                "You are in an environment that contains multiple objects. It can contain water, plant seeds(carrot, porato, beet, berry and pea seeds), small herbivores(pig, cow and ship) and large herbivores(elephant, giraffe, rhinoceros). "
+                + "You can move objects, like water, plants or herbivores and release them on another object to make them interact and transform into a new object. "
             )
             msg += "Your objective is to take the best action given the past actions and observations. "
             if rule is not None:
@@ -585,11 +585,11 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         """Create observation from transition type and objects"""
         transition_type_to_obs = {
             "standing": "You are standing on the {0}.",
-            "holding1": "You are holding the {0}.",
-            "holding2": "You are holding the {0} and the {1}.",
-            "transformBH": "The {3} appears from the transformation.",
-            "transformP": "The {2} appears from the transformation.",
-            "transformSH": "The {2} appears from the transformation.",
+            "holding1": "In your inventory, there is the {0}.",
+            "holding2": "In your inventory, there are the {0} and the {1}.",
+            "transformBH": "The objects transform into the {3}.",
+            "transformP": "The objects transform into the {2}.",
+            "transformSH": "The objects transform into the {2}.",
         }
         empty_object_alternative = {
             "standing": "You are standing on nothing.",
@@ -715,10 +715,24 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         self, description: str
     ) -> Tuple[List[str], List[str], List[str]]:
         """Split the description into what you see, stand on and hold"""
-        split_description = description.split("\n")
-        lst_objects = split_description[0].split(": ")[1].split(", ")
-        lst_standing = split_description[1].split(": ")[1].split(", ")
-        lst_holding = split_description[2].split(": ")[1].split(", ")
+        split_description = description.split(".")
+        lst_objects = [
+            elem.split(",")[0] for elem in split_description[0].split(" the ")[1:]
+        ]
+        if len(split_description) == 4:
+            # There is a standing
+            lst_standing = [split_description[1].split(" the ")[-1]]
+            index_holding = 2
+        else:
+            # There is no standing
+            lst_standing = ["nothing"]
+            index_holding = 1
+        if "nothing" in split_description[index_holding]:
+            lst_holding = ["empty"]
+        else:
+            lst_holding = re.split(
+                r" the | and| in ", split_description[index_holding]
+            )[1::2]
         return lst_objects, lst_standing, lst_holding
 
     # --- Main gym functions---
@@ -930,17 +944,19 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         """
         Return a natural language description of the scene
         """
-        desc = "You see: "
-        desc += ", ".join(
+        desc = "You see the "
+        desc += ", the ".join(
             rm_trailing_number(obj)
             for obj in self.obj_dict.keys()
             if not self.obj_dict[obj]["grasped"]
         )
+        desc += ". "
         agent_on = [
             obj for obj in self.obj_dict.keys() if self.obj_dict[obj]["agent_on"]
         ]
         assert len(agent_on) <= 1, "In this environment, you can only stand on 1 object"
-        desc += f'\nYou are on: {", ".join([rm_trailing_number(obj_on) for obj_on in agent_on]) if len(agent_on) > 0 else "nothing"}'
+        if len(agent_on) == 1:
+            desc += f"You are next to the {rm_trailing_number(agent_on[0])}. "
         obj_held = [
             (obj) for obj in self.obj_dict.keys() if self.obj_dict[obj]["grasped"]
         ]
@@ -948,7 +964,14 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
         for obj in self.obj_dict.keys():
             if self.obj_dict[obj]["grasped"]:
                 nb_held += 1
-        desc += f'\nInventory ({nb_held}/2): {", ".join([rm_trailing_number(o_held) for o_held in obj_held]) if len(obj_held) > 0 else "empty"}'
+        if nb_held == 0:
+            desc += "In your inventory, there is nothing."
+        elif nb_held == 1:
+            desc += (
+                f"In your inventory, there is the {rm_trailing_number(obj_held[0])}."
+            )
+        else:
+            desc += f'In your inventory, there are the {" and the ".join([rm_trailing_number(o_held) for o_held in obj_held])}.'
 
         # Create a list of possible actions
         possible_actions = []
@@ -1025,16 +1048,25 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
         return desc, info
 
-    def get_all_possible_transitions(self) -> Tuple[List[str], List[str]]:
+    def get_all_possible_transitions(self) -> Tuple[List[str], List[str], List[bool]]:
         """Return all possible next observations from current observation"""
         # Split text description
         all_objects = []
+        seen_objects = []
         all_seed_plant = []
         all_mature_plant = []
         all_baby_small_herbivorous = []
         all_baby_big_herbivorous = []
+        grasped_objects = []
+        standing_object = []
         for obj, obj_info in self.obj_dict.items():
             obj = rm_trailing_number(obj)
+            if obj_info["grasped"]:
+                grasped_objects.append(obj)
+            elif obj_info["agent_on"]:
+                standing_object.append(obj)
+            else:
+                seen_objects.append(obj)
             all_objects.append(obj)
             if obj_info["category"] == "plant":
                 if obj_info["grown"]:
@@ -1048,20 +1080,27 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
 
         all_transitions = []
         all_transitions_type = []
+        possible_transitions_mask = []
         # Add all possible standing transitions
         all_transitions.append(self.transition_type_to_observation("standing", []))
         all_transitions_type.append("standing")
+        possible_transitions_mask.append(False)
         for obj in all_objects:
             all_transitions.append(
                 self.transition_type_to_observation("standing", [obj])
             )
             all_transitions_type.append("standing")
+            possible_transitions_mask.append(obj in seen_objects + standing_object)
         # Add all holding1 transitions
         for obj in all_objects:
             all_transitions.append(
                 self.transition_type_to_observation("holding1", [obj])
             )
             all_transitions_type.append("holding1")
+            if obj in standing_object and len(grasped_objects) == 0:
+                possible_transitions_mask.append(True)
+            else:
+                possible_transitions_mask.append(False)
         # Add all holding2 transitions
         for i, obj1 in enumerate(all_objects):
             for j in range(i + 1, len(all_objects)):
@@ -1077,6 +1116,12 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                 )
                 all_transitions_type.append("holding2")
                 all_transitions_type.append("holding2")
+                if grasped_objects == [obj1] and all_objects[j] in standing_object:
+                    possible_transitions_mask.extend([True, False])
+                elif grasped_objects == [all_objects[j]] and obj1 in standing_object:
+                    possible_transitions_mask.extend([False, True])
+                else:
+                    possible_transitions_mask.extend([False, False])
 
         # Add all transformP transitions
         for seed in all_seed_plant:
@@ -1093,6 +1138,13 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
             )
             all_transitions_type.append("transformP")
             all_transitions_type.append("transformP")
+            if "water" in grasped_objects and seed in standing_object:
+                possible_transitions_mask.extend([True, False])
+            elif seed in grasped_objects and "water" in standing_object:
+                possible_transitions_mask.extend([False, True])
+            else:
+                possible_transitions_mask.extend([False, False])
+
         # Add all transformSH transitions
         for baby in all_baby_small_herbivorous:
             new_name = baby[5:]
@@ -1108,6 +1160,12 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                     )
                 )
                 all_transitions_type.extend(["transformSH", "transformSH"])
+                if baby in grasped_objects and mature_plant in standing_object:
+                    possible_transitions_mask.extend([True, False])
+                elif mature_plant in grasped_objects and baby in standing_object:
+                    possible_transitions_mask.extend([False, True])
+                else:
+                    possible_transitions_mask.extend([False, False])
         # Add all transformBH transitions
         for baby in all_baby_big_herbivorous:
             new_name = baby[5:]
@@ -1135,10 +1193,41 @@ class PlayGroundText(BaseRuleEnv):  # Transformer en wrapper
                         all_transitions_type.extend(
                             ["transformBH", "transformBH", "transformBH"]
                         )
+                        if len(grasped_objects) == 2:
+                            if (
+                                baby == grasped_objects[0]
+                                and mature_plant1 == grasped_objects[1]
+                                and mature_plant2 in standing_object
+                            ):
+                                possible_transitions_mask.extend([True, False, False])
+                            elif (
+                                mature_plant1 == grasped_objects[0]
+                                and baby == grasped_objects[1]
+                                and mature_plant2 in standing_object
+                            ):
+                                possible_transitions_mask.extend([False, True, False])
+                            elif (
+                                baby in standing_object
+                                and [mature_plant1, mature_plant2] == grasped_objects
+                            ):
+                                possible_transitions_mask.extend([False, False, True])
+                            else:
+                                possible_transitions_mask.extend([False, False, False])
+                        else:
+                            possible_transitions_mask.extend([False, False, False])
         unique_index = np.unique(all_transitions, return_index=True)[1]
-        return [all_transitions[index] for index in unique_index], [
-            all_transitions_type[index] for index in unique_index
-        ]
+        # Mask needs to be true where at least one of the possible transitions is true before removing duplicates
+        possible_transitions_mask = np.array(possible_transitions_mask)
+        for transition in [all_transitions[index] for index in unique_index]:
+            indices = np.where(np.array(all_transitions) == transition)[0]
+            possible_transitions_mask[indices] = np.any(
+                possible_transitions_mask[indices]
+            )
+        return (
+            [all_transitions[index] for index in unique_index],
+            [all_transitions_type[index] for index in unique_index],
+            [possible_transitions_mask[index] for index in unique_index],
+        )
 
     # --- Actions ---
 

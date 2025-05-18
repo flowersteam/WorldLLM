@@ -124,11 +124,10 @@ def important_sampling(
         all_dict["current_true_rule"].extend(
             [env.unwrapped.get_rule() for _ in range(len(rules))]
         )
-        # Change best rule if different than the previous one
+        # Change best rule
         best_rule_ind = np.argmax(likelihoods)
-        if best_rule_likelihood < likelihoods[best_rule_ind] or prev_best_rule is None:
-            prev_best_rule = best_rule
-            best_rule = rules[best_rule_ind]
+        prev_best_rule = best_rule
+        best_rule = rules[best_rule_ind]
 
         all_dict["best_rule"].append(best_rule)
 
@@ -140,6 +139,7 @@ def important_sampling(
                 best_rule,
                 prev_best_rule,
                 prompt_trajectories,
+                lst_transitions,
             )
             # Train the experimenter
             experimenter.train_step(new_rewards)

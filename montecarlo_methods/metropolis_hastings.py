@@ -2,7 +2,7 @@
 
 import os
 from copy import copy
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List
 
 import numpy as np
 from tqdm import tqdm
@@ -277,11 +277,10 @@ def metropolis_hastings(
                     worst_trajectories,
                     prev_worst_trajectories,
                 )
-        # Change best rule if different than the previous one
+        # Change best rule
         best_rule_ind = np.argmax(prev_likelihoods)
-        if prev_rules[best_rule_ind] != best_rule or prev_best_rule is None:
-            prev_best_rule = best_rule
-            best_rule = prev_rules[best_rule_ind]
+        prev_best_rule = best_rule
+        best_rule = prev_rules[best_rule_ind]
 
         all_dict["best_rule"].append(best_rule)
         all_dict["best_rule_ind"].append(best_rule_ind)
@@ -294,6 +293,7 @@ def metropolis_hastings(
                 best_rule,
                 prev_best_rule,
                 prompt_trajectories,
+                lst_transitions,
             )
             # Train the experimenter
             experimenter.train_step(new_rewards)

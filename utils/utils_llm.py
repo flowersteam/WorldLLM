@@ -91,7 +91,7 @@ def load_transformers(
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=model_config["name"],
             load_in_4bit=model_config["is_quantized"],
-            max_seq_length=4096,
+            max_seq_length=model_config["max_seq_len"],
         )
         FastLanguageModel.for_inference(model)  # Enable native 2x faster inference
     else:  # Use transformers
@@ -274,8 +274,8 @@ def _generate_rule(
         generated_sequences, skip_special_tokens=True
     )
     logp = torch.nn.functional.log_softmax(torch.stack(results.scores, dim=1), dim=-1)
-    # Put the score of the padding token to 0 to ignore(not done by every model)
-    logp[:, :, theorist.tokenizer.pad_token_id] = 0
+    # Put the score of the padding token and eos to 0 to ignore(not done by every model)
+    logp[:, :, [theorist.tokenizer.pad_token_id, theorist.tokenizer.eos_token_id]] = 0
     scores = torch.gather(logp, 2, generated_sequences[:, :, None]).squeeze(-1)
     aggregated_scores = scores.sum(-1)
     return generated_rules, aggregated_scores.cpu()
