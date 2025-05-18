@@ -2,7 +2,7 @@
 
 import os
 from copy import copy
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List
 
 import numpy as np
 from tqdm import tqdm
