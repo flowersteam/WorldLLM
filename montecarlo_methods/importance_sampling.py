@@ -29,7 +29,7 @@ def get_unique_rules(
     return unique_rules, np.array(counts), np.array(new_weights)
 
 
-def important_sampling(
+def importance_sampling(
     env: BaseWrapper,
     experimenter: BaseAgent,
     theorist: LlmModel,

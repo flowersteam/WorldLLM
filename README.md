@@ -1,17 +1,13 @@
 # WorldLLM
-We introduce WorldLLM, a framework that aims to transform a language model into a world model, by improving its understanding of the environment and its ability to predict its evolution. The method developed consists of searching for and constructing a set of explanations, which are then transmitted to the language model. We take inspiration from prior work by collecting trajectories with an agent rewarded to collect transitions that the model struggles to predict.
-
-This work is still opened research and aims to better understand and use LLMs in reinforcement learning environments.
-
+We introduce WorldLLM, a framework for autonomous improvement of an LLM's world modeling abilities. Our approach combines 1) probabilistic theory induction to produce hypotheses that are given in our LLM's prompt to improve its predictions and 2) curiosity-driven RL to explore the environment and collect transitions poorly predicted with the current hypotheses.
 
 ## Method
-![WorldLLM](Overview.png)   
-The method is composed of three modules:
-1. **The Experimenter** : An agent(RL or LLM) whose role is to interact with the environment and gather experiences.
-2. **The Theorist**: An LLM with good reasoning skills, who must extract information from the different trajectories to hypothesize rules about the environment.
-3. **The Statistician** : The LLM to be transformed into a world model. Its objective is to predict the evolution of the environment based on the information contained in the explanations provided. It is also used to assess the quality of the explanations and to determine whether or not more explanations are needed.
+![WorldLLM](overview.png)   
+Our framework aims at improving an LLM's ability to predict the outcome of state-action pairs by augmenting it with natural language hypotheses about the world (Statistician). 
+WorldLLM alternates between generating hypotheses (Scientist) and collecting evidence to update these hypotheses (Experimenter). The former uses Bayesian inference with an LLM as the proposal distribution. 
+The latter uses curiosity-driven RL to train an agent to collect experiences that have a low likelihood under the Statistician with the current set of hypotheses.
 
-More details will be available when the paper will be accessible.
+More details are accessible in our [paper]().
 
 ## Project Structure
 
@@ -34,6 +30,8 @@ WorldLLM/
 │   ├── importance_sampling.py
 │   └── metropolis_hastings.py
 │
+├── plots/
+│
 ├── utils/
 │
 ├── worldllm_envs/
@@ -46,15 +44,16 @@ WorldLLM/
 └── LICENSE
 ```
 
-- `configs/`: YAML file to configure main.py using `hydra`
-- `lab/`: Folder containing single files to evaluate the generated worldmodel or to test scoring methods
+- `configs/`: YAML file to configure main.py using `hydra`.
+- `lab/`: Folder containing single files to evaluate the generated world model or to test scoring methods.
 - `montecarlo_methods/`: Implementation of Monte Carlo methods.
-- `utils/`: Utility functions and scripts for LLMs and agents
+- `plots/`: Jupyter notebooks used to analyze our results.
+- `utils/`: Utility functions and scripts for LLMs and agents.
 - `worldllm_envs/`: Custom environments for the WorldLLM project.
 - `main.py`: Main script to run the project.
 
 # Getting Started
-This project was developed on PyTorch using the Hugging Face's Transformers library.
+This project was developed on PyTorch using Hugging Face's Transformers library.
 ## Setup
 
 The project was run with Python 3.10.12 and managed in a virtual environment with pip. To run this repository, ensure you have all the required dependencies installed by running:

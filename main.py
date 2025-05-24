@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from montecarlo_methods.important_sampling import important_sampling
+from montecarlo_methods.importance_sampling import importance_sampling
 from montecarlo_methods.metropolis_hastings import metropolis_hastings
 from utils.utils_llm import LlmAgent, LlmModel, Statistician, build_llms
 from utils.utils_sb3 import SB3Agent
@@ -68,7 +68,7 @@ def main(cfg: DictConfig) -> None:
     print(f"GPU RAM usage: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
     # Run the algorithm
     if cfg.algorithm.name == "importance_sampling":
-        output = important_sampling(
+        output = importance_sampling(
             env,
             experimenter,
             theorist,
